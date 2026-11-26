@@ -40,9 +40,7 @@ function safeSetStorage(key, value) {
 const CATEGORY_LABELS = {
   kanunlar: "Kanunlar",
   tebligler: "Tebliğler",
-  ozelgeler: "Özelgeler",
-  sirkulerler: "Sirkülerler",
-  yonetmelikler: "Yönetmelikler"
+  sirkulerler: "Sirkülerler"
 };
 
 const MEVZUAT_BY_CATEGORY = {
@@ -68,31 +66,24 @@ const MEVZUAT_BY_CATEGORY = {
     "KDV Genel Uygulama Tebliği",
     "Kurumlar Vergisi Genel Tebliği (Seri No: 1)",
     "Vergi Usul Kanunu Genel Tebliği (Sıra No: 509 - e-Belge Uygulamaları)",
+    "Vergi Usul Kanunu Genel Tebliği (Sıra No: 459 - Tevsik Zorunluluğu)",
     "Transfer Fiyatlandırması Yoluyla Örtülü Kazanç Dağıtımı Hakkında Genel Tebliğ (Seri No: 1)",
     "Gelir Vergisi Genel Tebliği (Seri No: 311 - Ücret İstisnası ve Uygulaması)",
+    "Gelir Vergisi Genel Tebliği (Seri No: 252 - Tevkifat Yoluyla Kesilen Vergilerin İadesi)",
     "Tahsilat Genel Tebliği (Seri No: A/1)",
-    "Özel Tüketim Vergisi (I), (II), (III) ve (IV) Sayılı Liste Uygulama Genel Tebliğleri"
-  ],
-  ozelgeler: [
-    "GİB Özelgeleri - İştirak ve Taşınmaz Satış Kazancı İstisnası (KVK m. 5)",
-    "GİB Özelgeleri - KDV İndirimi, İadesi ve Sorumlu Sıfatıyla Tevkifat (KDV m. 9, 29, 32)",
-    "GİB Özelgeleri - Belge Düzeni, Değerleme, Amortisman ve Düzeltme (VUK)",
-    "GİB Özelgeleri - Serbest Meslek, Ücret ve Gayrimenkul Sermaye İradı (GVK)",
-    "GİB Özelgeleri - Kanuni Temsilci Sorumluluğu ve Haciz Uygulamaları (6183 sayılı Kanun)"
+    "Özel Tüketim Vergisi (I), (II), (III) ve (IV) Sayılı Liste Uygulama Genel Tebliğleri",
+    "Damga Vergisi Kanunu Genel Tebliğleri",
+    "Harçlar Kanunu Genel Tebliğleri"
   ],
   sirkulerler: [
     "Vergi Usul Kanunu Sirküleri - Elektronik Belge ve Beyan Uygulamaları",
+    "Vergi Usul Kanunu Sirküleri - Enflasyon Düzeltmesi ve Değerleme Uygulamaları",
     "Kurumlar Vergisi Sirküleri - İstisnalar, Geçici Vergi ve Matrah Uygulamaları",
+    "Kurumlar Vergisi Sirküleri - Yurt Dışı Kazanç, İndirim ve Kâr Payı Uygulamaları",
     "Katma Değer Vergisi Sirküleri - Tevkifat, İndirim ve İade Usulleri",
+    "Katma Değer Vergisi Sirküleri - İndirimli Oran ve İhraç Kayıtlı Teslimler",
     "Gelir Vergisi Sirküleri - Tevkifat, İstisna ve Beyan Uygulamaları",
     "Tahsilat Sirküleri - Tecil, Taksitlendirme ve Amme Alacağı Takibi"
-  ],
-  yonetmelikler: [
-    "Transfer Fiyatlandırması Yoluyla Örtülü Kazanç Dağıtımı Hakkında Yönetmelik",
-    "Vergi Usul Kanunu Uyarınca Defter ve Belgelerin Elektronik Ortamda Tutulması/Düzenlenmesi Yönetmeliği",
-    "Vergi Cezalarında Uzlaşma Yönetmeliği / Tarhiyat Öncesi Uzlaşma Yönetmeliği",
-    "Amme Alacaklarının Tahsil Usulü Hakkında Kanun Uygulama Yönetmeliği",
-    "Mal ve Hizmetlere Uygulanacak Katma Değer Vergisi Oranlarının Tespitine İlişkin Karar/Düzenlemeler"
   ]
 };
 
@@ -179,7 +170,7 @@ function cleanMarkdownAndUrls(text) {
 
 function isNoisyScrapedItem(line) {
   const lower = String(line || "").toLocaleLowerCase("tr");
-  if (!line || line.length < 8 || line.length > 165) return true;
+  if (!line || line.length < 8 || line.length > 180) return true;
   if (
     lower.includes("son gün ") ||
     lower.includes("vergi-takvimi") ||
@@ -199,9 +190,7 @@ function isNoisyScrapedItem(line) {
 
 function inferCategoryFromLine(line, fallbackCategory = null) {
   const lower = String(line || "").toLocaleLowerCase("tr");
-  if (lower.includes("yönetmelik") || lower.includes("yonetmelik")) return "yonetmelikler";
   if (lower.includes("sirküler") || lower.includes("sirkuler")) return "sirkulerler";
-  if (lower.includes("özelge") || lower.includes("ozelge")) return "ozelgeler";
   if (lower.includes("tebliğ") || lower.includes("teblig")) return "tebligler";
   if (lower.includes("kanun")) return "kanunlar";
   return fallbackCategory;
@@ -211,9 +200,7 @@ function extractItemsFromPoolText(rawText, defaultCategory = null) {
   const buckets = {
     kanunlar: [],
     tebligler: [],
-    ozelgeler: [],
-    sirkulerler: [],
-    yonetmelikler: []
+    sirkulerler: []
   };
 
   let currentSectionCategory = defaultCategory;
@@ -235,18 +222,12 @@ function extractItemsFromPoolText(rawText, defaultCategory = null) {
     if (isNoisyScrapedItem(cleaned)) continue;
 
     const headingCat = inferCategoryFromLine(cleaned, null);
-    if (headingCat && cleaned.length <= 120) {
+    if (headingCat && cleaned.length <= 130) {
       currentSectionCategory = headingCat;
     }
 
     const targetCat = headingCat || currentSectionCategory;
     if (!targetCat || !buckets[targetCat]) continue;
-
-    const hasRelevantKeyword =
-      /\b\d{3,4}\s*sayılı/i.test(cleaned) ||
-      /(kanun|tebliğ|teblig|özelge|ozelge|sirküler|sirkuler|yönetmelik|yonetmelik|madde|m\.|kdv|kvk|vuk|gvk)/i.test(cleaned);
-
-    if (!hasRelevantKeyword) continue;
 
     if (!buckets[targetCat].includes(cleaned)) {
       buckets[targetCat].push(cleaned);
@@ -269,8 +250,8 @@ function syncCategoryUi() {
   document.querySelectorAll(".law-cat-btn").forEach((btn) => {
     const isSelected = btn.dataset.category === activeCategory;
     btn.className = isSelected
-      ? "law-cat-btn cursor-pointer rounded-lg py-2 px-1 text-[11px] font-bold bg-slate-900 text-white shadow-xs transition truncate"
-      : "law-cat-btn cursor-pointer rounded-lg py-2 px-1 text-[11px] font-semibold text-slate-600 hover:text-slate-900 transition truncate";
+      ? "law-cat-btn cursor-pointer rounded-lg py-2 px-1 text-[12px] font-bold bg-slate-900 text-white shadow-xs transition truncate"
+      : "law-cat-btn cursor-pointer rounded-lg py-2 px-1 text-[12px] font-semibold text-slate-600 hover:text-slate-900 transition truncate";
   });
 
   const label = CATEGORY_LABELS[activeCategory] || "Kanunlar";
@@ -415,7 +396,7 @@ async function syncPoolToActiveCategory() {
     document.getElementById("lawSearchInput")?.value || ""
   );
   setLawStatus(
-    `Havuz tarandı: Kanun (${buckets.kanunlar.length}), Tebliğ (${buckets.tebligler.length}), Özelge (${buckets.ozelgeler.length}), Sirküler (${buckets.sirkulerler.length}), Yönetmelik (${buckets.yonetmelikler.length}).`
+    `Havuz tarandı: Kanun (${buckets.kanunlar.length}), Tebliğ (${buckets.tebligler.length}), Sirküler (${buckets.sirkulerler.length}).`
   );
 }
 window.syncPoolToActiveCategory = syncPoolToActiveCategory;
@@ -463,7 +444,7 @@ function appendLawText(incoming, sourceLabel) {
     document.getElementById("lawSearchInput")?.value || ""
   );
   setLawStatus(
-    `"${sourceLabel}" aktarıldı${trimmedNote} — Kanun: ${buckets.kanunlar.length}, Tebliğ: ${buckets.tebligler.length}, Özelge: ${buckets.ozelgeler.length}, Sirküler: ${buckets.sirkulerler.length}, Yönetmelik: ${buckets.yonetmelikler.length}.`
+    `"${sourceLabel}" aktarıldı${trimmedNote} — Kanun: ${buckets.kanunlar.length}, Tebliğ: ${buckets.tebligler.length}, Sirküler: ${buckets.sirkulerler.length}.`
   );
 }
 
@@ -720,7 +701,7 @@ function buildStrictTaxAdvisorInstruction() {
 
   const honestyGuardrail = [
     "KESİN DOĞRULUK VE UYDURMAMA KURALI:",
-    "- Asla kanun/tebliğ/özelge/sirküler/yönetmelik numarası, madde, oran, tutar veya süre uydurma; emin olmadığın hiçbir bilgiyi kesinmiş gibi sunma.",
+    "- Asla kanun/tebliğ/sirküler numarası, madde, oran, tutar veya süre uydurma; emin olmadığın hiçbir bilgiyi kesinmiş gibi sunma.",
     "- Mevzuat Havuzu'nda kaynak metin verilmişse öncelikle o metindeki hükümlere sadık kal; metinde yer almayan veya belirsiz kalan noktalarda 'Mevzuat Havuzu'nda yer almıyor / teyit edilmelidir' diye açıkça belirt.",
     "- Güncel/dönemsel tutar, had, oran veya sonradan değişmiş olabilecek düzenlemeler konusunda tam kesinlik yoksa veya güncel Resmî Gazete/GİB teyidi gerekiyorsa tahmin yürütme; ilgili mevzuat mantığını açıklayıp güncel teyit gerektirdiğini net yaz.",
     `- Bugünün tarihi: ${todayStr}. Aktif mevzuat bölümü: ${catLabel} | Seçili başlık: ${activeTopic || "Belirtilmedi"}.`
@@ -983,7 +964,7 @@ async function handleChatSend(overrideQuestion = "") {
 
 Görevlerin:
 1. "comment": Mevzuat yorumu yap. Kesin hükümleri net açıkla; uydurma numara, madde, oran/tutar veya kesin olmayan yargı üretme.
-2. "crossLawLinks": İlgili kanunlar, tebliğler, yönetmelikler veya tahsil/usul hükümleri arasındaki somut bağlantıları madde/kavram düzeyinde listele (yalnızca gerçek ve emin olunan bağlantıları yaz).
+2. "crossLawLinks": İlgili kanunlar, tebliğler veya sirkülerler arasındaki somut bağlantıları madde/kavram düzeyinde listele (yalnızca gerçek ve emin olunan bağlantıları yaz).
 3. "guidance": Kullanıcıyı bir sonraki adımda neyi kontrol etmesi, hangi ayrımı netleştirmesi veya hangi kaynağı incelemesi gerektiği konusunda somut ve yönlendirici maddelerle yönlendir.
 4. "caution": Eğer soruda güncel/dönemsel had-oran-tebliğ teyidi gerekiyorsa, Mevzuat Havuzu'nda kaynak eksikse veya belirsizlik varsa bunu açıkça yaz; her şey netse boş bırak "".
 
