@@ -9,27 +9,28 @@ const STORAGE_KEYS = {
 const MAX_LAW_CHARS = 25000;
 
 const GIB_MEVZUAT_POOL = [
-  "193 sayılı Gelir Vergisi Kanunu - Ticari Kazancın Tespiti ve İndirilecek Giderler (GVK m. 38-40)",
-  "193 sayılı Gelir Vergisi Kanunu - Ücret İstisnaları ve Vergi Tarifesi (GVK m. 23, 103)",
-  "193 sayılı Gelir Vergisi Kanunu - Serbest Meslek Kazançları ve Stopaj Uygulaması (GVK m. 65-68, 94)",
-  "193 sayılı Gelir Vergisi Kanunu - Gayrimenkul Sermaye İradı İstisnası ve Götürü Gider (GVK m. 21, 70, 74)",
-  "193 sayılı Gelir Vergisi Kanunu - Menkul Sermaye İratları ve Değer Artışı Kazançları (GVK m. 75, Mük. 80)",
-  "5520 sayılı Kurumlar Vergisi Kanunu - İştirak Kazançları İstisnası (KVK m. 5/1-a)",
-  "5520 sayılı Kurumlar Vergisi Kanunu - Taşınmaz ve İştirak Hissesi Satış Kazancı İstisnası (KVK m. 5/1-e)",
-  "5520 sayılı Kurumlar Vergisi Kanunu - Ar-Ge ve Tasarım İndirimi ile Yatırım İndirimi (KVK m. 10)",
-  "5520 sayılı Kurumlar Vergisi Kanunu - Kabul Edilmeyen İndirimler ve Örtülü Sermaye (KVK m. 11-12)",
-  "5520 sayılı Kurumlar Vergisi Kanunu - Transfer Fiyatlandırması Yoluyla Örtülü Kazanç Dağıtımı (KVK m. 13)",
-  "3065 sayılı Katma Değer Vergisi Kanunu - Teslim ve Hizmet Sayılan Haller ile Vergiyi Doğuran Olay (KDV m. 1-5, 10)",
-  "3065 sayılı Katma Değer Vergisi Kanunu - Mal ve Hizmet İhracatı İstisnası ve İadesi (KDV m. 11-12, 32)",
-  "3065 sayılı Katma Değer Vergisi Kanunu - İndirim Hakkı ve İndirilmeyecek KDV (KDV m. 29-30)",
-  "3065 sayılı Katma Değer Vergisi Kanunu - Tevkifat Uygulaması ve Sorumluluk (KDV m. 9)",
-  "213 sayılı Vergi Usul Kanunu - Vergi Hataları ve Düzeltme Usulleri (VUK m. 116-126)",
-  "213 sayılı Vergi Usul Kanunu - Tarh ve Tebliğ Zamanaşımı (VUK m. 113-115)",
-  "213 sayılı Vergi Usul Kanunu - Vergi Ziyaı, Usulsüzlük Cezaları ve Uzlaşma (VUK m. 341-376, Ek m. 1-11)",
-  "213 sayılı Vergi Usul Kanunu - Değerleme Ölçüleri, Amortisman ve Karşılıklar (VUK m. 258-329)",
-  "6183 sayılı Amme Alacaklarının Tahsil Usulü Hakkında Kanun - Kanuni Temsilcilerin Sorumluluğu ve Haciz (6183 m. Mük. 35, 62)",
-  "488 sayılı Damga Vergisi Kanunu - Kağıt Kavramı, Nispi ve Maktu Vergi ile İstisnalar (DV m. 1-14)",
-  "7338 sayılı Veraset ve İntikal Vergisi Kanunu - İstisnalar ve Matrahın Tespiti (VİV m. 4, 10)"
+  "193 sayılı Gelir Vergisi Kanunu",
+  "213 sayılı Vergi Usul Kanunu",
+  "3065 sayılı Katma Değer Vergisi Kanunu",
+  "5520 sayılı Kurumlar Vergisi Kanunu",
+  "6183 sayılı Amme Alacaklarının Tahsil Usulü Hakkında Kanunu",
+  "488 sayılı Damga Vergisi Kanunu",
+  "492 sayılı Harçlar Kanunu",
+  "7338 sayılı Veraset ve İntikal Vergisi Kanunu",
+  "1319 sayılı Emlak Vergisi Kanunu",
+  "4760 sayılı Özel Tüketim Vergisi Kanunu",
+  "197 sayılı Motorlu Taşıtlar Vergisi Kanunu",
+  "6802 sayılı Gider Vergileri Kanunu",
+  "2464 sayılı Belediye Gelirleri Kanunu",
+  "7194 sayılı Dijital Hizmet Vergisi ile Bazı Kanunlarda ve 375 Sayılı Kanun Hükmünde Kararnamede Değişiklik Yapılması Hakkında Kanun",
+  "7521 sayılı Konaklama Vergisi ile İlgili Hükümleri İçeren Kanun Düzenlemeleri (Gider Vergileri Kanunu m. 34)",
+  "4691 sayılı Teknoloji Geliştirme Bölgeleri Kanunu",
+  "5746 sayılı Araştırma, Geliştirme ve Tasarım Faaliyetlerinin Desteklenmesi Hakkında Kanun",
+  "3218 sayılı Serbest Bölgeler Kanunu",
+  "4562 sayılı Organize Sanayi Bölgeleri Kanunu",
+  "4458 sayılı Gümrük Kanunu",
+  "1567 sayılı Türk Parasının Kıymetini Koruma Hakkında Kanun",
+  "2577 sayılı İdari Yargılama Usulü Kanunu"
 ];
 
 const PRESETS = {
@@ -41,7 +42,7 @@ const PRESETS = {
 let stats = JSON.parse(localStorage.getItem(STORAGE_KEYS.stats) || '{"correct":0,"total":0,"byTopic":{}}');
 let mistakes = JSON.parse(localStorage.getItem(STORAGE_KEYS.mistakes) || "[]");
 let currentQuestion = {
-  topic: GIB_MEVZUAT_POOL[5],
+  topic: GIB_MEVZUAT_POOL[3],
   question: "Tam mükellef (X) A.Ş., tam mükellef (Y) A.Ş.'nin sermayesine iştirak etmekte ve (Y) A.Ş.'den nakit kâr payı almaktadır. Bu kazancın kurumlar vergisi karşısındaki durumu nedir?",
   options: [
     "A) Kurumlar vergisinden istisnadır.",
@@ -61,13 +62,19 @@ if (window.pdfjsLib && window.pdfjsLib.GlobalWorkerOptions) {
     "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 }
 
-function populateGibTopicSelect(selectedTopic = "") {
+function populateGibTopicSelect(selectedTopic = "", filterText = "") {
   const sel = document.getElementById("gibTopicSelect");
   if (!sel) return;
-  sel.innerHTML = GIB_MEVZUAT_POOL.map(
-    (item) => `<option value="${escapeAttr(item)}">${escapeHtml(item)}</option>`
-  ).join("");
-  if (selectedTopic && GIB_MEVZUAT_POOL.includes(selectedTopic)) {
+  const q = String(filterText || "").trim().toLocaleLowerCase("tr");
+  const list = q
+    ? GIB_MEVZUAT_POOL.filter((item) => item.toLocaleLowerCase("tr").includes(q))
+    : GIB_MEVZUAT_POOL;
+
+  sel.innerHTML = list.length
+    ? list.map((item) => `<option value="${escapeAttr(item)}">${escapeHtml(item)}</option>`).join("")
+    : `<option disabled value="">Eşleşen kanun bulunamadı</option>`;
+
+  if (selectedTopic && list.includes(selectedTopic)) {
     sel.value = selectedTopic;
   }
 }
@@ -78,6 +85,9 @@ function pickRandomGibTopic(currentValue = "") {
   const chosen = pool[Math.floor(Math.random() * pool.length)];
   const input = document.getElementById("topicInput");
   if (input) input.value = chosen;
+  const searchInput = document.getElementById("lawSearchInput");
+  if (searchInput) searchInput.value = "";
+  populateGibTopicSelect(chosen, "");
   const sel = document.getElementById("gibTopicSelect");
   if (sel) sel.value = chosen;
   return chosen;
@@ -238,7 +248,7 @@ function renderTopicStats() {
   const el = document.getElementById("topicStatsList");
   const entries = Object.entries(stats.byTopic || {});
   if (!entries.length) {
-    el.textContent = "Henüz soru çözülmedi. Soru çözdükçe konu bazlı doğru/yanlış dağılımı burada görünecek.";
+    el.textContent = "Henüz soru çözülmedi. Soru çözdükçe kanun bazlı doğru/yanlış dağılımı burada görünecek.";
     return;
   }
   el.innerHTML = entries.map(([topic, d]) => {
@@ -255,7 +265,7 @@ function renderMistakes() {
   const filterEl = document.getElementById("mistakeFilter");
   const currentFilter = filterEl.value || "ALL";
   const topics = ["ALL", ...new Set(mistakes.map((m) => m.topic))];
-  filterEl.innerHTML = topics.map((t) => `<option value="${escapeAttr(t)}">${t === "ALL" ? "Tüm Konular" : escapeHtml(t)}</option>`).join("");
+  filterEl.innerHTML = topics.map((t) => `<option value="${escapeAttr(t)}">${t === "ALL" ? "Tüm Kanunlar" : escapeHtml(t)}</option>`).join("");
   filterEl.value = topics.includes(currentFilter) ? currentFilter : "ALL";
 
   const filtered = mistakes.filter((m) => filterEl.value === "ALL" || m.topic === filterEl.value);
@@ -410,7 +420,8 @@ async function generateLessonAndQuestion(onlyQuestion = false) {
   btn.textContent = "Üretiliyor...";
 
   try {
-    const prompt = `Kaynak bağlam: gib.gov.tr mevzuatı | Konu: "${topic}" | Zorluk: "${difficulty}".
+    const prompt = `Kaynak bağlam: gib.gov.tr mevzuatı | Seçilen Kanun: "${topic}" | Zorluk: "${difficulty}".
+Bu kanun kapsamından önemli bir konu veya vaka seçerek konu özeti, kritik ayrım ve 4 şıklı çoktan seçmeli soru üret.
 Yalnızca geçerli JSON döndür:
 {
   "lessonTitle": "...",
@@ -429,7 +440,7 @@ Yalnızca geçerli JSON döndür:
       document.getElementById("lessonTitle").textContent = parsed.lessonTitle || topic;
       document.getElementById("lessonSummary").textContent = parsed.lessonSummary || "";
       document.getElementById("lessonCritical").innerHTML = `<strong>Kritik Ayrım:</strong> ${escapeHtml(parsed.lessonCritical || "")}`;
-      document.getElementById("lessonBasis").textContent = `Dayanak: ${parsed.lessonBasis || "gib.gov.tr Mevzuat"}`;
+      document.getElementById("lessonBasis").textContent = `Dayanak: ${parsed.lessonBasis || topic}`;
     }
 
     renderQuestion({
@@ -549,11 +560,22 @@ function escapeAttr(str) {
 }
 
 document.getElementById("toggleLawPickerBtn").onclick = () => {
-  document.getElementById("lawPickerPanel").classList.toggle("hidden");
+  const panel = document.getElementById("lawPickerPanel");
+  panel.classList.toggle("hidden");
+  if (!panel.classList.contains("hidden")) {
+    const search = document.getElementById("lawSearchInput");
+    search.value = "";
+    populateGibTopicSelect(document.getElementById("topicInput").value.trim(), "");
+    search.focus();
+  }
 };
 
 document.getElementById("closeLawPickerBtn").onclick = () => {
   document.getElementById("lawPickerPanel").classList.add("hidden");
+};
+
+document.getElementById("lawSearchInput").oninput = (e) => {
+  populateGibTopicSelect(document.getElementById("topicInput").value.trim(), e.target.value);
 };
 
 document.getElementById("gibTopicSelect").onchange = (e) => {
@@ -671,7 +693,7 @@ document.getElementById("importBackupInput").onchange = (e) => {
 
 (function init() {
   const initialTopic = pickRandomGibTopic("");
-  populateGibTopicSelect(initialTopic);
+  populateGibTopicSelect(initialTopic, "");
   document.getElementById("apiKeyInput").value = localStorage.getItem(STORAGE_KEYS.apiKey) || "";
   const savedModel = localStorage.getItem(STORAGE_KEYS.model);
   if (savedModel) {
