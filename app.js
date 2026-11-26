@@ -14,9 +14,10 @@ const STORAGE_KEYS = {
 };
 
 const DEFAULT_GEMINI_MODEL = "gemini-3.8-flash";
-const YMM_SLICE_LIMIT = 35000;
-const GENERAL_SLICE_LIMIT = 35000;
-const LEG_SLICE_LIMIT = 20000;
+const YMM_SLICE_LIMIT = 20000;
+const GENERAL_SLICE_LIMIT = 15000;
+const LEG_SLICE_LIMIT = 8000;
+const FREE_TIER_BATCH_SIZE = 5;
 
 let currentMcqList = [];
 let currentYmmExam = {
@@ -142,7 +143,7 @@ async function callGemini(promptText, expectJson = true, systemInstructionText =
     ],
     generationConfig: {
       temperature: 0.35,
-      maxOutputTokens: 8192
+      maxOutputTokens: 4096
     }
   };
 
@@ -177,17 +178,20 @@ async function callGemini(promptText, expectJson = true, systemInstructionText =
       const errBody = await res.text();
       const isTransient = res.status === 429 || res.status === 500 || res.status === 503 || res.status === 504;
       if (isTransient && attempt < maxRetries) {
-        const waitMs = (attempt + 1) * 2500;
+        const waitMs = res.status === 429 ? (attempt + 1) * 5000 : (attempt + 1) * 2500;
         if (typeof onRetryStatus === "function") {
-          onRetryStatus(`Sunucu yoğun (${res.status}), ${Math.round(waitMs / 1000)} sn sonra tekrar deneniyor...`);
+          onRetryStatus(`Kota/yoğunluk (${res.status}), ${Math.round(waitMs / 1000)} sn beklenip tekrar deneniyor...`);
         }
         await sleep(waitMs);
         continue;
       }
 
+      if (res.status === 429) {
+        throw new Error("Ücretsiz kota sınırına ulaşıldı (429). 1-2 dakika bekleyip 5 soru ile tekrar deneyin.");
+      }
       throw new Error(`Gemini API Hatası (${res.status}): ${errBody.slice(0, 220)}`);
     } catch (networkErr) {
-      if (attempt < maxRetries) {
+      if (attempt < maxRetries && !String(networkErr?.message || "").includes("429")) {
         const waitMs = (attempt + 1) * 2000;
         if (typeof onRetryStatus === "function") {
           onRetryStatus(`Bağlantı tekrar deneniyor (${attempt + 1}/${maxRetries})...`);
@@ -277,18 +281,17 @@ function updatePoolStatusUI() {
   }
 }
 
-// 1. SMMM YETERLİLİK VERGİ MEVZUATI TESTİ
-async function generateMcqBatch(topic, difficulty, count, generalSlice) {
+// 1. SMMM YETERLİLİK VERGİ MEVZUATI TESTİ (5'ER SORULUK PAKETLEME)
+async function generateMcqBatch(topic, difficulty, count, generalSlice, onStatus) {
   const legContext = buildLegislationContext();
   const sys = `Sen TÜRMOB Serbest Muhasebeci Mali Müşavirlik (SMMM) Yeterlilik Sınavı 'Vergi Mevzuatı ve Uygulaması' komisyonu üyesisin.
 TÜRMOB SMMM Vergi Mevzuatı ve Uygulaması sınav tarzında sorular üret:
-- 193 sayılı GVK (ticari kazanç, mahsup/yurt dışı vergi, huzur hakkı/gayrimenkul/menkul/değer artışı kazancı, geçici vergi),
-- 5520 sayılı KVK (tasfiye beyannamesi süresi, örtülü sermaye, finansman gider kısıtlaması, dar mükellefiyet, yurt içi asgari kurumlar vergisi),
-- 3065 sayılı KDV Kanunu (ödenecek KDV, 2 No.lu sorumlu KDV, ihraç kayıtlı teslimde tecil edilebilir / tecil edilecek KDV, verginin konusu),
-- 213 sayılı VUK (emsal bedel esasları, zamanaşımı, izaha davet oranı),
-- 6183 sayılı AATUHK (ödeme emrine dava süresi, tahsil zamanaşımını kesen haller), 197 sayılı MTV, 4760 sayılı ÖTV (ilk iktisap) ve 1319 sayılı Emlak VK (bina vergisi mükellefiyetinin başlangıcı)
-alanlarından dengeli, somut ve hesaplamalı sorular kurgula.
-Sayısal sorularda tüm verileri ve vergi/KDV oranlarını sorunun içinde açıkça ver ve kendi içinde tutarlı hesapla.
+- 193 sayılı GVK (ticari kazanç, yurt dışı vergi mahsubu, huzur hakkı/kira/menkul/değer artışı, geçici vergi),
+- 5520 sayılı KVK (tasfiye beyannamesi, örtülü sermaye, finansman gider kısıtlaması, dar mükellefiyet, yurt içi asgari KV),
+- 3065 sayılı KDV Kanunu (ödenecek KDV, 2 No.lu sorumlu KDV, ihraç kayıtlı teslimde tecil-terkin, verginin konusu),
+- 213 sayılı VUK (emsal bedel, zamanaşımı, izaha davet),
+- 6183 sayılı AATUHK, 197 sayılı MTV, 4760 sayılı ÖTV ve 1319 sayılı Emlak VK.
+Sayısal sorularda tüm verileri ve oranları sorunun içinde açıkça ver ve kendi içinde tutarlı hesapla.
 
 SMMM / ÇALIŞMA HAVUZU:
 ${generalSlice || "TÜRMOB SMMM Vergi Mevzuatı ve Uygulaması Müfredatı"}
@@ -297,7 +300,7 @@ ${legContext}`;
 
   const prompt = `Odak / Konu: "${topic}" | Düzey: "${difficulty}".
 Tam olarak ${count} adet 5 şıklı (A, B, C, D, E) SMMM Yeterlilik Vergi Mevzuatı çoktan seçmeli soru üret.
-JSON alanlarının içindeki metinlerde çift tırnak (") yerine tek tırnak (') kullan ve paragraf/satır sonlarını \\n ile kodla.
+JSON alanlarının içindeki metinlerde çift tırnak (") yerine tek tırnak (') kullan ve satır sonlarını \\n ile kodla.
 Sadece şu JSON şemasını döndür:
 {
   "questions": [
@@ -305,20 +308,40 @@ Sadece şu JSON şemasını döndür:
       "question": "Somut olay ve veriler içeren soru metni...",
       "options": { "A": "...", "B": "...", "C": "...", "D": "...", "E": "..." },
       "answer": "A",
-      "explanation": "İlgili kanun maddesi, adım adım hesaplama ve açıklama..."
+      "explanation": "İlgili kanun maddesi, adım adım hesaplama ve kısa açıklama..."
     }
   ]
 }`;
 
-  const raw = await callGemini(prompt, true, sys, (msg) => {
-    const el = document.getElementById("mcqStatusText");
-    if (el) {
-      el.className = "status-text";
-      el.textContent = msg;
-    }
-  });
+  const raw = await callGemini(prompt, true, sys, onStatus);
   const parsed = parseJsonLoose(raw);
   return Array.isArray(parsed.questions) ? parsed.questions : [];
+}
+
+async function generateMcqInBatches(topic, difficulty, totalCount, generalSlice, onStatus) {
+  const allQuestions = [];
+  const totalBatches = Math.ceil(totalCount / FREE_TIER_BATCH_SIZE);
+
+  for (let b = 0; b < totalBatches; b++) {
+    const remaining = totalCount - allQuestions.length;
+    const batchCount = Math.min(FREE_TIER_BATCH_SIZE, remaining);
+
+    if (typeof onStatus === "function") {
+      onStatus(`SMMM soruları üretiliyor: Paket ${b + 1}/${totalBatches} (${allQuestions.length}/${totalCount} soru)...`);
+    }
+
+    const batch = await generateMcqBatch(topic, difficulty, batchCount, generalSlice, onStatus);
+    allQuestions.push(...batch.slice(0, batchCount));
+
+    if (b < totalBatches - 1) {
+      if (typeof onStatus === "function") {
+        onStatus(`Kota koruması: Sonraki paket için 4 sn bekleniyor (${allQuestions.length}/${totalCount} soru hazır)...`);
+      }
+      await sleep(4000);
+    }
+  }
+
+  return allQuestions;
 }
 
 function renderMcqToScreen(questions, topic) {
@@ -542,7 +565,7 @@ Sadece şu JSON formatında döndür:
 }
 
 SORU METNİ:
-${currentYmmExam.question.slice(0, 18000)}`;
+${currentYmmExam.question.slice(0, 12000)}`;
 
     const raw = await callGemini(prompt, true, sysPrompt, (msg) => setYmmStatus(msg));
     const parsed = parseJsonLoose(raw);
@@ -647,7 +670,7 @@ async function fetchLinksIntoPool() {
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const html = await resp.text();
       const doc = new DOMParser().parseFromString(html, "text/html");
-      const text = (doc.body?.innerText || "").replace(/\s+/g, " ").trim().slice(0, 15000);
+      const text = (doc.body?.innerText || "").replace(/\s+/g, " ").trim().slice(0, 12000);
       if (text) {
         poolAppend += `\n\n--- LİNK: ${item.title || item.url} (${item.url}) ---\n${text}`;
         extractedAny = true;
@@ -672,6 +695,9 @@ document.addEventListener("DOMContentLoaded", () => {
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./sw.js").catch(() => {});
   }
+
+  const countInput = document.getElementById("mcqCountInput");
+  if (countInput) countInput.value = "5";
 
   const savedModel = safeGetStorage(STORAGE_KEYS.model, DEFAULT_GEMINI_MODEL);
   const normModel = normalizeModelName(savedModel);
@@ -710,19 +736,25 @@ document.addEventListener("DOMContentLoaded", () => {
     const difficulty =
       document.getElementById("mcqDifficultySelect")?.value ||
       "SMMM Yeterlilik (Standart Sınav Düzeyi)";
-    const count = Math.min(Math.max(parseInt(document.getElementById("mcqCountInput")?.value || "10", 10) || 10, 1), 20);
+    const count = Math.min(Math.max(parseInt(document.getElementById("mcqCountInput")?.value || "5", 10) || 5, 1), 20);
     const generalSlice = safeGetStorage(STORAGE_KEYS.generalPool, "").slice(0, GENERAL_SLICE_LIMIT);
     const status = document.getElementById("mcqStatusText");
+    const btn = document.getElementById("generateMcqBtn");
 
+    if (btn) btn.disabled = true;
     try {
       status.className = "status-text";
-      status.textContent = "SMMM Vergi Mevzuatı test soruları üretiliyor...";
-      currentMcqList = await generateMcqBatch(topic, difficulty, count, generalSlice);
+      currentMcqList = await generateMcqInBatches(topic, difficulty, count, generalSlice, (msg) => {
+        status.className = "status-text";
+        status.textContent = msg;
+      });
       renderMcqToScreen(currentMcqList, topic);
       status.textContent = `${currentMcqList.length} SMMM sorusu hazırlandı.`;
     } catch (err) {
       status.className = "status-text error";
       status.textContent = "Hata: " + err.message;
+    } finally {
+      if (btn) btn.disabled = false;
     }
   });
 
@@ -733,19 +765,25 @@ document.addEventListener("DOMContentLoaded", () => {
     const difficulty =
       document.getElementById("mcqDifficultySelect")?.value ||
       "SMMM Yeterlilik (Standart Sınav Düzeyi)";
-    const count = Math.min(Math.max(parseInt(document.getElementById("mcqCountInput")?.value || "10", 10) || 10, 1), 20);
+    const count = Math.min(Math.max(parseInt(document.getElementById("mcqCountInput")?.value || "5", 10) || 5, 1), 20);
     const generalSlice = safeGetStorage(STORAGE_KEYS.generalPool, "").slice(0, GENERAL_SLICE_LIMIT);
     const status = document.getElementById("mcqStatusText");
+    const btn = document.getElementById("generateMcqPdfBtn");
 
+    if (btn) btn.disabled = true;
     try {
       status.className = "status-text";
-      status.textContent = "SMMM test PDF'i hazırlanıyor...";
-      const list = await generateMcqBatch(topic, difficulty, count, generalSlice);
+      const list = await generateMcqInBatches(topic, difficulty, count, generalSlice, (msg) => {
+        status.className = "status-text";
+        status.textContent = msg;
+      });
       exportMcqToPdf(list, topic, difficulty);
       status.textContent = "SMMM test ve cevap anahtarı PDF olarak indirildi.";
     } catch (err) {
       status.className = "status-text error";
       status.textContent = "Hata: " + err.message;
+    } finally {
+      if (btn) btn.disabled = false;
     }
   });
 
