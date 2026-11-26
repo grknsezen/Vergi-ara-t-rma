@@ -62,6 +62,19 @@ if (window.pdfjsLib && window.pdfjsLib.GlobalWorkerOptions) {
     "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 }
 
+function syncSelectionModeBadge() {
+  const badge = document.getElementById("activeSelectionBadge");
+  const autoCb = document.getElementById("autoRandomOnGenerate");
+  if (!badge) return;
+  if (autoCb && autoCb.checked) {
+    badge.textContent = "Rastgele Mod";
+    badge.className = "text-[11px] font-semibold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200/80 shrink-0";
+  } else {
+    badge.textContent = "Manuel Kanun";
+    badge.className = "text-[11px] font-semibold px-2.5 py-1 rounded-full bg-slate-900 text-white border border-slate-900 shrink-0";
+  }
+}
+
 function populateGibTopicSelect(selectedTopic = "", filterText = "") {
   const sel = document.getElementById("gibTopicSelect");
   if (!sel) return;
@@ -218,11 +231,11 @@ function updateNetworkStatus() {
   const dot = document.getElementById("netDot");
   const text = document.getElementById("netText");
   if (online) {
-    badge.className = "text-[11px] px-2 py-1 rounded-full border flex items-center gap-1.5 bg-emerald-950/70 text-emerald-300 border-emerald-700/60";
+    badge.className = "text-[11px] px-2.5 py-1 rounded-full border flex items-center gap-1.5 bg-emerald-950/70 text-emerald-300 border-emerald-700/60";
     dot.className = "w-2 h-2 rounded-full bg-emerald-400";
     text.textContent = "Çevrimiçi";
   } else {
-    badge.className = "text-[11px] px-2 py-1 rounded-full border flex items-center gap-1.5 bg-rose-950/70 text-rose-300 border-rose-700/60";
+    badge.className = "text-[11px] px-2.5 py-1 rounded-full border flex items-center gap-1.5 bg-rose-950/70 text-rose-300 border-rose-700/60";
     dot.className = "w-2 h-2 rounded-full bg-rose-400";
     text.textContent = "Çevrimdışı";
   }
@@ -236,12 +249,12 @@ function updateBadges(key) {
   const activeKey = (key ?? localStorage.getItem(STORAGE_KEYS.apiKey) ?? "").trim();
   if (activeKey.length > 10) {
     badge.textContent = "Canlı Gemini API Aktif";
-    badge.className = "text-[11px] text-emerald-400 truncate";
+    badge.className = "text-[11px] text-emerald-400 truncate mt-0.5";
   } else {
     badge.textContent = "Demo Modu (Ayarlardan API Anahtarı Ekleyin)";
-    badge.className = "text-[11px] text-amber-400 truncate";
+    badge.className = "text-[11px] text-amber-400 truncate mt-0.5";
   }
-  document.getElementById("scoreBadge").textContent = `Doğru: ${stats.correct} / ${stats.total}`;
+  document.getElementById("scoreBadge").textContent = `${stats.correct} / ${stats.total}`;
 }
 
 function renderTopicStats() {
@@ -607,14 +620,18 @@ document.getElementById("gibTopicSelect").onchange = (e) => {
   document.getElementById("topicInput").value = chosen;
   const autoCb = document.getElementById("autoRandomOnGenerate");
   if (autoCb) autoCb.checked = false;
+  syncSelectionModeBadge();
   document.getElementById("lawPickerPanel").classList.add("hidden");
 };
 
 document.getElementById("randomGibTopicBtn").onclick = () => {
   const autoCb = document.getElementById("autoRandomOnGenerate");
   if (autoCb) autoCb.checked = true;
+  syncSelectionModeBadge();
   pickRandomGibTopic(document.getElementById("topicInput").value.trim());
 };
+
+document.getElementById("autoRandomOnGenerate").onchange = syncSelectionModeBadge;
 
 document.getElementById("saveSettingsBtn").onclick = () => {
   const key = document.getElementById("apiKeyInput").value.trim();
@@ -717,6 +734,7 @@ document.getElementById("importBackupInput").onchange = (e) => {
 (function init() {
   const initialTopic = pickRandomGibTopic("");
   populateGibTopicSelect(initialTopic, "");
+  syncSelectionModeBadge();
   document.getElementById("apiKeyInput").value = localStorage.getItem(STORAGE_KEYS.apiKey) || "";
   const savedModel = localStorage.getItem(STORAGE_KEYS.model);
   if (savedModel) {
