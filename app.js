@@ -172,12 +172,13 @@ let remainingSeconds = 0;
 
 let currentSmmmQuestion = {
   subject: "Vergi Mevzuatı ve Uygulaması",
-  question: "SMMM Yeterlilik test sorusu üretmek için yukarıdan ders seçip 'SMMM Yeterlilik Test Sorusu Üret' butonuna basın.",
+  question: "SMMM Yeterlilik test sorusu üretmek için yukarıdan ders seçip 'Tek Soru Üret' veya 'Gerçek Sınav Sayısı Kadar PDF Test Üret ve İndir' butonuna basın.",
   options: [
     "A) Seçenek 1",
     "B) Seçenek 2",
     "C) Seçenek 3",
-    "D) Seçenek 4"
+    "D) Seçenek 4",
+    "E) Seçenek 5"
   ],
   answerIndex: 0,
   solution: "Çözüm adımları ve mevzuat/muhasebe dayanağı burada yer alır."
@@ -459,6 +460,14 @@ function setSmmmPoolStatus(msg, isError = false) {
   el.textContent = msg;
   el.style.color = isError ? "#e11d48" : "#3730a3";
   el.style.fontWeight = "600";
+  el.classList.remove("hidden");
+}
+
+function setSmmmPdfProgress(msg, isError = false) {
+  const el = document.getElementById("smmmPdfProgress");
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = isError ? "#e11d48" : "#3730a3";
   el.classList.remove("hidden");
 }
 
@@ -848,8 +857,19 @@ function parseJsonLoose(raw) {
     .replace(/[“”]/g, '"')
     .trim();
 
-  const start = cleaned.indexOf("{");
-  const end = cleaned.lastIndexOf("}");
+  const startObj = cleaned.indexOf("{");
+  const startArr = cleaned.indexOf("[");
+  let start = -1;
+  let end = -1;
+
+  if (startArr !== -1 && (startObj === -1 || startArr < startObj)) {
+    start = startArr;
+    end = cleaned.lastIndexOf("]");
+  } else {
+    start = startObj;
+    end = cleaned.lastIndexOf("}");
+  }
+
   if (start === -1 || end === -1 || end <= start) {
     throw new Error("Model geçerli JSON döndürmedi. Tekrar deneyin.");
   }
@@ -1037,6 +1057,263 @@ Yalnızca şu şemada tek bir JSON nesnesi döndür:
     });
   } catch (err) {
     alert("Hata: " + err.message);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = prevText;
+    }
+  }
+}
+
+async function generateSmmmBatchQuestions(subject, focus, style, smmmSlice, startIndex, count) {
+  const customPrefix = smmmSlice
+    ? `Sen TESMER SMMM Yeterlilik sınavlarına yönelik soru hazırlayan uzman bir akademisyen ve mali müşavir eğitmenisin. Aşağıdaki SMMM Örnek Soru Havuzu PDF metnindeki soru formatını, şık yapısını (A-E), hesaplama/vaka dilini ve zorluk düzeyini birebir takip ederek özgün çoktan seçmeli test soruları üret.\n\nSMMM ÖRNEK SORU HAVUZU:\n${smmmSlice}\n\n`
+    : `Sen TESMER SMMM Yeterlilik sınavlarına yönelik soru hazırlayan uzman bir akademisyen ve mali müşavir eğitmenisin. Güncel TMS/TFRS, Tekdüzen Muhasebe Sistemi ve Türk vergi/ticaret mevzuatına uygun özgün çoktan seçmeli test soruları üret.\n\n`;
+
+  const prompt = `Ders: "${subject}" | Alt Konu Odak: "${focus || "Genel Yeterlilik Kapsamı"}" | Soru Tarzı: "${style}".
+Tam olarak ${count} adet özgün 5 şıklı (A, B, C, D, E) SMMM Yeterlilik test sorusu üret (Soru numaraları ${startIndex}'den başlasın).
+Uydurma kanun/madde/oran kullanma. JSON içindeki metinlerde asla çift tırnak (") kullanma; tek tırnak (') kullan.
+Yalnızca şu JSON nesnesini döndür:
+{
+  "questions": [
+    {
+      "no": ${startIndex},
+      "question": "...",
+      "options": ["A) ...", "B) ...", "C) ...", "D) ...", "E) ..."],
+      "answerLetter": "A",
+      "solution": "..."
+    }
+  ]
+}`;
+
+  const raw = await callGemini(prompt, true, customPrefix);
+  const parsed = parseJsonLoose(raw);
+  const arr = Array.isArray(parsed.questions) ? parsed.questions : (Array.isArray(parsed) ? parsed : []);
+  return arr.map((item, idx) => {
+    const opts = Array.isArray(item.options) && item.options.length >= 2
+      ? item.options.slice(0, 5)
+      : ["A) Seçenek A", "B) Seçenek B", "C) Seçenek C", "D) Seçenek D", "E) Seçenek E"];
+    const letter = String(item.answerLetter || ["A", "B", "C", "D", "E"][Number(item.answerIndex) || 0] || "A")
+      .trim()
+      .toUpperCase()
+      .slice(0, 1);
+    return {
+      no: Number(item.no) || (startIndex + idx),
+      question: String(item.question || "").trim(),
+      options: opts,
+      answerLetter: ["A", "B", "C", "D", "E"].includes(letter) ? letter : "A",
+      solution: String(item.solution || "").trim()
+    };
+  }).filter((q) => q.question.length > 0);
+}
+
+// Türkçe karakterleri destekleyecek şekilde sayfa görüntüsü çizip gerçek .pdf dosyasına gömer
+function renderExamPagesToPdf(allQuestions, meta) {
+  if (!window.jspdf || !window.jspdf.jsPDF) {
+    throw new Error("PDF oluşturucu kütüphanesi yüklenemedi. İnternet bağlantınızı kontrol edin.");
+  }
+
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+  const pdfW = pdf.internal.pageSize.getWidth();
+  const pdfH = pdf.internal.pageSize.getHeight();
+
+  // Yüksek çözünürlüklü A4 canvas (595.28 x 841.89 pt -> 2.5x ölçek)
+  const scale = 2.5;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(pdfW * scale);
+  canvas.height = Math.round(pdfH * scale);
+  const ctx = canvas.getContext("2d");
+
+  const marginX = 44 * scale;
+  const topY = 48 * scale;
+  const bottomLimit = (pdfH - 42) * scale;
+  const contentW = canvas.width - marginX * 2;
+  let cursorY = topY;
+  let pageNum = 1;
+  let hasDrawnOnPage = false;
+
+  const flushPage = (isFirstPage) => {
+    if (!hasDrawnOnPage) return;
+    if (!isFirstPage) pdf.addPage();
+    const imgData = canvas.toDataURL("image/jpeg", 0.92);
+    pdf.addImage(imgData, "JPEG", 0, 0, pdfW, pdfH);
+  };
+
+  const startNewPage = (headerTitle, isFirstPage) => {
+    if (hasDrawnOnPage) {
+      flushPage(pageNum === 1);
+      pageNum += 1;
+    }
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Üst sınav başlığı şeridi
+    ctx.fillStyle = "#0f172a";
+    ctx.fillRect(marginX, 24 * scale, contentW, 28 * scale);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = `bold ${11 * scale}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+    ctx.fillText(headerTitle, marginX + 10 * scale, 42 * scale);
+
+    ctx.fillStyle = "#64748b";
+    ctx.font = `${9.5 * scale}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+    ctx.fillText(`Sayfa ${pageNum}`, canvas.width - marginX - 55 * scale, 42 * scale);
+
+    cursorY = topY + 24 * scale;
+    hasDrawnOnPage = true;
+  };
+
+  const wrapLines = (text, fontStr, maxWidth) => {
+    ctx.font = fontStr;
+    const words = String(text || "").split(/\s+/).filter(Boolean);
+    const lines = [];
+    let current = "";
+    for (const w of words) {
+      const candidate = current ? `${current} ${w}` : w;
+      if (ctx.measureText(candidate).width <= maxWidth) {
+        current = candidate;
+      } else {
+        if (current) lines.push(current);
+        current = w;
+      }
+    }
+    if (current) lines.push(current);
+    return lines.length ? lines : [""];
+  };
+
+  const mainTitle = `SMMM YETERLİLİK TEST SETİ — ${meta.subject.toLocaleUpperCase("tr-TR")}`;
+  startNewPage(mainTitle, true);
+
+  ctx.fillStyle = "#334155";
+  ctx.font = `${10.5 * scale}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+  const subInfo = `Soru Sayısı: ${allQuestions.length}  |  Tarz: ${meta.style}  |  Odak: ${meta.focus || "Genel"}  |  Tarih: ${meta.dateStr}`;
+  ctx.fillText(subInfo, marginX, cursorY);
+  cursorY += 22 * scale;
+
+  ctx.strokeStyle = "#cbd5e1";
+  ctx.lineWidth = 1 * scale;
+  ctx.beginPath();
+  ctx.moveTo(marginX, cursorY - 8 * scale);
+  ctx.lineTo(marginX + contentW, cursorY - 8 * scale);
+  ctx.stroke();
+
+  const qFont = `bold ${11.5 * scale}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+  const optFont = `${11 * scale}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+
+  allQuestions.forEach((q, idx) => {
+    const qNum = idx + 1;
+    const qLines = wrapLines(`${qNum}. ${q.question}`, qFont, contentW);
+    const optLineGroups = q.options.map((o) => wrapLines(o, optFont, contentW - 14 * scale));
+    const totalOptLines = optLineGroups.reduce((acc, g) => acc + g.length, 0);
+    const blockHeight = (qLines.length * 16 + totalOptLines * 15 + 18) * scale;
+
+    if (cursorY + blockHeight > bottomLimit) {
+      startNewPage(mainTitle, false);
+    }
+
+    ctx.fillStyle = "#0f172a";
+    ctx.font = qFont;
+    qLines.forEach((line) => {
+      ctx.fillText(line, marginX, cursorY);
+      cursorY += 16 * scale;
+    });
+
+    cursorY += 3 * scale;
+    ctx.fillStyle = "#1e293b";
+    ctx.font = optFont;
+    optLineGroups.forEach((group) => {
+      group.forEach((line) => {
+        ctx.fillText(line, marginX + 12 * scale, cursorY);
+        cursorY += 15 * scale;
+      });
+    });
+
+    cursorY += 12 * scale;
+  });
+
+  // Cevap Anahtarı ve Çözümler Bölümü
+  startNewPage("CEVAP ANAHTARI VE AÇIKLAMALI ÇÖZÜMLER", false);
+
+  const keyFont = `bold ${11 * scale}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+  const solFont = `${10.5 * scale}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+
+  allQuestions.forEach((q, idx) => {
+    const qNum = idx + 1;
+    const solLines = wrapLines(`Çözüm: ${q.solution || "İlgili mevzuat ve muhasebe standardı esas alınmıştır."}`, solFont, contentW - 10 * scale);
+    const needed = (16 + solLines.length * 14 + 12) * scale;
+
+    if (cursorY + needed > bottomLimit) {
+      startNewPage("CEVAP ANAHTARI VE AÇIKLAMALI ÇÖZÜMLER", false);
+    }
+
+    ctx.fillStyle = "#047857";
+    ctx.font = keyFont;
+    ctx.fillText(`Soru ${qNum} — Doğru Yanıt: ${q.answerLetter}`, marginX, cursorY);
+    cursorY += 15 * scale;
+
+    ctx.fillStyle = "#334155";
+    ctx.font = solFont;
+    solLines.forEach((line) => {
+      ctx.fillText(line, marginX + 8 * scale, cursorY);
+      cursorY += 14 * scale;
+    });
+
+    cursorY += 10 * scale;
+  });
+
+  flushPage(pageNum === 1);
+
+  const safeSlug = meta.subject
+    .toLocaleLowerCase("tr")
+    .replace(/[^a-z0-9ğüşıöç]+/gi, "-")
+    .replace(/^-|-$/g, "");
+  pdf.save(`SMMM-${safeSlug || "test"}-${allQuestions.length}-soru.pdf`);
+}
+
+async function generateSmmmPdfTestSet() {
+  const subject = document.getElementById("smmmSubjectSelect")?.value || "Vergi Mevzuatı ve Uygulaması";
+  const focus = (document.getElementById("smmmFocusInput")?.value || "").trim();
+  const style = document.getElementById("smmmStyleSelect")?.value || "Çıkmış Soru Tarzı";
+  const requestedCount = Math.min(Math.max(parseInt(document.getElementById("smmmPdfCountInput")?.value || "40", 10) || 40, 5), 60);
+  const smmmPool = safeGetStorage(STORAGE_KEYS.smmmPool, "").trim();
+  const smmmSlice = smmmPool.length > 60000 ? smmmPool.slice(0, 60000) : smmmPool;
+
+  const btn = document.getElementById("generateSmmmPdfBtn");
+  const prevText = btn ? btn.textContent : "";
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "PDF Hazırlanıyor...";
+  }
+
+  try {
+    const batchSize = 8;
+    const collected = [];
+
+    while (collected.length < requestedCount) {
+      const remaining = requestedCount - collected.length;
+      const currentBatch = Math.min(batchSize, remaining);
+      const startNo = collected.length + 1;
+      setSmmmPdfProgress(`Sorular üretiliyor (${collected.length} / ${requestedCount})... Lütfen bekleyin.`);
+
+      const batch = await generateSmmmBatchQuestions(subject, focus, style, smmmSlice, startNo, currentBatch);
+      if (!batch.length) {
+        throw new Error("Bu pakette soru üretilemedi; tekrar deneyin.");
+      }
+      collected.push(...batch.slice(0, remaining));
+    }
+
+    setSmmmPdfProgress(`PDF dosyası oluşturuluyor (${collected.length} soru)...`);
+    renderExamPagesToPdf(collected, {
+      subject,
+      focus,
+      style,
+      dateStr: new Date().toLocaleDateString("tr-TR")
+    });
+
+    setSmmmPdfProgress(`Tamamlandı! ${collected.length} soruluk PDF test seti indirildi.`);
+  } catch (err) {
+    setSmmmPdfProgress("Hata: " + err.message, true);
+    alert("PDF Üretim Hatası: " + err.message);
   } finally {
     if (btn) {
       btn.disabled = false;
@@ -1351,6 +1628,9 @@ function bindDirectListeners() {
 
   const generateSmmmBtn = document.getElementById("generateSmmmBtn");
   if (generateSmmmBtn) generateSmmmBtn.onclick = generateSmmmTestQuestion;
+
+  const generateSmmmPdfBtn = document.getElementById("generateSmmmPdfBtn");
+  if (generateSmmmPdfBtn) generateSmmmPdfBtn.onclick = generateSmmmPdfTestSet;
 
   const checkSmmmAnswerBtn = document.getElementById("checkSmmmAnswerBtn");
   if (checkSmmmAnswerBtn) checkSmmmAnswerBtn.onclick = checkSmmmAnswer;
