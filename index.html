@@ -108,7 +108,7 @@
     }
 
     #gibTopicList {
-      max-height: 220px;
+      max-height: 250px;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
@@ -321,7 +321,7 @@
               <button id="closeLawPickerBtn" type="button" onclick="closeLawPickerPanel()" style="font-size:11px;font-weight:600;color:#475569;background:#fff;border:1px solid #cbd5e1;border-radius:6px;padding:4px 8px;cursor:pointer;">Kapat</button>
             </div>
           </div>
-          <input id="lawSearchInput" type="text" placeholder="Bu bölümde ara (numara, konu veya anahtar kelime)..." style="margin-bottom:8px;" />
+          <input id="lawSearchInput" type="text" placeholder="Bu bölümde ara (GVK, KVK, KDV, VUK, 6183 veya madde)..." style="margin-bottom:8px;" />
           <div id="gibTopicList" role="listbox" aria-label="Mevzuat Listesi"></div>
           <p style="margin:8px 0 0;font-size:11px;color:#64748b;">
             Listeden herhangi bir kayıt üzerine dokunduğunuzda doğrudan seçilir ve başlık kutusuna aktarılır.
@@ -453,10 +453,11 @@
           <input id="apiKeyInput" type="password" placeholder="API anahtarınızı yapıştırın..." />
         </div>
         <div>
-          <label style="display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:4px;">Model Seçimi (Ücretsiz Katman Uyumlu)</label>
+          <label style="display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:4px;">Model Seçimi</label>
           <select id="modelSelect">
             <option value="gemini-3.8-flash" selected>gemini-3.8-flash (Hızlı ve Güncel)</option>
             <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (Hafif / Yüksek Hız)</option>
+            <option value="gemini-4-neon">gemini-4-neon (Derin Mevzuat Analizi)</option>
             <option value="gemini-4-hydrogen">gemini-4-hydrogen (Yüksek Muhakeme)</option>
           </select>
         </div>
@@ -465,13 +466,14 @@
       </div>
 
       <div class="card-box">
-        <h2 style="margin:0;font-size:14px;font-weight:700;color:#1e293b;">Mevzuat Havuzu (Veri Kaynağı ve Link Çekme)</h2>
-        <p style="margin:0;font-size:12px;color:#64748b;">Yapıştırdığınız, linkten çektiğiniz veya PDF'den okuduğunuz mevzuat verileri soru/konu üretiminde ve Konu sekmelerindeki listede değerlendirilir.</p>
+        <h2 style="margin:0;font-size:14px;font-weight:700;color:#1e293b;">Mevzuat Havuzu (Çoklu PDF ve Geniş Kapasite)</h2>
+        <p style="margin:0;font-size:12px;color:#64748b;">Birden fazla PDF seçebilir, linkten veri çekebilir veya metin yapıştırabilirsiniz (200.000 karakter kapasitesi).</p>
 
         <div style="display:flex;flex-wrap:wrap;gap:6px;">
           <button type="button" data-preset="kvk51a" class="preset-btn" style="border:0;background:#f1f5f9;color:#1e293b;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;">KVK m. 5/1-a</button>
-          <button type="button" data-preset="kdv30" class="preset-btn" style="border:0;background:#f1f5f9;color:#1e293b;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;">KDV m. 30 (İndirilmeyecek KDV)</button>
-          <button type="button" data-preset="vuk114" class="preset-btn" style="border:0;background:#f1f5f9;color:#1e293b;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;">VUK m. 114 (Zamanaşımı)</button>
+          <button type="button" data-preset="kdv30" class="preset-btn" style="border:0;background:#f1f5f9;color:#1e293b;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;">KDV m. 30</button>
+          <button type="button" data-preset="vuk114" class="preset-btn" style="border:0;background:#f1f5f9;color:#1e293b;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;">VUK m. 114</button>
+          <button type="button" data-preset="aatu6183" class="preset-btn" style="border:0;background:#f1f5f9;color:#1e293b;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;">6183 m. 35 & Mük. 35</button>
         </div>
 
         <div style="display:flex;gap:8px;">
@@ -482,15 +484,18 @@
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px dashed #cbd5e1;background:#f8fafc;border-radius:12px;padding:10px 12px;">
           <span id="pdfFileName" style="font-size:12px;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">PDF dosyası seçilmedi</span>
           <label style="background:#fff;border:1px solid #cbd5e1;color:#1e293b;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">
-            PDF Yükle
-            <input id="pdfFileInput" type="file" accept="application/pdf,.pdf" class="hidden" />
+            PDF Yükle (Çoklu)
+            <input id="pdfFileInput" type="file" accept="application/pdf,.pdf" multiple class="hidden" />
           </label>
         </div>
 
         <p id="lawSourceStatus" class="hidden" style="margin:0;font-size:12px;"></p>
 
-        <textarea id="lawTextInput" rows="6" placeholder="İlgili mevzuat metni, başlık listesi veya PDF/linkten çekilen veriler..."></textarea>
-        <button id="saveLawBtn" type="button" style="width:100%;border:0;background:#0f172a;color:#fff;border-radius:12px;padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer;">Mevzuat Metnini Kaydet</button>
+        <textarea id="lawTextInput" rows="7" placeholder="İlgili mevzuat metni, başlık listesi veya PDF/linkten çekilen veriler..."></textarea>
+        <div class="two-col">
+          <button id="saveLawBtn" type="button" style="border:0;background:#0f172a;color:#fff;border-radius:12px;padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer;">Havuzu Kaydet</button>
+          <button id="clearLawBtn" type="button" style="border:1px solid #cbd5e1;background:#fff;color:#e11d48;border-radius:12px;padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer;">Havuzu Temizle</button>
+        </div>
       </div>
 
       <div class="card-box">
