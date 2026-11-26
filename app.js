@@ -1,431 +1,507 @@
-const ALL_TABS = ["konu", "soru", "chat", "hata", "ayar"];  
-const DEFAULT_TOPIC = "Kurumlar Vergisi - İştirak Kazançları İstisnası (KVK m.5/1-a)";  
-  
-let currentTopic = DEFAULT_TOPIC;  
-let currentQuiz = {  
-  topic: DEFAULT_TOPIC,  
-  fromErrorBookId: null,  
-  question: "Tam mükellef (A) A.Ş., %15 oranında iştirak ettiği tam mükellef (B) Ltd. Şti.’nden 2026 yılında 1.000.000 TL kâr payı elde etmiştir. (A) A.Ş. bu iştirak hisselerini 6 aydır aktifinde tutmaktadır. Kurumlar vergisi istisnası açısından doğru değerlendirme hangisidir?",  
-  options: [  
-    "İstisnadan yararlanılamaz; en az 2 tam yıl aktifte tutulma şartı vardır.",  
-    "İstisnadan tam olarak yararlanılır; iştirak oranına ve elde tutma süresine bakılmaz.",  
-    "İştirak oranı %25'in altında olduğu için yalnızca %50 istisna uygulanır.",  
-    "Sadece anonim şirketlerden alınan kâr payları istisna kapsamındadır."  
-  ],  
-  correctIndex: 1,  
-  explanation: "KVK m. 5/1-a uyarınca tam mükellef kurumlardan elde edilen iştirak kazançları istisnası için asgari iştirak oranı veya aktifte elde tutma süresi şartı aranmaz (2 yıl şartı iştirak hissesi satış kazancı istisnası olan m. 5/1-e içindir)."  
-};  
-  
-let selectedOption = null;  
-let stats = JSON.parse(localStorage.getItem("vergi_stats") || '{"correct":0,"total":0}');  
-let errorBook = JSON.parse(localStorage.getItem("vergi_error_book") || "[]");  
-let topicStats = JSON.parse(localStorage.getItem("vergi_topic_stats") || "{}");  
-  
-function init() {  
-  const key = localStorage.getItem("gemini_key") || "";  
-  const model = localStorage.getItem("gemini_model") || "gemini-4-hydrogen";  
-  const law = localStorage.getItem("vergi_law") || "";  
-  const savedLesson = JSON.parse(localStorage.getItem("vergi_last_lesson") || "null");  
-  
-  document.getElementById("apiKeyInput").value = key;  
-  document.getElementById("modelSelect").value = model;  
-  document.getElementById("lawContext").value = law;  
-  
-  if (savedLesson) {  
-    if (savedLesson.topic) {  
-      currentTopic = savedLesson.topic;  
-      document.getElementById("topicInput").value = savedLesson.topic;  
-    }  
-    if (savedLesson.title) document.getElementById("lessonTitle").textContent = savedLesson.title;  
-    if (savedLesson.summary) document.getElementById("lessonBody").textContent = savedLesson.summary;  
-    if (savedLesson.question && Array.isArray(savedLesson.options)) {  
-      document.getElementById("questionText").textContent = savedLesson.question;  
-      currentQuiz = {  
-        topic: savedLesson.topic || currentTopic,  
-        fromErrorBookId: null,  
-        question: savedLesson.question,  
-        options: savedLesson.options,  
-        correctIndex: savedLesson.correctIndex,  
-        explanation: savedLesson.explanation  
-      };  
-    }  
-  }  
-  
-  updateNetworkStatus();  
-  updateBadges(key);  
-  renderOptions();  
-  renderErrorBook();  
-  renderTopicPerformance();  
-}  
-  
-function updateNetworkStatus() {  
-  const isOnline = navigator.onLine;  
-  const badge = document.getElementById("networkBadge");  
-  const dot = document.getElementById("networkDot");  
-  const text = document.getElementById("networkText");  
-  if (!badge || !dot || !text) return;  
-  
-  if (isOnline) {  
-    badge.className = "text-[11px] px-2 py-1 rounded-full border flex items-center gap-1.5 bg-emerald-950/60 text-emerald-300 border-emerald-700/60";  
-    dot.className = "w-2 h-2 rounded-full bg-emerald-400";  
-    text.textContent = "Çevrimiçi";  
-  } else {  
-    badge.className = "text-[11px] px-2 py-1 rounded-full border flex items-center gap-1.5 bg-rose-950/70 text-rose-300 border-rose-700/60";  
-    dot.className = "w-2 h-2 rounded-full bg-rose-400";  
-    text.textContent = "Çevrimdışı";  
-  }  
-}  
-  
-window.addEventListener("online", updateNetworkStatus);  
-window.addEventListener("offline", updateNetworkStatus);  
-  
-function updateBadges(key) {  
-  const badge = document.getElementById("modeBadge");  
-  if (key && key.trim().length > 10) {  
-    badge.textContent = "Canlı Gemini API Aktif";  
-    badge.className = "text-[11px] text-emerald-400 truncate";  
-  } else {  
-    badge.textContent = "Demo Modu (Ayarlardan API Anahtarı Ekleyin)";  
-    badge.className = "text-[11px] text-amber-400 truncate";  
-  }  
-  document.getElementById("scoreBadge").textContent = `Doğru: ${stats.correct} / ${stats.total}`;  
-}  
-  
-function switchTab(tab) {  
-  ALL_TABS.forEach((t) => {  
-    document.getElementById("tab-" + t).classList.toggle("hidden", t !== tab);  
-    const nav = document.getElementById("nav-" + t);  
-    nav.className = t === tab  
-      ? "flex flex-col items-center text-[11px] font-bold text-slate-900"  
-      : "flex flex-col items-center text-[11px] font-medium text-slate-400";  
-  });  
-}  
-  
-function saveSettings() {  
-  const key = document.getElementById("apiKeyInput").value.trim();  
-  const model = document.getElementById("modelSelect").value;  
-  localStorage.setItem("gemini_key", key);  
-  localStorage.setItem("gemini_model", model);  
-  updateBadges(key);  
-  alert("Ayarlar kaydedildi.");  
-}  
-  
-function saveLawContext() {  
-  localStorage.setItem("vergi_law", document.getElementById("lawContext").value);  
-  alert("Mevzuat metni kaydedildi.");  
-}  
-  
-function renderOptions() {  
-  const list = document.getElementById("optionsList");  
-  const retryTag = document.getElementById("retryTag");  
-  list.innerHTML = "";  
-  selectedOption = null;  
-  retryTag.classList.toggle("hidden", !currentQuiz.fromErrorBookId);  
-  
-  currentQuiz.options.forEach((opt, idx) => {  
-    const btn = document.createElement("button");  
-    btn.className = "w-full text-left p-3 rounded-xl border border-slate-200 text-sm bg-slate-50 active:bg-slate-100";  
-    btn.textContent = `${["A", "B", "C", "D"][idx]}) ${opt}`;  
-    btn.onclick = () => {  
-      selectedOption = idx;  
-      Array.from(list.children).forEach((c, i) => {  
-        c.className = i === idx  
-          ? "w-full text-left p-3 rounded-xl border-2 border-indigo-600 text-sm bg-indigo-50 font-medium"  
-          : "w-full text-left p-3 rounded-xl border border-slate-200 text-sm bg-slate-50";  
-      });  
-    };  
-    list.appendChild(btn);  
-  });  
-}  
-  
-function recordTopicResult(topicName, isCorrect) {  
-  const cleanTopic = (topicName || DEFAULT_TOPIC).trim();  
-  if (!topicStats[cleanTopic]) {  
-    topicStats[cleanTopic] = { correct: 0, wrong: 0 };  
-  }  
-  if (isCorrect) {  
-    topicStats[cleanTopic].correct += 1;  
-  } else {  
-    topicStats[cleanTopic].wrong += 1;  
-  }  
-  localStorage.setItem("vergi_topic_stats", JSON.stringify(topicStats));  
-  renderTopicPerformance();  
-}  
-  
-function resetTopicStats() {  
-  if (!Object.keys(topicStats).length) return;  
-  if (!confirm("Konu performans özetini sıfırlamak istiyor musunuz?")) return;  
-  topicStats = {};  
-  localStorage.setItem("vergi_topic_stats", JSON.stringify(topicStats));  
-  renderTopicPerformance();  
-}  
-  
-function renderTopicPerformance() {  
-  const container = document.getElementById("topicPerformanceList");  
-  if (!container) return;  
-  
-  const entries = Object.entries(topicStats);  
-  if (!entries.length) {  
-    container.innerHTML = `<p class="text-xs text-slate-500">Henüz soru çözülmedi. Soru çözdükçe konu bazlı doğru/yanlış dağılımı burada görünecek.</p>`;  
-    return;  
-  }  
-  
-  container.innerHTML = "";  
-  entries.forEach(([topic, counts]) => {  
-    const correct = counts.correct || 0;  
-    const wrong = counts.wrong || 0;  
-    const total = correct + wrong;  
-    const rate = total > 0 ? Math.round((correct / total) * 100) : 0;  
-  
-    const row = document.createElement("div");  
-    row.className = "p-2.5 rounded-xl bg-slate-50 border border-slate-100 space-y-1.5";  
-    row.innerHTML = `  
-      <div class="flex items-start justify-between gap-2">  
-        <span class="text-xs font-semibold text-slate-800 leading-snug">${topic}</span>  
-        <span class="text-[11px] font-bold text-slate-700 shrink-0">%${rate}</span>  
-      </div>  
-      <div class="flex items-center justify-between text-[11px]">  
-        <div class="flex items-center gap-3">  
-          <span class="text-emerald-700 font-medium">Doğru: ${correct}</span>  
-          <span class="text-rose-600 font-medium">Yanlış: ${wrong}</span>  
-        </div>  
-        <span class="text-slate-400">Toplam: ${total}</span>  
-      </div>  
-      <div class="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">  
-        <div class="h-full bg-emerald-500" style="width: ${rate}%"></div>  
-      </div>  
-    `;  
-    container.appendChild(row);  
-  });  
-}  
-  
-function checkAnswer() {  
-  if (selectedOption === null) return alert("Lütfen bir şık seçin.");  
-  const box = document.getElementById("explanationBox");  
-  const status = document.getElementById("resultStatus");  
-  const exp = document.getElementById("explanationText");  
-  const isCorrect = selectedOption === currentQuiz.correctIndex;  
-  const activeTopic = currentQuiz.topic || currentTopic;  
-  
-  box.classList.remove("hidden");  
-  stats.total += 1;  
-  recordTopicResult(activeTopic, isCorrect);  
-  
-  if (isCorrect) {  
-    stats.correct += 1;  
-    status.textContent = "✅ Doğru Cevap!";  
-    status.className = "text-sm font-bold text-emerald-600";  
-  
-    if (currentQuiz.fromErrorBookId) {  
-      removeErrorQuestion(currentQuiz.fromErrorBookId);  
-      currentQuiz.fromErrorBookId = null;  
-      document.getElementById("retryTag").classList.add("hidden");  
-      exp.textContent = currentQuiz.explanation + " (Hata Defteri'ndeki bu soru doğru çözüldüğü için listeden çıkarıldı.)";  
-    } else {  
-      exp.textContent = currentQuiz.explanation;  
-    }  
-  } else {  
-    status.textContent = `❌ Yanlış Cevap (Doğru Şık: ${["A", "B", "C", "D"][currentQuiz.correctIndex]})`;  
-    status.className = "text-sm font-bold text-rose-600";  
-    exp.textContent = currentQuiz.explanation;  
-    saveToErrorBook({ ...currentQuiz, topic: activeTopic }, selectedOption);  
-  }  
-  
-  localStorage.setItem("vergi_stats", JSON.stringify(stats));  
-  updateBadges(localStorage.getItem("gemini_key"));  
-}  
-  
-function saveToErrorBook(quizItem, chosenIdx) {  
-  const existingIndex = errorBook.findIndex((item) => item.question === quizItem.question);  
-  const entry = {  
-    id: existingIndex >= 0 ? errorBook[existingIndex].id : Date.now(),  
-    topic: quizItem.topic || currentTopic,  
-    question: quizItem.question,  
-    options: quizItem.options,  
-    correctIndex: quizItem.correctIndex,  
-    explanation: quizItem.explanation,  
-    lastChosenIndex: chosenIdx,  
-    attempts: existingIndex >= 0 ? (errorBook[existingIndex].attempts || 1) + 1 : 1,  
-    updatedAt: new Date().toLocaleDateString("tr-TR")  
-  };  
-  
-  if (existingIndex >= 0) {  
-    errorBook[existingIndex] = entry;  
-  } else {  
-    errorBook.unshift(entry);  
-  }  
-  
-  localStorage.setItem("vergi_error_book", JSON.stringify(errorBook));  
-  renderErrorBook();  
-}  
-  
-function retryErrorQuestion(id) {  
-  const item = errorBook.find((q) => q.id === id);  
-  if (!item) return;  
-  
-  currentQuiz = {  
-    topic: item.topic || currentTopic,  
-    fromErrorBookId: item.id,  
-    question: item.question,  
-    options: item.options,  
-    correctIndex: item.correctIndex,  
-    explanation: item.explanation  
-  };  
-  
-  document.getElementById("questionText").textContent = item.question;  
-  document.getElementById("explanationBox").classList.add("hidden");  
-  renderOptions();  
-  switchTab("soru");  
-}  
-  
-function removeErrorQuestion(id) {  
-  errorBook = errorBook.filter((q) => q.id !== id);  
-  localStorage.setItem("vergi_error_book", JSON.stringify(errorBook));  
-  renderErrorBook();  
-}  
-  
-function clearErrorBook() {  
-  if (!errorBook.length) return;  
-  if (!confirm("Hata Defteri'ndeki tüm kayıtlı soruları silmek istiyor musunuz?")) return;  
-  errorBook = [];  
-  localStorage.setItem("vergi_error_book", JSON.stringify(errorBook));  
-  renderErrorBook();  
-}  
-  
-function renderErrorBook() {  
-  const list = document.getElementById("errorList");  
-  const countText = document.getElementById("errorCountText");  
-  if (!list || !countText) return;  
-  
-  countText.textContent = `${errorBook.length} kayıtlı soru bulunuyor`;  
-  list.innerHTML = "";  
-  
-  if (!errorBook.length) {  
-    list.innerHTML = `  
-      <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 text-xs text-slate-500 text-center">  
-        Henüz yanlış cevaplanmış bir soru yok. Yanlış yaptığınız sorular otomatik olarak buraya kaydedilir.  
-      </div>`;  
-    return;  
-  }  
-  
-  errorBook.forEach((item) => {  
-    const card = document.createElement("div");  
-    card.className = "bg-white p-4 rounded-2xl shadow-sm border border-slate-200 space-y-2.5";  
-    card.innerHTML = `  
-      <div class="flex items-center justify-between text-[11px] text-slate-400 gap-2">  
-        <span class="truncate">${item.topic || DEFAULT_TOPIC}</span>  
-        <span class="shrink-0">Hata: ${item.attempts || 1} (${item.updatedAt || "-"})</span>  
-      </div>  
-      <p class="text-sm font-medium text-slate-800 leading-relaxed">${item.question}</p>  
-      <p class="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-100">  
-        <strong class="text-slate-800">Çözüm Notu:</strong> ${item.explanation}  
-      </p>  
-      <div class="flex gap-2 pt-1">  
-        <button onclick="retryErrorQuestion(${item.id})" class="flex-1 bg-indigo-600 active:bg-indigo-700 text-white text-xs font-medium py-2 rounded-xl">  
-          Tekrar Çöz  
-        </button>  
-        <button onclick="removeErrorQuestion(${item.id})" class="px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-600 active:bg-slate-100">  
-          Sil  
-        </button>  
-      </div>  
-    `;  
-    list.appendChild(card);  
-  });  
-}  
-  
-async function callGemini(prompt) {  
-  const key = localStorage.getItem("gemini_key");  
-  const model = localStorage.getItem("gemini_model") || "gemini-4-hydrogen";  
-  const law = localStorage.getItem("vergi_law") || "";  
-  const fullPrompt = law ? `ÖNCELİKLİ MEVZUAT KAYNAĞI:\n${law}\n\nGÖREV:\n${prompt}` : prompt;  
-  
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {  
-    method: "POST",  
-    headers: { "Content-Type": "application/json" },  
-    body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] })  
-  });  
-  const data = await res.json();  
-  if (!res.ok) throw new Error(data.error?.message || "API hatası");  
-  return data.candidates[0].content.parts[0].text;  
-}  
-  
-async function generateDailyContent() {  
-  if (!navigator.onLine) {  
-    return alert("Şu an çevrimdışısınız. Kayıtlı konu, soru ve Hata Defteri'ni inceleyebilirsiniz.");  
-  }  
-  const key = localStorage.getItem("gemini_key");  
-  const topic = document.getElementById("topicInput").value.trim() || DEFAULT_TOPIC;  
-  if (!key) return alert("Canlı üretim için önce Ayarlar sekmesinden Gemini API anahtarınızı girin.");  
-  
-  const btn = document.getElementById("btnGenerate");  
-  btn.textContent = "Üretiliyor...";  
-  btn.disabled = true;  
-  
-  try {  
-    const prompt = `Türk vergi mevzuatı uzmanı olarak "${topic}" konusunda sadece geçerli JSON döndür. Markdown kod bloğu kullanma. Format:  
-{"title":"Başlık","summary":"Temel kural, istisna ve dayanak maddeyi içeren net özet","question":"Vaka veya mevzuat sorusu","options":["Şık 1","Şık 2","Şık 3","Şık 4"],"correctIndex":0,"explanation":"Mevzuat dayanaklı çözüm açıklaması"}`;  
-    const raw = await callGemini(prompt);  
-    const cleaned = raw.replace(/```json|```/g, "").trim();  
-    const parsed = JSON.parse(cleaned);  
-  
-    currentTopic = topic;  
-    document.getElementById("lessonTitle").textContent = parsed.title;  
-    document.getElementById("lessonBody").textContent = parsed.summary;  
-    document.getElementById("questionText").textContent = parsed.question;  
-  
-    currentQuiz = {  
-      topic: currentTopic,  
-      fromErrorBookId: null,  
-      question: parsed.question,  
-      options: parsed.options,  
-      correctIndex: parsed.correctIndex,  
-      explanation: parsed.explanation  
-    };  
-  
-    localStorage.setItem("vergi_last_lesson", JSON.stringify({ ...parsed, topic: currentTopic }));  
-    document.getElementById("explanationBox").classList.add("hidden");  
-    renderOptions();  
-    alert("Yeni konu ve soru hazırlandı! Soru sekmesinden çözebilirsiniz.");  
-  } catch (e) {  
-    alert("Hata: " + e.message);  
-  } finally {  
-    btn.textContent = "Günün Konusunu ve Sorusunu Üret";  
-    btn.disabled = false;  
-  }  
-}  
-  
-async function askFreeQuestion() {  
-  if (!navigator.onLine) {  
-    return alert("Şu an çevrimdışısınız. İnternet bağlantısı geldiğinde tekrar deneyebilirsiniz.");  
-  }  
-  const key = localStorage.getItem("gemini_key");  
-  const q = document.getElementById("freeQuestion").value.trim();  
-  if (!q) return;  
-  if (!key) return alert("Önce Ayarlar sekmesinden API anahtarınızı girin.");  
-  
-  const btn = document.getElementById("btnAsk");  
-  const box = document.getElementById("chatAnswerBox");  
-  btn.textContent = "Yanıtlanıyor...";  
-  btn.disabled = true;  
-  
-  try {  
-    const ans = await callGemini(`Türk vergi mevzuatına göre şu soruyu kanun/tebliğ dayanağı belirterek açık ve net yanıtla:\n${q}`);  
-    box.textContent = ans;  
-    box.classList.remove("hidden");  
-  } catch (e) {  
-    alert("Hata: " + e.message);  
-  } finally {  
-    btn.textContent = "Mevzuata Göre Yanıtla";  
-    btn.disabled = false;  
-  }  
-}  
-  
-if ("serviceWorker" in navigator) {  
-  window.addEventListener("load", () => {  
-    navigator.serviceWorker.register("./sw.js").catch((err) => {  
-      console.error("Service Worker kaydı başarısız:", err);  
-    });  
-  });  
-}  
-  
-init();  
+const ALL_TABS = ["konu", "soru", "sohbet", "hatalar", "ayarlar"];
+const STORAGE_KEYS = {
+  apiKey: "vergi_pwa_api_key",
+  model: "vergi_pwa_model",
+  lawText: "vergi_pwa_law_text",
+  stats: "vergi_pwa_stats",
+  mistakes: "vergi_pwa_mistakes"
+};
+
+const PRESETS = {
+  kvk51a: "5520 sayılı KVK Madde 5/1-a: Kurumların, başka bir kurumun sermayesine katılmasından elde ettikleri kazançlar (tam mükellef kurumlardan elde edilen kâr payları ile yatırım fonu/ortaklığı katılma payları/hisselerine ilişkin hükümler) vergiden istisnadır.",
+  kdv30: "3065 sayılı KDV Kanunu Madde 30: Vergiye tabi olmayan veya vergiden istisna edilmiş bulunan teslim ve hizmetlerle ilgili alış vesikalarında gösterilen veya hesaplanan KDV, mükellefin vergiye tabi işlemleri üzerinden hesaplanan KDV'den indirilemez.",
+  vuk114: "213 sayılı VUK Madde 114: Vergi alacağının doğduğu takvim yılını takip eden yıldan başlayarak beş yıl içinde tarh ve mükellefe tebliğ edilmeyen vergiler zamanaşımına uğrar."
+};
+
+let stats = JSON.parse(localStorage.getItem(STORAGE_KEYS.stats) || '{"correct":0,"total":0,"byTopic":{}}');
+let mistakes = JSON.parse(localStorage.getItem(STORAGE_KEYS.mistakes) || "[]");
+let currentQuestion = {
+  topic: "Kurumlar Vergisi - İştirak Kazançları İstisnası (KVK m. 5/1-a)",
+  question: "Tam mükellef (X) A.Ş., tam mükellef (Y) A.Ş.'nin sermayesine iştirak etmekte ve (Y) A.Ş.'den nakit kâr payı almaktadır. Bu kazancın kurumlar vergisi karşısındaki durumu nedir?",
+  options: [
+    "A) Kurumlar vergisinden istisnadır.",
+    "B) %50 oranında vergiye tabidir.",
+    "C) Tamamı ticari kazanç olarak vergilendirilir.",
+    "D) Yalnızca yurt dışı dağıtımlarda istisnadır."
+  ],
+  answerIndex: 0,
+  explanation: "5520 sayılı KVK m. 5/1-a uyarınca tam mükellef kurumların başka bir tam mükellef kurumdan elde ettikleri kâr payları istisna kapsamındadır."
+};
+let selectedOptionIndex = null;
+let timerInterval = null;
+let remainingSeconds = 0;
+
+function saveAllState() {
+  localStorage.setItem(STORAGE_KEYS.stats, JSON.stringify(stats));
+  localStorage.setItem(STORAGE_KEYS.mistakes, JSON.stringify(mistakes));
+}
+
+function updateNetworkStatus() {
+  const online = navigator.onLine;
+  const badge = document.getElementById("netBadge");
+  const dot = document.getElementById("netDot");
+  const text = document.getElementById("netText");
+  if (online) {
+    badge.className = "text-[11px] px-2 py-1 rounded-full border flex items-center gap-1.5 bg-emerald-950/70 text-emerald-300 border-emerald-700/60";
+    dot.className = "w-2 h-2 rounded-full bg-emerald-400";
+    text.textContent = "Çevrimiçi";
+  } else {
+    badge.className = "text-[11px] px-2 py-1 rounded-full border flex items-center gap-1.5 bg-rose-950/70 text-rose-300 border-rose-700/60";
+    dot.className = "w-2 h-2 rounded-full bg-rose-400";
+    text.textContent = "Çevrimdışı";
+  }
+}
+
+window.addEventListener("online", updateNetworkStatus);
+window.addEventListener("offline", updateNetworkStatus);
+
+function updateBadges(key) {
+  const badge = document.getElementById("modeBadge");
+  const activeKey = (key ?? localStorage.getItem(STORAGE_KEYS.apiKey) ?? "").trim();
+  if (activeKey.length > 10) {
+    badge.textContent = "Canlı Gemini API Aktif";
+    badge.className = "text-[11px] text-emerald-400 truncate";
+  } else {
+    badge.textContent = "Demo Modu (Ayarlardan API Anahtarı Ekleyin)";
+    badge.className = "text-[11px] text-amber-400 truncate";
+  }
+  document.getElementById("scoreBadge").textContent = `Doğru: ${stats.correct} / ${stats.total}`;
+}
+
+function renderTopicStats() {
+  const el = document.getElementById("topicStatsList");
+  const entries = Object.entries(stats.byTopic || {});
+  if (!entries.length) {
+    el.textContent = "Henüz soru çözülmedi. Soru çözdükçe konu bazlı doğru/yanlış dağılımı burada görünecek.";
+    return;
+  }
+  el.innerHTML = entries.map(([topic, d]) => {
+    const rate = d.total ? Math.round((d.correct / d.total) * 100) : 0;
+    return `<div class="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0 gap-2">
+      <span class="truncate font-medium text-slate-800">${escapeHtml(topic)}</span>
+      <span class="text-xs shrink-0 text-slate-600">${d.correct}/${d.total} (%${rate})</span>
+    </div>`;
+  }).join("");
+}
+
+function renderMistakes() {
+  const listEl = document.getElementById("mistakesList");
+  const filterEl = document.getElementById("mistakeFilter");
+  const currentFilter = filterEl.value || "ALL";
+  const topics = ["ALL", ...new Set(mistakes.map((m) => m.topic))];
+  filterEl.innerHTML = topics.map((t) => `<option value="${escapeAttr(t)}">${t === "ALL" ? "Tüm Konular" : escapeHtml(t)}</option>`).join("");
+  filterEl.value = topics.includes(currentFilter) ? currentFilter : "ALL";
+
+  const filtered = mistakes.filter((m) => filterEl.value === "ALL" || m.topic === filterEl.value);
+  if (!filtered.length) {
+    listEl.textContent = "Bu filtrede kayıtlı yanlış soru yok.";
+    return;
+  }
+
+  listEl.innerHTML = filtered.map((m) => {
+    const realIndex = mistakes.indexOf(m);
+    return `<div class="rounded-xl border border-rose-200 bg-rose-50/50 p-3.5 space-y-2">
+      <div class="flex items-center justify-between gap-2">
+        <span class="text-xs font-semibold text-rose-800">${escapeHtml(m.topic)}</span>
+        <button onclick="removeMistake(${realIndex})" class="text-xs text-emerald-700 font-semibold hover:underline">Tekrar Çözdüm / Sil</button>
+      </div>
+      <p class="font-medium text-slate-900">${escapeHtml(m.question)}</p>
+      <p class="text-xs text-slate-600"><strong>Doğru Cevap:</strong> ${escapeHtml(m.correctOption || "")}</p>
+      <p class="text-xs text-slate-700">${escapeHtml(m.explanation || "")}</p>
+      <textarea rows="2" placeholder="Kendi kısa notunuz veya kanun/tebliğ notu..."
+        onchange="updateMistakeNote(${realIndex}, this.value)"
+        class="w-full rounded-lg border border-slate-300 bg-white p-2 text-xs text-slate-800">${escapeHtml(m.note || "")}</textarea>
+    </div>`;
+  }).join("");
+}
+
+function updateMistakeNote(index, note) {
+  if (!mistakes[index]) return;
+  mistakes[index].note = note;
+  saveAllState();
+}
+
+function removeMistake(index) {
+  mistakes.splice(index, 1);
+  saveAllState();
+  renderMistakes();
+}
+
+function switchTab(tab) {
+  ALL_TABS.forEach((t) => {
+    document.getElementById("tab-" + t).classList.toggle("hidden", t !== tab);
+    const nav = document.getElementById("nav-" + t);
+    nav.className = t === tab
+      ? "flex flex-col items-center text-[11px] font-bold text-slate-900"
+      : "flex flex-col items-center text-[11px] font-medium text-slate-400";
+  });
+  if (tab === "hatalar") renderMistakes();
+  if (tab === "konu") renderTopicStats();
+}
+
+function renderQuestion(q) {
+  currentQuestion = q;
+  selectedOptionIndex = null;
+  document.getElementById("questionText").textContent = q.question;
+  document.getElementById("feedbackBox").classList.add("hidden");
+  document.getElementById("feedbackBox").innerHTML = "";
+
+  const container = document.getElementById("optionsContainer");
+  container.innerHTML = "";
+  q.options.forEach((opt, idx) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "w-full text-left rounded-xl border border-slate-300 px-4 py-3 text-sm hover:bg-slate-50 transition";
+    btn.textContent = opt;
+    btn.onclick = () => {
+      selectedOptionIndex = idx;
+      [...container.children].forEach((c, i) => {
+        c.className = i === idx
+          ? "w-full text-left rounded-xl border-2 border-indigo-600 bg-indigo-50 px-4 py-3 text-sm font-medium transition"
+          : "w-full text-left rounded-xl border border-slate-300 px-4 py-3 text-sm hover:bg-slate-50 transition";
+      });
+    };
+    container.appendChild(btn);
+  });
+
+  startTimerIfConfigured();
+}
+
+function startTimerIfConfigured() {
+  if (timerInterval) clearInterval(timerInterval);
+  const mins = parseInt(document.getElementById("timerMinutes").value || "0", 10);
+  const display = document.getElementById("timerDisplay");
+  if (!mins || mins <= 0) {
+    display.classList.add("hidden");
+    return;
+  }
+  remainingSeconds = mins * 60;
+  display.classList.remove("hidden");
+  const tick = () => {
+    const m = String(Math.floor(remainingSeconds / 60)).padStart(2, "0");
+    const s = String(remainingSeconds % 60).padStart(2, "0");
+    display.textContent = `${m}:${s}`;
+    if (remainingSeconds <= 0) {
+      clearInterval(timerInterval);
+      display.textContent = "Süre Doldu";
+      return;
+    }
+    remainingSeconds -= 1;
+  };
+  tick();
+  timerInterval = setInterval(tick, 1000);
+}
+
+async function callGemini(promptText) {
+  const apiKey = (localStorage.getItem(STORAGE_KEYS.apiKey) || "").trim();
+  const model = localStorage.getItem(STORAGE_KEYS.model) || "gemini-2.5-flash";
+  const lawText = (localStorage.getItem(STORAGE_KEYS.lawText) || "").trim();
+  if (!apiKey) throw new Error("API anahtarı kayıtlı değil. Ayarlar sekmesinden ekleyin.");
+
+  const systemRule = lawText
+    ? `Türk vergi mevzuatı uzmanı olarak yanıt ver. Şu mevzuat metnini öncelikli kaynak al:\n${lawText}\n\n`
+    : "Türk vergi mevzuatı uzmanı olarak net, dayanaklı ve sınav/uygulama odaklı yanıt ver.\n\n";
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ role: "user", parts: [{ text: systemRule + promptText }] }]
+    })
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data?.error?.message || `HTTP ${res.status}`);
+  }
+  return data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+}
+
+function parseJsonLoose(raw) {
+  const cleaned = raw.replace(/```json|```/gi, "").trim();
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start === -1 || end === -1) throw new Error("JSON formatı ayrıştırılamadı.");
+  return JSON.parse(cleaned.slice(start, end + 1));
+}
+
+async function generateLessonAndQuestion(onlyQuestion = false) {
+  const topic = document.getElementById("topicInput").value.trim() || "Kurumlar Vergisi";
+  const difficulty = document.getElementById("difficultySelect").value || "Vaka";
+  const btn = document.getElementById(onlyQuestion ? "newQuestionBtn" : "generateBtn");
+  const prevText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Üretiliyor...";
+
+  try {
+    const prompt = `Konu: "${topic}" | Zorluk: "${difficulty}".
+Yalnızca geçerli JSON döndür:
+{
+  "lessonTitle": "...",
+  "lessonSummary": "...",
+  "lessonCritical": "...",
+  "lessonBasis": "...",
+  "question": "...",
+  "options": ["A) ...", "B) ...", "C) ...", "D) ..."],
+  "answerIndex": 0,
+  "explanation": "..."
+}`;
+    const text = await callGemini(prompt);
+    const parsed = parseJsonLoose(text);
+
+    if (!onlyQuestion) {
+      document.getElementById("lessonTitle").textContent = parsed.lessonTitle || topic;
+      document.getElementById("lessonSummary").textContent = parsed.lessonSummary || "";
+      document.getElementById("lessonCritical").innerHTML = `<strong>Kritik Ayrım:</strong> ${escapeHtml(parsed.lessonCritical || "")}`;
+      document.getElementById("lessonBasis").textContent = `Dayanak: ${parsed.lessonBasis || "İlgili Vergi Kanunu"}`;
+    }
+
+    renderQuestion({
+      topic,
+      question: parsed.question,
+      options: parsed.options,
+      answerIndex: Number(parsed.answerIndex) || 0,
+      explanation: parsed.explanation || ""
+    });
+
+    if (onlyQuestion) switchTab("soru");
+  } catch (err) {
+    alert("Hata: " + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = prevText;
+  }
+}
+
+function startWrongQuiz() {
+  if (!mistakes.length) {
+    alert("Hata defterinde tekrar edilecek soru bulunmuyor.");
+    return;
+  }
+  const picked = mistakes[Math.floor(Math.random() * mistakes.length)];
+  const opts = picked.options && picked.options.length === 4
+    ? picked.options
+    : ["A) Doğru değerlendirme", "B) İstisna kapsamında değildir", "C) Tamamı matraha eklenir", "D) Zamanaşımına uğramıştır"];
+  renderQuestion({
+    topic: picked.topic,
+    question: picked.question,
+    options: opts,
+    answerIndex: typeof picked.answerIndex === "number" ? picked.answerIndex : 0,
+    explanation: picked.explanation || ""
+  });
+  switchTab("soru");
+}
+
+function checkAnswer() {
+  if (selectedOptionIndex === null) {
+    alert("Lütfen önce bir şık seçin.");
+    return;
+  }
+  if (timerInterval) clearInterval(timerInterval);
+
+  const isCorrect = selectedOptionIndex === currentQuestion.answerIndex;
+  stats.total += 1;
+  if (!stats.byTopic[currentQuestion.topic]) {
+    stats.byTopic[currentQuestion.topic] = { correct: 0, total: 0 };
+  }
+  stats.byTopic[currentQuestion.topic].total += 1;
+
+  const box = document.getElementById("feedbackBox");
+  box.classList.remove("hidden");
+
+  if (isCorrect) {
+    stats.correct += 1;
+    stats.byTopic[currentQuestion.topic].correct += 1;
+    box.className = "rounded-xl p-4 text-sm space-y-2 border bg-emerald-50 border-emerald-200 text-emerald-950";
+    box.innerHTML = `<p class="font-bold">Doğru Yanıt!</p><p>${escapeHtml(currentQuestion.explanation)}</p>`;
+  } else {
+    box.className = "rounded-xl p-4 text-sm space-y-2 border bg-rose-50 border-rose-200 text-rose-950";
+    box.innerHTML = `<p class="font-bold">Yanlış Yanıt — Doğru Seçenek: ${escapeHtml(currentQuestion.options[currentQuestion.answerIndex] || "")}</p><p>${escapeHtml(currentQuestion.explanation)}</p>`;
+    mistakes.unshift({
+      topic: currentQuestion.topic,
+      question: currentQuestion.question,
+      options: currentQuestion.options,
+      answerIndex: currentQuestion.answerIndex,
+      correctOption: currentQuestion.options[currentQuestion.answerIndex] || "",
+      explanation: currentQuestion.explanation,
+      note: ""
+    });
+  }
+
+  saveAllState();
+  updateBadges();
+  renderTopicStats();
+  renderMistakes();
+}
+
+function appendChatMessage(role, text) {
+  const wrap = document.getElementById("chatMessages");
+  const div = document.createElement("div");
+  div.className = role === "user"
+    ? "bg-slate-900 text-white rounded-xl p-3 text-sm ml-8"
+    : "bg-slate-100 text-slate-800 rounded-xl p-3 text-sm mr-8 whitespace-pre-line";
+  div.textContent = text;
+  wrap.appendChild(div);
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
+async function handleChatSend() {
+  const input = document.getElementById("chatInput");
+  const q = input.value.trim();
+  if (!q) return;
+  input.value = "";
+  appendChatMessage("user", q);
+  appendChatMessage("assistant", "Yanıt hazırlanıyor...");
+  const loadingBubble = document.getElementById("chatMessages").lastChild;
+
+  try {
+    const answer = await callGemini(q);
+    loadingBubble.textContent = answer;
+  } catch (err) {
+    loadingBubble.textContent = "Hata: " + err.message;
+  }
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, (m) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[m]));
+}
+
+function escapeAttr(str) {
+  return String(str).replace(/"/g, "&quot;");
+}
+
+document.getElementById("saveSettingsBtn").onclick = () => {
+  const key = document.getElementById("apiKeyInput").value.trim();
+  const model = document.getElementById("modelSelect").value;
+  localStorage.setItem(STORAGE_KEYS.apiKey, key);
+  localStorage.setItem(STORAGE_KEYS.model, model);
+  updateBadges(key);
+  const st = document.getElementById("settingsStatus");
+  st.classList.remove("hidden");
+  setTimeout(() => st.classList.add("hidden"), 2500);
+};
+
+document.getElementById("saveLawBtn").onclick = () => {
+  const law = document.getElementById("lawTextInput").value.trim();
+  localStorage.setItem(STORAGE_KEYS.lawText, law);
+  alert("Mevzuat metni kaydedildi.");
+};
+
+document.querySelectorAll(".preset-btn").forEach((btn) => {
+  btn.onclick = () => {
+    const text = PRESETS[btn.dataset.preset] || "";
+    const ta = document.getElementById("lawTextInput");
+    ta.value = ta.value ? `${ta.value}\n\n${text}` : text;
+  };
+});
+
+document.getElementById("generateBtn").onclick = () => generateLessonAndQuestion(false);
+document.getElementById("newQuestionBtn").onclick = () => generateLessonAndQuestion(true);
+document.getElementById("wrongQuizBtn").onclick = startWrongQuiz;
+document.getElementById("checkAnswerBtn").onclick = checkAnswer;
+document.getElementById("sendChatBtn").onclick = handleChatSend;
+document.getElementById("chatInput").onkeydown = (e) => { if (e.key === "Enter") handleChatSend(); };
+document.getElementById("clearChatBtn").onclick = () => {
+  document.getElementById("chatMessages").innerHTML = `<div class="bg-slate-100 rounded-xl p-3 text-sm text-slate-700">Sohbet temizlendi. Yeni sorunuzu yazabilirsiniz.</div>`;
+};
+document.getElementById("mistakeFilter").onchange = renderMistakes;
+document.getElementById("clearMistakesBtn").onclick = () => {
+  mistakes = [];
+  saveAllState();
+  renderMistakes();
+};
+document.getElementById("resetStatsBtn").onclick = () => {
+  stats = { correct: 0, total: 0, byTopic: {} };
+  saveAllState();
+  updateBadges();
+  renderTopicStats();
+};
+
+document.getElementById("exportBackupBtn").onclick = () => {
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    stats,
+    mistakes,
+    lawText: localStorage.getItem(STORAGE_KEYS.lawText) || ""
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "vergi-asistani-yedek.json";
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+document.getElementById("importBackupInput").onchange = (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(String(reader.result || "{}"));
+      if (data.stats) stats = data.stats;
+      if (Array.isArray(data.mistakes)) mistakes = data.mistakes;
+      if (typeof data.lawText === "string") {
+        localStorage.setItem(STORAGE_KEYS.lawText, data.lawText);
+        document.getElementById("lawTextInput").value = data.lawText;
+      }
+      saveAllState();
+      updateBadges();
+      renderTopicStats();
+      renderMistakes();
+      alert("Yedek başarıyla geri yüklendi.");
+    } catch {
+      alert("Geçersiz JSON yedek dosyası.");
+    }
+  };
+  reader.readAsText(file);
+};
+
+(function init() {
+  document.getElementById("apiKeyInput").value = localStorage.getItem(STORAGE_KEYS.apiKey) || "";
+  const savedModel = localStorage.getItem(STORAGE_KEYS.model);
+  if (savedModel) {
+    const sel = document.getElementById("modelSelect");
+    if ([...sel.options].some((o) => o.value === savedModel)) sel.value = savedModel;
+  }
+  document.getElementById("lawTextInput").value = localStorage.getItem(STORAGE_KEYS.lawText) || "";
+  updateNetworkStatus();
+  updateBadges();
+  renderTopicStats();
+  renderMistakes();
+  renderQuestion(currentQuestion);
+
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("sw.js").then((reg) => {
+      if (reg.waiting) showUpdateBanner(reg.waiting);
+      reg.addEventListener("updatefound", () => {
+        const nw = reg.installing;
+        if (!nw) return;
+        nw.addEventListener("statechange", () => {
+          if (nw.state === "installed" && navigator.serviceWorker.controller) {
+            showUpdateBanner(nw);
+          }
+        });
+      });
+    });
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (!refreshing) {
+        refreshing = true;
+        window.location.reload();
+      }
+    });
+  }
+})();
+
+function showUpdateBanner(worker) {
+  const banner = document.getElementById("updateBanner");
+  banner.classList.remove("hidden");
+  document.getElementById("reloadUpdateBtn").onclick = () => {
+    worker.postMessage({ type: "SKIP_WAITING" });
+  };
+}
