@@ -1,4 +1,4 @@
-const CACHE_NAME = "sinav-asistani-ymm-4file-v2";
+const CACHE_NAME = "sinav-asistani-ymm-4file-v3";
 const ASSETS = [
   "./",
   "./index.html",
