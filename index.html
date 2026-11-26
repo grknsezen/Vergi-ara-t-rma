@@ -10,6 +10,7 @@
   <link rel="manifest" href="manifest.json" />
   <title>Vergi Araştırma Asistanı</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <style>
     body { -webkit-tap-highlight-color: transparent; padding-bottom: 92px; }
     .safe-top { padding-top: env(safe-area-inset-top, 12px); }
@@ -164,13 +165,33 @@
 
       <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 space-y-3">
         <h2 class="text-sm font-bold text-slate-800">Mevzuat Havuzu (İsteğe Bağlı Kaynak)</h2>
-        <p class="text-xs text-slate-500">Yapıştırdığınız kanun/tebliğ metni soru ve konu üretiminde öncelikli kaynak alınır.</p>
+        <p class="text-xs text-slate-500">Yapıştırdığınız, linkten çektiğiniz veya PDF'den okuduğunuz mevzuat metni soru ve konu üretiminde öncelikli kaynak alınır.</p>
+
         <div class="flex flex-wrap gap-1.5">
           <button type="button" data-preset="kvk51a" class="preset-btn text-xs bg-slate-100 hover:bg-slate-200 text-slate-800 px-2.5 py-1 rounded-lg">KVK m. 5/1-a</button>
           <button type="button" data-preset="kdv30" class="preset-btn text-xs bg-slate-100 hover:bg-slate-200 text-slate-800 px-2.5 py-1 rounded-lg">KDV m. 30 (İndirilmeyecek KDV)</button>
           <button type="button" data-preset="vuk114" class="preset-btn text-xs bg-slate-100 hover:bg-slate-200 text-slate-800 px-2.5 py-1 rounded-lg">VUK m. 114 (Zamanaşımı)</button>
         </div>
-        <textarea id="lawTextInput" rows="5" placeholder="İlgili kanun maddesi veya tebliğ metnini buraya yapıştırın..."
+
+        <div class="flex gap-2">
+          <input id="lawUrlInput" type="url" placeholder="Mevzuat veya tebliğ bağlantısı (https://...)"
+            class="flex-1 rounded-xl border border-slate-300 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-slate-800" />
+          <button id="fetchUrlBtn" type="button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-3 py-2 rounded-xl text-xs shrink-0">
+            Linkten Çek
+          </button>
+        </div>
+
+        <div class="flex items-center justify-between gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-2.5">
+          <span id="pdfFileName" class="text-xs text-slate-600 truncate">PDF dosyası seçilmedi (Kanun/Tebliğ/Özelge PDF)</span>
+          <label class="bg-white hover:bg-slate-100 border border-slate-300 text-slate-800 font-semibold px-3 py-1.5 rounded-lg text-xs cursor-pointer shrink-0">
+            PDF Yükle
+            <input id="pdfFileInput" type="file" accept="application/pdf,.pdf" class="hidden" />
+          </label>
+        </div>
+
+        <p id="lawSourceStatus" class="text-xs text-slate-500 hidden"></p>
+
+        <textarea id="lawTextInput" rows="6" placeholder="İlgili kanun maddesi, tebliğ metni veya PDF/linkten aktarılan mevzuat içeriği..."
           class="w-full rounded-xl border border-slate-300 p-3 text-sm"></textarea>
         <button id="saveLawBtn" class="w-full bg-slate-900 text-white font-semibold py-2.5 rounded-xl text-sm">
           Mevzuat Metnini Kaydet
