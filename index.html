@@ -19,11 +19,8 @@
       --text-secondary: #475569;
       --text-muted: #64748b;
       --border-soft: rgba(15, 23, 42, 0.08);
-      --accent-dark: #0f172a;
-      --accent-emerald: #059669;
-      --accent-indigo: #4f46e5;
-      --nav-height: 62px;
-      --safari-bar-offset: 56px;
+      --nav-height: 56px;
+      --safari-bar-offset: 28px;
     }
 
     @media all and (display-mode: standalone) {
@@ -48,14 +45,13 @@
     }
 
     body {
-      padding-bottom: calc(var(--nav-height) + var(--safari-bar-offset) + env(safe-area-inset-bottom, 20px) + 28px);
+      padding-bottom: calc(var(--nav-height) + var(--safari-bar-offset) + env(safe-area-inset-bottom, 12px) + 24px);
     }
 
     .hidden {
       display: none !important;
     }
 
-    /* Üst Başlık (iOS Translucent Header) */
     header.app-header {
       position: sticky;
       top: 0;
@@ -155,7 +151,6 @@
       border: 1px solid rgba(255, 255, 255, 0.12);
     }
 
-    /* Ana İçerik Alanı */
     main.app-main {
       max-width: 680px;
       margin: 0 auto;
@@ -198,7 +193,6 @@
       color: var(--text-primary);
     }
 
-    /* iOS Segmented Control (Kanunlar / Tebliğler / Sirkülerler) */
     #lawCategoryTabs {
       display: grid !important;
       grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
@@ -232,7 +226,6 @@
       box-shadow: 0 2px 6px rgba(15, 23, 42, 0.09);
     }
 
-    /* Mevzuat Açılır Listesi */
     #gibTopicList {
       max-height: 260px;
       overflow-y: auto;
@@ -271,7 +264,6 @@
       font-weight: 700;
     }
 
-    /* Form Elemanları (16px: iOS Otomatik Zoom Önleme) */
     input[type="text"],
     input[type="password"],
     input[type="url"],
@@ -298,7 +290,6 @@
       box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
     }
 
-    /* Butonlar */
     .two-col {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -321,10 +312,6 @@
       justify-content: center;
       gap: 8px;
       box-shadow: 0 2px 8px rgba(15, 23, 42, 0.14);
-    }
-
-    .btn-dark:active {
-      transform: scale(0.99);
     }
 
     .btn-indigo {
@@ -358,10 +345,6 @@
       box-shadow: 0 4px 12px rgba(5, 150, 105, 0.24);
     }
 
-    .btn-emerald:active {
-      transform: scale(0.99);
-    }
-
     .btn-emerald-sm {
       width: 100%;
       min-height: 44px;
@@ -375,7 +358,6 @@
       cursor: pointer;
     }
 
-    /* iOS Alt Tab Bar */
     #bottomNav {
       position: fixed !important;
       left: 0 !important;
@@ -385,12 +367,12 @@
       visibility: visible !important;
       opacity: 1 !important;
       z-index: 9999 !important;
-      background: rgba(255, 255, 255, 0.92) !important;
+      background: rgba(255, 255, 255, 0.94) !important;
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
       border-top: 1px solid rgba(15, 23, 42, 0.1) !important;
-      padding-top: 6px;
-      padding-bottom: calc(env(safe-area-inset-bottom, 20px) + var(--safari-bar-offset)) !important;
+      padding-top: 4px;
+      padding-bottom: calc(env(safe-area-inset-bottom, 12px) + var(--safari-bar-offset)) !important;
       box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.06);
     }
 
@@ -398,13 +380,13 @@
       max-width: 680px;
       margin: 0 auto;
       display: grid !important;
-      grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-      padding: 0 4px;
+      grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+      padding: 0 2px;
     }
 
     .bottom-nav-grid button {
       min-width: 0;
-      min-height: 48px;
+      min-height: 46px;
       overflow: hidden;
       border: 0;
       background: transparent;
@@ -412,8 +394,8 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 3px;
-      padding: 4px 2px;
+      gap: 2px;
+      padding: 3px 1px;
       font-size: 10px;
       cursor: pointer;
       color: #64748b;
@@ -422,8 +404,8 @@
     .bottom-nav-grid button span:last-child {
       display: block;
       max-width: 100%;
-      font-size: 10px;
-      line-height: 1.2;
+      font-size: 9.5px;
+      line-height: 1.15;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -436,7 +418,7 @@
   </style>
   <script>
     (function () {
-      const TABS = ["konu", "soru", "sohbet", "hatalar", "ayarlar"];
+      const TABS = ["konu", "soru", "smmm", "sohbet", "hatalar", "ayarlar"];
 
       function applyTabState(tab) {
         const target = TABS.includes(tab) ? tab : "konu";
@@ -458,7 +440,7 @@
       window.switchTab = applyTabState;
 
       document.addEventListener("click", function (ev) {
-        const btn = ev.target.closest("#nav-konu, #nav-soru, #nav-sohbet, #nav-hatalar, #nav-ayarlar, [data-tab]");
+        const btn = ev.target.closest("#nav-konu, #nav-soru, #nav-smmm, #nav-sohbet, #nav-hatalar, #nav-ayarlar, [data-tab]");
         if (!btn) return;
         const tab = btn.dataset.tab || (btn.id ? btn.id.replace("nav-", "") : "");
         if (TABS.includes(tab)) {
@@ -600,7 +582,67 @@
       </div>
     </section>
 
-    <!-- 3. SORU-CEVAP (SOHBET) SEKMESİ -->
+    <!-- 3. SMMM YETERLİLİK TEST ÜRETİM SEKMESİ -->
+    <section id="tab-smmm" class="hidden">
+      <div class="card-box">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <div>
+            <span class="eyebrow" style="color:#4f46e5;">TESMER / Yeterlilik Modülü</span>
+            <h2 class="section-heading">SMMM Yeterlilik Test Üretimi</h2>
+          </div>
+          <span id="smmmPoolBadge" style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:9999px;background:#eef2ff;color:#3730a3;">
+            Havuz: Boş
+          </span>
+        </div>
+
+        <div>
+          <label for="smmmSubjectSelect" style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">Yeterlilik Dersi</label>
+          <select id="smmmSubjectSelect">
+            <option value="Finansal Muhasebe">Finansal Muhasebe</option>
+            <option value="Mali Tablolar Analizi">Mali Tablolar Analizi</option>
+            <option value="Maliyet Muhasebesi">Maliyet Muhasebesi</option>
+            <option value="Muhasebe Denetimi">Muhasebe Denetimi</option>
+            <option value="Vergi Mevzuatı ve Uygulaması" selected>Vergi Mevzuatı ve Uygulaması</option>
+            <option value="Hukuk (Ticaret, Borçlar, İş ve SGK)">Hukuk (Ticaret, Borçlar, İş ve SGK)</option>
+            <option value="Muhasebecilik ve Mali Müşavirlik Meslek Hukuku">Muhasebecilik ve Mali Müşavirlik Meslek Hukuku</option>
+            <option value="Sermaye Piyasası Mevzuatı">Sermaye Piyasası Mevzuatı</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="smmmFocusInput" style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">Alt Konu / Odak (İsteğe Bağlı)</label>
+          <input id="smmmFocusInput" type="text" placeholder="Örn: Dönem sonu değerleme, oran analizi, safha maliyeti..." />
+        </div>
+
+        <div class="two-col">
+          <select id="smmmStyleSelect">
+            <option value="Çıkmış Soru Tarzı" selected>Tarz: Çıkmış Soru</option>
+            <option value="Sayısal / Hesaplama">Tarz: Sayısal / Kayıt</option>
+            <option value="Yorum ve Mevzuat">Tarz: Yorum / Mevzuat</option>
+          </select>
+          <button id="goSmmmPoolBtn" type="button" onclick="window.__coreSwitchTab('ayarlar')" style="min-height:44px;border:1px solid #c7d2fe;background:#eef2ff;color:#3730a3;border-radius:13px;padding:0 12px;font-size:13px;font-weight:700;cursor:pointer;">
+            📄 Örnek PDF Yükle
+          </button>
+        </div>
+
+        <button id="generateSmmmBtn" type="button" class="btn-indigo" style="width:100%;">SMMM Yeterlilik Test Sorusu Üret</button>
+      </div>
+
+      <div id="smmmQuestionCard" class="card-box">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+          <span id="smmmQuestionBadge" style="font-size:12px;font-weight:700;background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;padding:4px 12px;border-radius:9999px;">SMMM Yeterlilik Sorusu</span>
+          <span id="smmmSourceTag" style="font-size:11px;font-weight:600;color:#64748b;">Ders Bazlı Üretim</span>
+        </div>
+        <p id="smmmQuestionText" style="margin:0;font-size:16px;font-weight:500;color:#0f172a;line-height:1.55;">
+          Ders seçip "SMMM Yeterlilik Test Sorusu Üret" butonuna basın. Ayarlar sekmesinden SMMM örnek soru PDF'i yüklerseniz sorular doğrudan o tarza göre üretilir.
+        </p>
+        <div id="smmmOptionsContainer" style="display:flex;flex-direction:column;gap:10px;"></div>
+        <button id="checkSmmmAnswerBtn" type="button" class="btn-emerald" style="width:100%;">Cevabı ve Çözümü Göster</button>
+        <div id="smmmFeedbackBox" class="hidden" style="border-radius:14px;padding:15px;font-size:14px;line-height:1.55;"></div>
+      </div>
+    </section>
+
+    <!-- 4. SORU-CEVAP (SOHBET) SEKMESİ -->
     <section id="tab-sohbet" class="hidden">
       <div class="card-box">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;border-bottom:1px solid #f1f5f9;padding-bottom:12px;">
@@ -633,7 +675,7 @@
       </div>
     </section>
 
-    <!-- 4. HATA DEFTERİ SEKMESİ -->
+    <!-- 5. HATA DEFTERİ SEKMESİ -->
     <section id="tab-hatalar" class="hidden">
       <div class="card-box">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
@@ -649,7 +691,7 @@
       </div>
     </section>
 
-    <!-- 5. AYARLAR SEKMESİ -->
+    <!-- 6. AYARLAR SEKMESİ -->
     <section id="tab-ayarlar" class="hidden">
       <div class="card-box">
         <h2 class="section-heading" style="margin:0;">API ve Model Ayarları</h2>
@@ -670,6 +712,34 @@
         <p id="settingsStatus" class="hidden" style="margin:0;font-size:13px;font-weight:600;color:#047857;">Kaydedildi.</p>
       </div>
 
+      <!-- AYRI SMMM YETERLİLİK PDF / ÖRNEK SORU HAVUZU -->
+      <div class="card-box" style="border:1.5px solid #c7d2fe;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <h2 class="section-heading" style="margin:0;color:#312e81;">SMMM Yeterlilik Örnek Soru Havuzu</h2>
+          <span style="font-size:11px;font-weight:700;background:#eef2ff;color:#4338ca;padding:3px 9px;border-radius:9999px;">Bağımsız Alan</span>
+        </div>
+        <p style="margin:0;font-size:13px;line-height:1.5;color:#475569;">
+          SMMM yeterlilik çıkmış veya örnek sorularını (çoklu PDF veya metin) buraya yükleyin. Mevzuat Havuzu ile karışmaz; yalnızca <strong>SMMM Test</strong> sekmesinde soru tarzını belirlemek için kullanılır.
+        </p>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px dashed #a5b4fc;background:#eef2ff;border-radius:14px;padding:12px;">
+          <span id="smmmPdfFileName" style="font-size:13px;color:#3730a3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">SMMM PDF seçilmedi</span>
+          <label style="background:#4f46e5;color:#ffffff;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;">
+            SMMM PDF Yükle
+            <input id="smmmPdfFileInput" type="file" accept="application/pdf,.pdf" multiple class="hidden" />
+          </label>
+        </div>
+
+        <p id="smmmPoolStatus" class="hidden" style="margin:0;font-size:13px;"></p>
+
+        <textarea id="smmmPoolTextInput" rows="5" placeholder="SMMM yeterlilik örnek soruları, çözümleri veya PDF'ten aktarılan metinler..."></textarea>
+        <div class="two-col">
+          <button id="saveSmmmPoolBtn" type="button" style="min-height:44px;border:0;background:#312e81;color:#fff;border-radius:13px;padding:10px 14px;font-size:14px;font-weight:600;cursor:pointer;">SMMM Havuzunu Kaydet</button>
+          <button id="clearSmmmPoolBtn" type="button" style="min-height:44px;border:1px solid #cbd5e1;background:#fff;color:#e11d48;border-radius:13px;padding:10px 14px;font-size:14px;font-weight:600;cursor:pointer;">Temizle</button>
+        </div>
+      </div>
+
+      <!-- MEVZUAT HAVUZU -->
       <div class="card-box">
         <h2 class="section-heading" style="margin:0;">Mevzuat Havuzu (Çoklu PDF ve Geniş Kapasite)</h2>
         <p style="margin:0;font-size:13px;line-height:1.5;color:#64748b;">Birden fazla PDF seçebilir, linkten veri çekebilir veya metin yapıştırabilirsiniz (200.000 karakter kapasitesi).</p>
@@ -709,23 +779,25 @@
     </section>
   </main>
 
-  <!-- iOS ALT SEKME ÇUBUĞU -->
   <nav id="bottomNav">
     <div class="bottom-nav-grid">
       <button id="nav-konu" type="button" data-tab="konu" onclick="window.__coreSwitchTab('konu')" class="flex flex-col items-center justify-center py-1 text-[10px] font-bold text-slate-900">
-        <span style="font-size:18px;line-height:1;">📘</span><span>Konu</span>
+        <span style="font-size:17px;line-height:1;">📘</span><span>Konu</span>
       </button>
       <button id="nav-soru" type="button" data-tab="soru" onclick="window.__coreSwitchTab('soru')" class="flex flex-col items-center justify-center py-1 text-[10px] font-medium text-slate-500">
-        <span style="font-size:18px;line-height:1;">✍️</span><span>Soru</span>
+        <span style="font-size:17px;line-height:1;">✍️</span><span>Soru</span>
+      </button>
+      <button id="nav-smmm" type="button" data-tab="smmm" onclick="window.__coreSwitchTab('smmm')" class="flex flex-col items-center justify-center py-1 text-[10px] font-medium text-slate-500">
+        <span style="font-size:17px;line-height:1;">🎓</span><span>SMMM Test</span>
       </button>
       <button id="nav-sohbet" type="button" data-tab="sohbet" onclick="window.__coreSwitchTab('sohbet')" class="flex flex-col items-center justify-center py-1 text-[10px] font-medium text-slate-500">
-        <span style="font-size:18px;line-height:1;">💬</span><span>Soru-Cevap</span>
+        <span style="font-size:17px;line-height:1;">💬</span><span>Soru-Cevap</span>
       </button>
       <button id="nav-hatalar" type="button" data-tab="hatalar" onclick="window.__coreSwitchTab('hatalar')" class="flex flex-col items-center justify-center py-1 text-[10px] font-medium text-slate-500">
-        <span style="font-size:18px;line-height:1;">📕</span><span>Hata Defteri</span>
+        <span style="font-size:17px;line-height:1;">📕</span><span>Hata Defteri</span>
       </button>
       <button id="nav-ayarlar" type="button" data-tab="ayarlar" onclick="window.__coreSwitchTab('ayarlar')" class="flex flex-col items-center justify-center py-1 text-[10px] font-medium text-slate-500">
-        <span style="font-size:18px;line-height:1;">⚙️</span><span>Ayarlar</span>
+        <span style="font-size:17px;line-height:1;">⚙️</span><span>Ayarlar</span>
       </button>
     </div>
   </nav>
