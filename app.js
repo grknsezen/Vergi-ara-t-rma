@@ -143,8 +143,8 @@ function syncCategoryUi() {
   document.querySelectorAll(".law-cat-btn").forEach((btn) => {
     const isSelected = btn.dataset.category === activeCategory;
     btn.className = isSelected
-      ? "law-cat-btn rounded-lg py-2 px-1 text-[11px] font-bold bg-slate-900 text-white shadow-xs transition truncate"
-      : "law-cat-btn rounded-lg py-2 px-1 text-[11px] font-semibold text-slate-600 hover:text-slate-900 transition truncate";
+      ? "law-cat-btn cursor-pointer rounded-lg py-2 px-1 text-[11px] font-bold bg-slate-900 text-white shadow-xs transition truncate"
+      : "law-cat-btn cursor-pointer rounded-lg py-2 px-1 text-[11px] font-semibold text-slate-600 hover:text-slate-900 transition truncate";
   });
 
   const label = CATEGORY_LABELS[activeCategory] || "Kanunlar";
@@ -206,13 +206,60 @@ function pickRandomGibTopic(currentValue = "") {
   return chosen;
 }
 
-async function selectCategory(category, autoPick = true) {
+function selectCategoryFromUi(category) {
   activeCategory = CATEGORY_LABELS[category] ? category : "kanunlar";
   syncCategoryUi();
-  if (autoPick) {
-    pickRandomGibTopic("");
+  const autoCb = document.getElementById("autoRandomOnGenerate");
+  const isRandom = Boolean(autoCb && autoCb.checked);
+  const currentTopicInput = document.getElementById("topicInput");
+
+  if (isRandom) {
+    pickRandomGibTopic(currentTopicInput ? currentTopicInput.value.trim() : "");
   } else {
-    populateGibTopicSelect(document.getElementById("topicInput").value.trim(), "");
+    const pool = getCategoryPool(activeCategory);
+    if (pool.length && currentTopicInput) {
+      currentTopicInput.value = pool[0];
+    }
+    populateGibTopicSelect(currentTopicInput ? currentTopicInput.value.trim() : "", "");
+  }
+}
+
+function toggleLawPickerPanel() {
+  const panel = document.getElementById("lawPickerPanel");
+  if (!panel) return;
+  panel.classList.toggle("hidden");
+  if (!panel.classList.contains("hidden")) {
+    const search = document.getElementById("lawSearchInput");
+    if (search) search.value = "";
+    syncCategoryUi();
+    populateGibTopicSelect(document.getElementById("topicInput")?.value.trim() || "", "");
+    if (search) search.focus();
+  }
+}
+
+function closeLawPickerPanel() {
+  const panel = document.getElementById("lawPickerPanel");
+  if (panel) panel.classList.add("hidden");
+}
+
+function handleRandomGibTopicClick() {
+  const autoCb = document.getElementById("autoRandomOnGenerate");
+  if (autoCb) autoCb.checked = true;
+  syncSelectionModeBadge();
+  pickRandomGibTopic(document.getElementById("topicInput")?.value.trim() || "");
+}
+
+async function syncPoolToActiveCategory() {
+  const savedUrl = (localStorage.getItem(STORAGE_KEYS.lawUrl) || document.getElementById("lawUrlInput")?.value || "").trim();
+  if (savedUrl) {
+    await fetchTextFromUrl(savedUrl);
+  } else {
+    syncCategoryUi();
+    populateGibTopicSelect(
+      document.getElementById("topicInput")?.value.trim() || "",
+      document.getElementById("lawSearchInput")?.value || ""
+    );
+    setLawStatus("Mevzuat Havuzu metnindeki eşleşen başlıklar aktif kategori listesine senkronize edildi.");
   }
 }
 
@@ -223,6 +270,7 @@ function saveAllState() {
 
 function setLawStatus(msg, isError = false) {
   const el = document.getElementById("lawSourceStatus");
+  if (!el) return;
   el.textContent = msg;
   el.className = isError
     ? "text-xs text-rose-600 font-medium"
@@ -252,7 +300,10 @@ function appendLawText(incoming, sourceLabel) {
   ta.value = merged;
   localStorage.setItem(STORAGE_KEYS.lawText, merged);
   syncCategoryUi();
-  populateGibTopicSelect(document.getElementById("topicInput").value.trim(), document.getElementById("lawSearchInput").value);
+  populateGibTopicSelect(
+    document.getElementById("topicInput")?.value.trim() || "",
+    document.getElementById("lawSearchInput")?.value || ""
+  );
   setLawStatus(`"${sourceLabel}" verisi aktarıldı, kaydedildi ve mevzuat listelerine işlendi${trimmedNote}.`);
 }
 
@@ -272,9 +323,11 @@ async function fetchTextFromUrl(rawUrl) {
 
   localStorage.setItem(STORAGE_KEYS.lawUrl, url);
   const btn = document.getElementById("fetchUrlBtn");
-  const prev = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = "Çekiliyor...";
+  const prev = btn ? btn.textContent : "";
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Çekiliyor...";
+  }
 
   try {
     let extracted = "";
@@ -302,8 +355,10 @@ async function fetchTextFromUrl(rawUrl) {
   } catch (err) {
     setLawStatus("Link hatası: " + err.message, true);
   } finally {
-    btn.disabled = false;
-    btn.textContent = prev;
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = prev;
+    }
   }
 }
 
@@ -343,6 +398,7 @@ function updateNetworkStatus() {
   const badge = document.getElementById("netBadge");
   const dot = document.getElementById("netDot");
   const text = document.getElementById("netText");
+  if (!badge || !dot || !text) return;
   if (online) {
     badge.className = "text-[11px] px-2.5 py-1 rounded-full border flex items-center gap-1.5 bg-emerald-950/70 text-emerald-300 border-emerald-700/60";
     dot.className = "w-2 h-2 rounded-full bg-emerald-400";
@@ -360,18 +416,22 @@ window.addEventListener("offline", updateNetworkStatus);
 function updateBadges(key) {
   const badge = document.getElementById("modeBadge");
   const activeKey = (key ?? localStorage.getItem(STORAGE_KEYS.apiKey) ?? "").trim();
-  if (activeKey.length > 10) {
-    badge.textContent = "Canlı Gemini API Aktif";
-    badge.className = "text-[11px] text-emerald-400 truncate mt-0.5";
-  } else {
-    badge.textContent = "Demo Modu (Ayarlardan API Anahtarı Ekleyin)";
-    badge.className = "text-[11px] text-amber-400 truncate mt-0.5";
+  if (badge) {
+    if (activeKey.length > 10) {
+      badge.textContent = "Canlı Gemini API Aktif";
+      badge.className = "text-[11px] text-emerald-400 truncate mt-0.5";
+    } else {
+      badge.textContent = "Demo Modu (Ayarlardan API Anahtarı Ekleyin)";
+      badge.className = "text-[11px] text-amber-400 truncate mt-0.5";
+    }
   }
-  document.getElementById("scoreBadge").textContent = `${stats.correct} / ${stats.total}`;
+  const scoreEl = document.getElementById("scoreBadge");
+  if (scoreEl) scoreEl.textContent = `${stats.correct} / ${stats.total}`;
 }
 
 function renderTopicStats() {
   const el = document.getElementById("topicStatsList");
+  if (!el) return;
   const entries = Object.entries(stats.byTopic || {});
   if (!entries.length) {
     el.textContent = "Henüz soru çözülmedi. Soru çözdükçe mevzuat bazlı doğru/yanlış dağılımı burada görünecek.";
@@ -389,6 +449,7 @@ function renderTopicStats() {
 function renderMistakes() {
   const listEl = document.getElementById("mistakesList");
   const filterEl = document.getElementById("mistakeFilter");
+  if (!listEl || !filterEl) return;
   const currentFilter = filterEl.value || "ALL";
   const topics = ["ALL", ...new Set(mistakes.map((m) => m.topic))];
   filterEl.innerHTML = topics.map((t) => `<option value="${escapeAttr(t)}">${t === "ALL" ? "Tüm Mevzuatlar" : escapeHtml(t)}</option>`).join("");
@@ -405,7 +466,7 @@ function renderMistakes() {
     return `<div class="rounded-xl border border-rose-200 bg-rose-50/50 p-3.5 space-y-2">
       <div class="flex items-center justify-between gap-2">
         <span class="text-xs font-semibold text-rose-800">${escapeHtml(m.topic)}</span>
-        <button onclick="removeMistake(${realIndex})" class="text-xs text-emerald-700 font-semibold hover:underline">Tekrar Çözdüm / Sil</button>
+        <button onclick="removeMistake(${realIndex})" type="button" class="text-xs text-emerald-700 font-semibold hover:underline">Tekrar Çözdüm / Sil</button>
       </div>
       <p class="font-medium text-slate-900">${escapeHtml(m.question)}</p>
       <p class="text-xs text-slate-600"><strong>Doğru Cevap:</strong> ${escapeHtml(m.correctOption || "")}</p>
@@ -431,11 +492,14 @@ function removeMistake(index) {
 
 function switchTab(tab) {
   ALL_TABS.forEach((t) => {
-    document.getElementById("tab-" + t).classList.toggle("hidden", t !== tab);
+    const sec = document.getElementById("tab-" + t);
+    if (sec) sec.classList.toggle("hidden", t !== tab);
     const nav = document.getElementById("nav-" + t);
-    nav.className = t === tab
-      ? "flex flex-col items-center text-[11px] font-bold text-slate-900"
-      : "flex flex-col items-center text-[11px] font-medium text-slate-400";
+    if (nav) {
+      nav.className = t === tab
+        ? "flex flex-col items-center text-[11px] font-bold text-slate-900"
+        : "flex flex-col items-center text-[11px] font-medium text-slate-400";
+    }
   });
   if (tab === "hatalar") renderMistakes();
   if (tab === "konu") renderTopicStats();
@@ -471,8 +535,9 @@ function renderQuestion(q) {
 
 function startTimerIfConfigured() {
   if (timerInterval) clearInterval(timerInterval);
-  const mins = parseInt(document.getElementById("timerMinutes").value || "0", 10);
+  const mins = parseInt(document.getElementById("timerMinutes")?.value || "0", 10);
   const display = document.getElementById("timerDisplay");
+  if (!display) return;
   if (!mins || mins <= 0) {
     display.classList.add("hidden");
     return;
@@ -797,95 +862,63 @@ function escapeAttr(str) {
   return String(str).replace(/"/g, "&quot;");
 }
 
-document.querySelectorAll(".law-cat-btn").forEach((btn) => {
-  btn.onclick = () => {
-    const cat = btn.dataset.category || "kanunlar";
-    const autoCb = document.getElementById("autoRandomOnGenerate");
-    selectCategory(cat, Boolean(autoCb && autoCb.checked));
-  };
+document.addEventListener("click", (e) => {
+  const catBtn = e.target.closest(".law-cat-btn");
+  if (catBtn) {
+    e.preventDefault();
+    selectCategoryFromUi(catBtn.dataset.category || "kanunlar");
+    return;
+  }
+
+  const quickBtn = e.target.closest(".chat-quick-btn");
+  if (quickBtn) {
+    e.preventDefault();
+    const prompt = quickBtn.dataset.prompt || "";
+    if (prompt) handleChatSend(prompt);
+    return;
+  }
+
+  const presetBtn = e.target.closest(".preset-btn");
+  if (presetBtn) {
+    e.preventDefault();
+    const text = PRESETS[presetBtn.dataset.preset] || "";
+    const ta = document.getElementById("lawTextInput");
+    if (ta) ta.value = ta.value ? `${ta.value}\n\n${text}` : text;
+  }
 });
 
-document.getElementById("toggleLawPickerBtn").onclick = () => {
-  const panel = document.getElementById("lawPickerPanel");
-  panel.classList.toggle("hidden");
-  if (!panel.classList.contains("hidden")) {
-    const search = document.getElementById("lawSearchInput");
-    search.value = "";
-    syncCategoryUi();
-    populateGibTopicSelect(document.getElementById("topicInput").value.trim(), "");
-    search.focus();
+function bindDirectListeners() {
+  const searchInput = document.getElementById("lawSearchInput");
+  if (searchInput) {
+    searchInput.oninput = (e) => {
+      populateGibTopicSelect(document.getElementById("topicInput")?.value.trim() || "", e.target.value);
+    };
   }
-};
 
-document.getElementById("syncPoolToCategoryBtn").onclick = async () => {
-  const savedUrl = (localStorage.getItem(STORAGE_KEYS.lawUrl) || document.getElementById("lawUrlInput").value || "").trim();
-  if (savedUrl) {
-    await fetchTextFromUrl(savedUrl);
-  } else {
-    syncCategoryUi();
-    populateGibTopicSelect(document.getElementById("topicInput").value.trim(), document.getElementById("lawSearchInput").value);
-    setLawStatus("Mevzuat Havuzu metnindeki eşleşen başlıklar aktif kategori listesine senkronize edildi.");
+  const topicSelect = document.getElementById("gibTopicSelect");
+  if (topicSelect) {
+    topicSelect.onchange = (e) => {
+      const chosen = e.target.value;
+      if (!chosen) return;
+      const tInput = document.getElementById("topicInput");
+      if (tInput) tInput.value = chosen;
+      const autoCb = document.getElementById("autoRandomOnGenerate");
+      if (autoCb) autoCb.checked = false;
+      syncSelectionModeBadge();
+      closeLawPickerPanel();
+    };
   }
-};
 
-document.getElementById("closeLawPickerBtn").onclick = () => {
-  document.getElementById("lawPickerPanel").classList.add("hidden");
-};
+  const autoRandomEl = document.getElementById("autoRandomOnGenerate");
+  if (autoRandomEl) autoRandomEl.onchange = syncSelectionModeBadge;
 
-document.getElementById("lawSearchInput").oninput = (e) => {
-  populateGibTopicSelect(document.getElementById("topicInput").value.trim(), e.target.value);
-};
-
-document.getElementById("gibTopicSelect").onchange = (e) => {
-  const chosen = e.target.value;
-  if (!chosen) return;
-  document.getElementById("topicInput").value = chosen;
-  const autoCb = document.getElementById("autoRandomOnGenerate");
-  if (autoCb) autoCb.checked = false;
-  syncSelectionModeBadge();
-  document.getElementById("lawPickerPanel").classList.add("hidden");
-};
-
-document.getElementById("randomGibTopicBtn").onclick = () => {
-  const autoCb = document.getElementById("autoRandomOnGenerate");
-  if (autoCb) autoCb.checked = true;
-  syncSelectionModeBadge();
-  pickRandomGibTopic(document.getElementById("topicInput").value.trim());
-};
-
-document.getElementById("autoRandomOnGenerate").onchange = syncSelectionModeBadge;
-
-document.getElementById("saveSettingsBtn").onclick = () => {
-  const key = document.getElementById("apiKeyInput").value.trim();
-  const model = document.getElementById("modelSelect").value;
-  localStorage.setItem(STORAGE_KEYS.apiKey, key);
-  localStorage.setItem(STORAGE_KEYS.model, model);
-  updateBadges(key);
-  const st = document.getElementById("settingsStatus");
-  st.classList.remove("hidden");
-  setTimeout(() => st.classList.add("hidden"), 2500);
-};
-
-document.getElementById("saveLawBtn").onclick = () => {
-  const law = document.getElementById("lawTextInput").value.trim();
-  localStorage.setItem(STORAGE_KEYS.lawText, law);
-  syncCategoryUi();
-  populateGibTopicSelect(document.getElementById("topicInput").value.trim(), document.getElementById("lawSearchInput").value);
-  setLawStatus("Mevzuat metni kaydedildi ve bölümlere işlendi.");
-};
-
-document.getElementById("fetchUrlBtn").onclick = () => {
-  fetchTextFromUrl(document.getElementById("lawUrlInput").value);
-};
-
-document.getElementById("pdfFileInput").onchange = (e) => {
-  const file = e.target.files?.[0];
-  extractTextFromPdfFile(file);
-  e.target.value = "";
-};
-
-document.querySelectorAll(".preset-btn").forEach((btn) => {
-  btn.onclick = () => {
-    const text = PRESETS[btn.dataset.preset] || "";
-    const ta = document.getElementById("lawTextInput");
-    ta.value = ta.value ? `${ta.value}\n\n${
+  const saveSettingsBtn = document.getElementById("saveSettingsBtn");
+  if (saveSettingsBtn) {
+    saveSettingsBtn.onclick = () => {
+      const key = document.getElementById("apiKeyInput").value.trim();
+      const model = document.getElementById("modelSelect").value;
+      localStorage.setItem(STORAGE_KEYS.apiKey, key);
+      localStorage.setItem(STORAGE_KEYS.model, model);
+      updateBadges(key);
+      const st = document.getElementById("settingsStatus");
+      st.classList
