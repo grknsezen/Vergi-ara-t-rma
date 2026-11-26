@@ -7,9 +7,58 @@ const STORAGE_KEYS = {
   stats: "vergi_pwa_stats",
   mistakes: "vergi_pwa_mistakes"
 };
-const MAX_LAW_CHARS = 25000;
+const MAX_LAW_CHARS = 200000;
+const IDB_NAME = "VergiAsistaniDB";
+const IDB_STORE = "kv";
 
 window.__memStore = window.__memStore || {};
+
+function openIdb() {
+  return new Promise((resolve, reject) => {
+    if (!window.indexedDB) {
+      reject(new Error("IndexedDB desteklenmiyor"));
+      return;
+    }
+    const req = window.indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(IDB_STORE)) {
+        db.createObjectStore(IDB_STORE);
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function idbSet(key, val) {
+  try {
+    const db = await openIdb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, "readwrite");
+      tx.objectStore(IDB_STORE).put(val, key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function idbGet(key) {
+  try {
+    const db = await openIdb();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, "readonly");
+      const req = tx.objectStore(IDB_STORE).get(key);
+      req.onsuccess = () => resolve(req.result ?? null);
+      req.onerror = () => reject(req.error);
+    });
+  } catch {
+    return null;
+  }
+}
 
 function safeGetStorage(key, fallback = "") {
   try {
@@ -29,11 +78,14 @@ function safeGetStorage(key, fallback = "") {
 function safeSetStorage(key, value) {
   const strVal = String(value ?? "");
   window.__memStore[key] = strVal;
+  if (key === STORAGE_KEYS.lawText) {
+    idbSet(key, strVal);
+  }
   try {
     window.localStorage.setItem(key, strVal);
     return { ok: true, persisted: true };
   } catch {
-    return { ok: true, persisted: false };
+    return { ok: true, persisted: key === STORAGE_KEYS.lawText };
   }
 }
 
@@ -45,59 +97,161 @@ const CATEGORY_LABELS = {
 
 const MEVZUAT_BY_CATEGORY = {
   kanunlar: [
-    "193 sayılı Gelir Vergisi Kanunu",
-    "213 sayılı Vergi Usul Kanunu",
-    "3065 sayılı Katma Değer Vergisi Kanunu",
-    "5520 sayılı Kurumlar Vergisi Kanunu",
-    "6183 sayılı Amme Alacaklarının Tahsil Usulü Hakkında Kanunu",
-    "488 sayılı Damga Vergisi Kanunu",
-    "492 sayılı Harçlar Kanunu",
-    "7338 sayılı Veraset ve İntikal Vergisi Kanunu",
-    "1319 sayılı Emlak Vergisi Kanunu",
-    "4760 sayılı Özel Tüketim Vergisi Kanunu",
-    "197 sayılı Motorlu Taşıtlar Vergisi Kanunu",
-    "6802 sayılı Gider Vergileri Kanunu",
-    "2464 sayılı Belediye Gelirleri Kanunu",
-    "4691 sayılı Teknoloji Geliştirme Bölgeleri Kanunu",
-    "5746 sayılı Araştırma, Geliştirme ve Tasarım Faaliyetlerinin Desteklenmesi Hakkında Kanun",
-    "3218 sayılı Serbest Bölgeler Kanunu"
+    // GVK - 193 sayılı Gelir Vergisi Kanunu
+    "193 sayılı GVK — Tam ve Dar Mükellefiyet Esasları (m. 1-8)",
+    "193 sayılı GVK — Ticari Kazancın Tespiti, İndirilecek ve İndirilmeyecek Giderler (m. 37-41)",
+    "193 sayılı GVK — Yıllara Sari İnşaat ve Onarma İşleri ile Ortak Gider Dağıtımı (m. 42-44)",
+    "193 sayılı GVK — Zirai Kazanç ve Serbest Meslek Kazancının Tespiti (m. 52-68)",
+    "193 sayılı GVK — Ücretler, İstisnalar ve Asgari Ücret İstisnası Uygulaması (m. 23, 61-64)",
+    "193 sayılı GVK — Gayrimenkul Sermaye İradı, Emsal Kira Bedeli ve Gider Yöntemleri (m. 70-74)",
+    "193 sayılı GVK — Menkul Sermaye İratları ve Beyan Sınırları (m. 75-79, 85-86)",
+    "193 sayılı GVK — Değer Artışı Kazançları ve Arızi Kazançlar (Mükerrer m. 80-82)",
+    "193 sayılı GVK — Yıllık Beyanname, Gelirin Toplanması ve Beyanname Üzerinden İndirimler (m. 85-89)",
+    "193 sayılı GVK — Vergi Tevkifatı, Muhtasar Beyanname ve Geçici Vergi (m. 94, Mükerrer m. 120)",
+    "193 sayılı GVK — Vergiye Uyumlu Mükelleflerde %5 Vergi İndirimi (Mükerrer m. 121)",
+    "193 sayılı GVK — Geçici 67. Madde Kapsamında Menkul Kıymet Gelirlerinin Vergilendirilmesi",
+
+    // KVK - 5520 sayılı Kurumlar Vergisi Kanunu
+    "5520 sayılı KVK — Mükellefiyet, Tam ve Dar Mükellef Ayrımı ve Muafiyetler (m. 1-4)",
+    "5520 sayılı KVK — İştirak Kazançları, Emisyon Primi ve Risturn İstisnası (m. 5/1-a, ç, i)",
+    "5520 sayılı KVK — Yurt Dışı İştirak, Şube ve İnşaat Kazançları İstisnası (m. 5/1-b, g, h)",
+    "5520 sayılı KVK — Taşınmaz ve İştirak Hissesi Satış Kazancı İstisnası (m. 5/1-e)",
+    "5520 sayılı KVK — Safi Kurum Kazancı ve KVK'ya Göre İndirilecek Giderler (m. 6-8)",
+    "5520 sayılı KVK — Zarar Mahsubu ve Devir/Bölünme Hallerinde Zarar Mahsubu (m. 9)",
+    "5520 sayılı KVK — Diğer İndirimler: Sponsorluk, Bağış, Nakdi Sermaye Artışı İndirimi (m. 10)",
+    "5520 sayılı KVK — Kabul Edilmeyen İndirimler ve Finansman Gider Kısıtlaması (m. 11)",
+    "5520 sayılı KVK — Örtülü Sermaye Şartları ve Düzeltme İşlemleri (m. 12)",
+    "5520 sayılı KVK — Transfer Fiyatlandırması Yoluyla Örtülü Kazanç Dağıtımı (m. 13)",
+    "5520 sayılı KVK — Kontrol Edilen Yabancı Kurum Kazancı (m. 7)",
+    "5520 sayılı KVK — Devir, Bölünme ve Hisse Değişimi İşlemleri (m. 19-20)",
+    "5520 sayılı KVK — Dar Mükellefiyette Vergi Kesintisi (m. 30) ve Yurt Dışı Vergi Mahsubu (m. 33)",
+
+    // KDV - 3065 sayılı Katma Değer Vergisi Kanunu
+    "3065 sayılı KDV — Verginin Konusu, Teslim ve Hizmet Sayılan Haller (m. 1-5)",
+    "3065 sayılı KDV — Mükellef ve Vergi Sorumlusu (KDV Tevkifatı Uygulaması) (m. 8-9)",
+    "3065 sayılı KDV — Vergiyi Doğuran Olay (m. 10)",
+    "3065 sayılı KDV — İhracat İstisnası ve İhraç Kayıtlı Teslimlerde Tecil-Terkin (m. 11/1-a, c)",
+    "3065 sayılı KDV — Araçlar, Petrol Aramaları ve Teşvik Belgeli Yatırımlarda İstisna (m. 13)",
+    "3065 sayılı KDV — Sosyal, Askeri Amaçlı ve Diğer İstisnalar (m. 17, 17/4-g, 17/4-r)",
+    "3065 sayılı KDV — Matrah, Matraha Dahil Olan/Olmayan Unsurlar ve Emsal Bedel (m. 20-27)",
+    "3065 sayılı KDV — Vergi İndirimi, İndirilemeyecek KDV ve Kısmi İstisnada İndirim (m. 29-30)",
+    "3065 sayılı KDV — İndirimli Orana Tabi İşlemlerde İade ve İstisna İadeleri (m. 29/2, m. 32)",
+    "3065 sayılı KDV — Matrah ve Vergi Miktarının Değişmesi (İade/İskonto/Değersiz Alacak) (m. 35)",
+
+    // VUK - 213 sayılı Vergi Usul Kanunu
+    "213 sayılı VUK — Vergi Kanunlarının Uygulanması, İspat ve Yorum (m. 3)",
+    "213 sayılı VUK — Vergi Sorumluluğu, Kanuni Temsilcilerin Ödevi ve Mirasçıların Sorumluluğu (m. 8-12)",
+    "213 sayılı VUK — Mücbir Sebepler, Sürelerin Hesaplanması ve Uzaması (m. 13-18)",
+    "213 sayılı VUK — Tarh Türleri (İkmalen, Re'sen ve İdarece Tarhiyat) (m. 20-30)",
+    "213 sayılı VUK — Tebliğ Esasları, İlanen Tebliğ ve Elektronik Tebligat (m. 93-107/A)",
+    "213 sayılı VUK — Tahakkuk ve Tarh Zamanaşımı ile Zamanaşımını Durduran Haller (m. 113-114)",
+    "213 sayılı VUK — Vergi Hataları ve Düzeltme Zamanaşımı (m. 116-126)",
+    "213 sayılı VUK — Vergi İncelemesi, Arama ve Bilgi Toplama (m. 134-152)",
+    "213 sayılı VUK — Defter Tutma, Belge Düzeni (Fatura, Sevk İrsaliyesi, e-Belge) (m. 171-242)",
+    "213 sayılı VUK — Değerleme Ölçüleri (Maliyet Bedeli, Borsa Rayici, Emsal Bedel, Mukayyet Değer) (m. 258-268)",
+    "213 sayılı VUK — Alacak ve Borçların Değerlemesi, Reeskont, Şüpheli ve Değersiz Alacaklar (m. 280-324)",
+    "213 sayılı VUK — Amortisman Mevzuu, Yöntemleri, Yenileme Fonu ve Yeniden Değerleme (m. 313-329, Mük. 298)",
+    "213 sayılı VUK — Vergi Ziyaı, Usulsüzlük, Özel Usulsüzlük ve Kaçakçılık Suç/Cezaları (m. 341-360)",
+    "213 sayılı VUK — Pişmanlık ve Islah (m. 371), Cezalarda İndirim (m. 376) ve İzaha Davet (m. 370)",
+    "213 sayılı VUK — Tarhiyat Öncesi ve Tarhiyat Sonrası Uzlaşma (Ek m. 1-11)",
+
+    // 6183 sayılı Kanun
+    "6183 sayılı AATUHK — Kanunun Şümulü ve Amme Alacağının Korunması (Teminat, İhtiyati Haciz, İhtiyati Tahakkuk) (m. 1-20)",
+    "6183 sayılı AATUHK — İptal Davaları ve Hükümsüz Sayılan Tasarruflar (m. 24-31)",
+    "6183 sayılı AATUHK — Limited Şirket Ortaklarının ve Kanuni Temsilcilerin Sorumluluğu (m. 35, Mükerrer m. 35)",
+    "6183 sayılı AATUHK — Tecil, Taksitlendirme ve Gecikme Zammı Uygulaması (m. 48, 48/A, 51)",
+    "6183 sayılı AATUHK — Ödeme Emri, Ödeme Emrine İtiraz Sebepleri ve Haciz Uygulaması (m. 54-79)",
+    "6183 sayılı AATUHK — Tahsil Zamanaşımı ve Zamanaşımının Kesilmesi/Durması (m. 102-104)"
   ],
+
   tebligler: [
-    "KDV Genel Uygulama Tebliği",
-    "Kurumlar Vergisi Genel Tebliği (Seri No: 1)",
-    "Vergi Usul Kanunu Genel Tebliği (Sıra No: 509 - e-Belge Uygulamaları)",
-    "Vergi Usul Kanunu Genel Tebliği (Sıra No: 459 - Tevsik Zorunluluğu)",
-    "Transfer Fiyatlandırması Yoluyla Örtülü Kazanç Dağıtımı Hakkında Genel Tebliğ (Seri No: 1)",
-    "Gelir Vergisi Genel Tebliği (Seri No: 311 - Ücret İstisnası ve Uygulaması)",
-    "Gelir Vergisi Genel Tebliği (Seri No: 252 - Tevkifat Yoluyla Kesilen Vergilerin İadesi)",
-    "Tahsilat Genel Tebliği (Seri No: A/1)",
-    "Özel Tüketim Vergisi (I), (II), (III) ve (IV) Sayılı Liste Uygulama Genel Tebliğleri",
-    "Damga Vergisi Kanunu Genel Tebliğleri",
-    "Harçlar Kanunu Genel Tebliğleri"
+    // GVK Tebliğleri
+    "Gelir Vergisi Genel Tebliği (Seri No: 252) — Tevkifat Yoluyla Kesilen Vergilerin Mahsup ve İadesi",
+    "Gelir Vergisi Genel Tebliği (Seri No: 301) — Vergiye Uyumlu Mükelleflere Vergi İndirimi",
+    "Gelir Vergisi Genel Tebliği (Seri No: 311) — Ücret Gelirlerinin Vergilendirilmesi ve Tek/Birden Fazla İşveren Ayrımı",
+    "Gelir Vergisi Genel Tebliği (Seri No: 319) — Asgari Ücret İstisnası Uygulaması",
+    "Gelir Vergisi Genel Tebliği (Seri No: 257) — Geçici 67. Madde Uygulama Esasları",
+    "Gelir Vergisi Genel Tebliği (Seri No: 217) — Geçici Vergi Uygulaması",
+    "Gelir Vergisi Genel Tebliği (Seri No: 128) — Ücret ve Gayrimenkul Sermaye İradı Uygulamaları",
+
+    // KVK Tebliğleri
+    "Kurumlar Vergisi Genel Tebliği (Seri No: 1) — Bölüm 5: İstisnalar (İştirak Kazançları, Taşınmaz/İştirak Satışı)",
+    "Kurumlar Vergisi Genel Tebliği (Seri No: 1) — Bölüm 8-11: Safi Kurum Kazancı, Giderler ve Kabul Edilmeyen İndirimler",
+    "Kurumlar Vergisi Genel Tebliği (Seri No: 1) — Bölüm 10.6: Nakdi Sermaye Artışından Kaynaklanan Faiz İndirimi",
+    "Kurumlar Vergisi Genel Tebliği (Seri No: 1) — Bölüm 11.13: Finansman Gider Kısıtlaması Uygulaması",
+    "Kurumlar Vergisi Genel Tebliği (Seri No: 1) — Bölüm 12: Örtülü Sermaye Uygulaması",
+    "Kurumlar Vergisi Genel Tebliği (Seri No: 1) — Bölüm 19-20: Devir, Bölünme ve Hisse Değişimi",
+    "Kurumlar Vergisi Genel Tebliği (Seri No: 1) — Bölüm 30: Dar Mükellef Kurumlarda Vergi Kesintisi",
+    "Transfer Fiyatlandırması Yoluyla Örtülü Kazanç Dağıtımı Hakkında Genel Tebliğ (Seri No: 1, 3 ve 4)",
+
+    // KDV Tebliğleri
+    "KDV Genel Uygulama Tebliği — I. Kısım: Mükellefiyet ve KDV Tevkifatı (Kısmi ve Tam Tevkifat)",
+    "KDV Genel Uygulama Tebliği — II/A: İhracat İstisnası ve İhraç Kayıtlı Teslimlerde Tecil-Terkin",
+    "KDV Genel Uygulama Tebliği — II/B: Araçlar, Petrol Aramaları ve Teşvik Belgeli Yatırımlarda İstisna",
+    "KDV Genel Uygulama Tebliği — II/F: Sosyal ve Askeri Amaçlı İstisnalar ile Diğer İstisnalar (m. 17)",
+    "KDV Genel Uygulama Tebliği — III/A-B: Matrah, Oran ve İndirimli Orana Tabi İşlemlerde İade",
+    "KDV Genel Uygulama Tebliği — III/C: Vergi İndirimi ve İndirilemeyecek KDV (m. 29-30)",
+    "KDV Genel Uygulama Tebliği — IV. Kısım: KDV İadesinde Ortak Hususlar (Mahsuben/Nakden İade, YMM Raporu, Teminat, Özel Esaslar)",
+
+    // VUK Tebliğleri
+    "VUK Genel Tebliği (Sıra No: 509) — Elektronik Belge Uygulamaları (e-Fatura, e-Arşiv, e-İrsaliye, e-SMM)",
+    "VUK Genel Tebliği (Sıra No: 459) — Tahsilat ve Ödemelerin Tevsik Zorunluluğu",
+    "VUK Genel Tebliği (Sıra No: 555) — Enflasyon Düzeltmesi Uygulama Usul ve Esasları",
+    "VUK Genel Tebliği (Sıra No: 456) — Elektronik Tebligat Sistemi Uygulaması",
+    "VUK Genel Tebliği (Sıra No: 519) — İzaha Davet Müessesesi Uygulaması",
+    "VUK Genel Tebliği (Sıra No: 333) — Amortismana Tabi İktisadi Kıymetlerin Faydalı Ömür Listesi",
+    "VUK Genel Tebliği (Sıra No: 537) — Sürekli ve Geçici Yeniden Değerleme Uygulaması",
+
+    // 6183 Tahsilat Tebliğleri
+    "Tahsilat Genel Tebliği (Seri No: A/1) — Amme Alacağının Korunması (Teminat, İhtiyati Haciz, İhtiyati Tahakkuk)",
+    "Tahsilat Genel Tebliği (Seri No: A/1) — Limited Şirket Ortakları ve Kanuni Temsilcilerin Sorumluluğu",
+    "Tahsilat Genel Tebliği (Seri No: A/1) — Tecil ve Taksitlendirme (m. 48) ile Vergiye Uyumlu Mükelleflere Tecil (m. 48/A)",
+    "Tahsilat Genel Tebliği (Seri No: A/1) — Ödeme Emri, Haciz ve Tahsil Zamanaşımı Uygulaması"
   ],
+
   sirkulerler: [
-    "Vergi Usul Kanunu Sirküleri - Elektronik Belge ve Beyan Uygulamaları",
-    "Vergi Usul Kanunu Sirküleri - Enflasyon Düzeltmesi ve Değerleme Uygulamaları",
-    "Kurumlar Vergisi Sirküleri - İstisnalar, Geçici Vergi ve Matrah Uygulamaları",
-    "Kurumlar Vergisi Sirküleri - Yurt Dışı Kazanç, İndirim ve Kâr Payı Uygulamaları",
-    "Katma Değer Vergisi Sirküleri - Tevkifat, İndirim ve İade Usulleri",
-    "Katma Değer Vergisi Sirküleri - İndirimli Oran ve İhraç Kayıtlı Teslimler",
-    "Gelir Vergisi Sirküleri - Tevkifat, İstisna ve Beyan Uygulamaları",
-    "Tahsilat Sirküleri - Tecil, Taksitlendirme ve Amme Alacağı Takibi"
+    // GVK Sirküleri
+    "GVK Sirküleri — Ücret Gelirlerinin Beyanı, Asgari Ücret İstisnası ve Kümülatif Matrah Uygulaması",
+    "GVK Sirküleri — Gayrimenkul ve Menkul Sermaye İratlarında Beyan Sınırları ve İstisnalar",
+    "GVK Sirküleri — Geçici 67. Madde Kapsamında Tevkifat ve İhtiyari Beyan Uygulaması",
+    "GVK Sirküleri — Yıllara Sari İnşaat İşleri ve Serbest Meslek Kazançlarında Tevkifat Uygulaması",
+
+    // KVK Sirküleri
+    "KVK Sirküleri (Seri No: 1) — Kurumlar Vergisi Beyannamesi, İstisnalar ve İndirimlerin Uygulanması",
+    "KVK Sirküleri — Nakdi Sermaye Artışı İndirimi ve Finansman Gider Kısıtlaması Uygulaması",
+    "KVK Sirküleri — Taşınmaz ve İştirak Hissesi Satış Kazancı İstisnasında Süre ve Fon Şartları",
+    "KVK Sirküleri — Geçici Vergi Dönemlerinde Değerleme, Kur Farkı ve Zarar Mahsubu",
+
+    // KDV Sirküleri
+    "KDV Sirküleri (Sıra No: 60) — KDV Kanunu Kapsamındaki İşlemlerin Vergilendirilmesi ve İstisnalar",
+    "KDV Sirküleri — Kısmi Tevkifat Uygulaması ve Sorumlu Sıfatıyla Beyan Edilen KDV'nin İndirimi",
+    "KDV Sirküleri — İhraç Kayıtlı Teslimlerde Süre Uzatımı ve İmalatçı Şartları",
+    "KDV Sirküleri — İndirimli Orana Tabi İşlemlerde Yılı İçinde ve Yılı Geçtikten Sonra İade Usulü",
+
+    // VUK Sirküleri
+    "VUK Sirküleri — e-Defter Berat Yükleme ve Beyanname Verme Sürelerinin Uzatılması",
+    "VUK Sirküleri — Enflasyon Düzeltmesi Kapsamında Parasal/Parasal Olmayan Kıymet Ayrımı ve Düzeltme Katsayıları",
+    "VUK Sirküleri — Şüpheli Ticari Alacak Karşılığı ve Değersiz Alacak Uygulaması",
+    "VUK Sirküleri — Reeskont Uygulamasında Kullanılacak Faiz Oranı ve Hesaplama Esasları",
+
+    // 6183 Tahsilat Sirküleri
+    "Tahsilat Sirküleri — Tecil ve Taksitlendirme Başvurularında Teminat ve Mali Durum Değerlendirmesi",
+    "Tahsilat Sirküleri — Amme Borcu Bulunmadığına İlişkin Yazı (Borcu Yoktur) Uygulaması"
   ]
 };
 
 const PRESETS = {
   kvk51a: "5520 sayılı KVK Madde 5/1-a: Kurumların, başka bir kurumun sermayesine katılmasından elde ettikleri kazançlar (tam mükellef kurumlardan elde edilen kâr payları ile yatırım fonu/ortaklığı katılma payları/hisselerine ilişkin hükümler) vergiden istisnadır.",
   kdv30: "3065 sayılı KDV Kanunu Madde 30: Vergiye tabi olmayan veya vergiden istisna edilmiş bulunan teslim ve hizmetlerle ilgili alış vesikalarında gösterilen veya hesaplanan KDV, mükellefin vergiye tabi işlemleri üzerinden hesaplanan KDV'den indirilemez.",
-  vuk114: "213 sayılı VUK Madde 114: Vergi alacağının doğduğu takvim yılını takip eden yıldan başlayarak beş yıl içinde tarh ve mükellefe tebliğ edilmeyen vergiler zamanaşımına uğrar."
+  vuk114: "213 sayılı VUK Madde 114: Vergi alacağının doğduğu takvim yılını takip eden yıldan başlayarak beş yıl içinde tarh ve mükellefe tebliğ edilmeyen vergiler zamanaşımına uğrar.",
+  aatu6183: "6183 sayılı Kanun m. 35 ve Mükerrer m. 35: Limited şirket ortakları şirketten tamamen veya kısmen tahsil edilemeyen veya tahsil edilemeyeceği anlaşılan amme alacağından sermaye hisseleri oranında doğrudan doğruya; kanuni temsilciler ise mal varlıklarından tümüyle sorumludur."
 };
 
 let activeCategory = "kanunlar";
 let stats = { correct: 0, total: 0, byTopic: {} };
 let mistakes = [];
 let currentQuestion = {
-  topic: MEVZUAT_BY_CATEGORY.kanunlar[3],
+  topic: MEVZUAT_BY_CATEGORY.kanunlar[13],
   question: "Tam mükellef (X) A.Ş., tam mükellef (Y) A.Ş.'nin sermayesine iştirak etmekte ve (Y) A.Ş.'den nakit kâr payı almaktadır. Bu kazancın kurumlar vergisi karşısındaki durumu nedir?",
   options: [
     "A) Kurumlar vergisinden istisnadır.",
@@ -137,7 +291,7 @@ document.addEventListener("vergi:tabchanged", (e) => {
   if (tab === "konu") renderTopicStats();
 });
 
-function loadStoredState() {
+async function loadStoredState() {
   try {
     stats = JSON.parse(safeGetStorage(STORAGE_KEYS.stats, '{"correct":0,"total":0,"byTopic":{}}'));
   } catch {
@@ -148,6 +302,15 @@ function loadStoredState() {
     if (!Array.isArray(mistakes)) mistakes = [];
   } catch {
     mistakes = [];
+  }
+
+  const idbLaw = await idbGet(STORAGE_KEYS.lawText);
+  if (typeof idbLaw === "string" && idbLaw.length > 0) {
+    window.__memStore[STORAGE_KEYS.lawText] = idbLaw;
+    const lawTa = document.getElementById("lawTextInput");
+    if (lawTa && !lawTa.value) lawTa.value = idbLaw;
+    syncCategoryUi();
+    populateGibTopicSelect(document.getElementById("topicInput")?.value.trim() || "", "");
   }
 }
 
@@ -444,7 +607,7 @@ function appendLawText(incoming, sourceLabel) {
     document.getElementById("lawSearchInput")?.value || ""
   );
   setLawStatus(
-    `"${sourceLabel}" aktarıldı${trimmedNote} — Kanun: ${buckets.kanunlar.length}, Tebliğ: ${buckets.tebligler.length}, Sirküler: ${buckets.sirkulerler.length}.`
+    `"${sourceLabel}" aktarıldı${trimmedNote} — Toplam: ${merged.length.toLocaleString("tr-TR")} karakter | Kanun: ${buckets.kanunlar.length}, Tebliğ: ${buckets.tebligler.length}, Sirküler: ${buckets.sirkulerler.length}.`
   );
 }
 
@@ -512,7 +675,7 @@ async function extractTextFromPdfFile(file) {
 
   const fileNameEl = document.getElementById("pdfFileName");
   if (fileNameEl) fileNameEl.textContent = `${file.name} okunuyor...`;
-  setLawStatus("PDF sayfalarından metin çıkarılıyor...");
+  setLawStatus(`${file.name} sayfalarından metin çıkarılıyor...`);
 
   try {
     const arrayBuffer = await file.arrayBuffer();
@@ -532,6 +695,18 @@ async function extractTextFromPdfFile(file) {
   } catch (err) {
     if (fileNameEl) fileNameEl.textContent = "PDF okunamadı";
     setLawStatus("PDF okuma hatası: " + (err?.message || "Dosya şifreli veya taranmış görsel olabilir."), true);
+  }
+}
+
+async function extractMultiplePdfFiles(fileList) {
+  const files = Array.from(fileList || []);
+  if (!files.length) return;
+  for (const file of files) {
+    await extractTextFromPdfFile(file);
+  }
+  const fileNameEl = document.getElementById("pdfFileName");
+  if (fileNameEl && files.length > 1) {
+    fileNameEl.textContent = `${files.length} PDF dosyası işlendi`;
   }
 }
 
@@ -698,6 +873,7 @@ function buildStrictTaxAdvisorInstruction() {
   const activeTopic = (document.getElementById("topicInput")?.value || "").trim();
   const catLabel = CATEGORY_LABELS[activeCategory] || "Kanunlar";
   const todayStr = new Date().toLocaleDateString("tr-TR");
+  const promptLawSlice = lawText.length > 60000 ? lawText.slice(0, 60000) : lawText;
 
   const honestyGuardrail = [
     "KESİN DOĞRULUK VE UYDURMAMA KURALI:",
@@ -707,8 +883,8 @@ function buildStrictTaxAdvisorInstruction() {
     `- Bugünün tarihi: ${todayStr}. Aktif mevzuat bölümü: ${catLabel} | Seçili başlık: ${activeTopic || "Belirtilmedi"}.`
   ].join("\n");
 
-  if (lawText) {
-    return `Sen Türk vergi mevzuatı alanında çalışan kıdemli bir danışman ve çalışma rehberisin.\n${honestyGuardrail}\n\nÖNCELİKLİ MEVZUAT KAYNAĞI:\n${lawText}\n\n`;
+  if (promptLawSlice) {
+    return `Sen Türk vergi mevzuatı alanında çalışan kıdemli bir danışman ve çalışma rehberisin.\n${honestyGuardrail}\n\nÖNCELİKLİ MEVZUAT KAYNAĞI:\n${promptLawSlice}\n\n`;
   }
   return `Sen Türk vergi mevzuatı alanında çalışan kıdemli bir danışman ve çalışma rehberisin.\n${honestyGuardrail}\n\n`;
 }
@@ -784,7 +960,7 @@ async function generateLessonAndQuestion(onlyQuestion = false) {
 
   try {
     const prompt = `Kaynak bağlam: gib.gov.tr mevzuatı | Mevzuat Bölümü: "${catLabel}" | Seçili Başlık: "${topic}" | Zorluk: "${difficulty}".
-Bu bölüm ve başlık kapsamından önemli bir konu veya vaka seçerek konu özeti, kritik ayrım ve 4 şıklı çoktan seçmeli soru üret. Uydurma numara, madde veya oran kullanma; Mevzuat Havuzu metni varsa ona dayan.
+Bu bölüm ve başlık kapsamından sınav ve uygulama odaklı önemli bir konu veya vaka seçerek konu özeti, kritik ayrım ve 4 şıklı çoktan seçmeli soru üret. Uydurma numara, madde veya oran kullanma; Mevzuat Havuzu metni varsa ona dayan.
 Yalnızca şu şemada tek bir JSON nesnesi döndür (iç metinlerde çift tırnak yerine tek tırnak kullan):
 {
   "lessonTitle": "...",
@@ -1087,7 +1263,19 @@ function bindDirectListeners() {
         document.getElementById("topicInput")?.value.trim() || "",
         document.getElementById("lawSearchInput")?.value || ""
       );
-      setLawStatus("Mevzuat metni kaydedildi ve bölümlere işlendi.");
+      setLawStatus(`Mevzuat havuzu kaydedildi (${law.length.toLocaleString("tr-TR")} karakter).`);
+    };
+  }
+
+  const clearLawBtn = document.getElementById("clearLawBtn");
+  if (clearLawBtn) {
+    clearLawBtn.onclick = () => {
+      const ta = document.getElementById("lawTextInput");
+      if (ta) ta.value = "";
+      safeSetStorage(STORAGE_KEYS.lawText, "");
+      syncCategoryUi();
+      populateGibTopicSelect(document.getElementById("topicInput")?.value.trim() || "", "");
+      setLawStatus("Mevzuat havuzu temizlendi.");
     };
   }
 
@@ -1098,9 +1286,8 @@ function bindDirectListeners() {
 
   const pdfFileInput = document.getElementById("pdfFileInput");
   if (pdfFileInput) {
-    pdfFileInput.onchange = (e) => {
-      const file = e.target.files?.[0];
-      extractTextFromPdfFile(file);
+    pdfFileInput.onchange = async (e) => {
+      await extractMultiplePdfFiles(e.target.files);
       e.target.value = "";
     };
   }
@@ -1214,9 +1401,8 @@ function bindDirectListeners() {
   }
 }
 
-function initApp() {
+async function initApp() {
   try {
-    loadStoredState();
     bindDirectListeners();
 
     const apiInput = document.getElementById("apiKeyInput");
@@ -1233,6 +1419,8 @@ function initApp() {
 
     const lawUrlInput = document.getElementById("lawUrlInput");
     if (lawUrlInput) lawUrlInput.value = safeGetStorage(STORAGE_KEYS.lawUrl, "");
+
+    await loadStoredState();
 
     syncCategoryUi();
     populateGibTopicSelect("", "");
