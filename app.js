@@ -1,10 +1,11 @@
-const ALL_TABS = ["konu", "soru", "smmm", "sohbet", "hatalar", "ayarlar"];
+const ALL_TABS = ["konu", "soru", "smmm", "ymm", "sohbet", "hatalar", "ayarlar"];
 const STORAGE_KEYS = {
   apiKey: "vergi_pwa_api_key",
   model: "vergi_pwa_model",
   lawText: "vergi_pwa_law_text",
   lawUrl: "vergi_pwa_law_url",
   smmmPool: "vergi_pwa_smmm_pool",
+  ymmPool: "vergi_pwa_ymm_pool",
   stats: "vergi_pwa_stats",
   mistakes: "vergi_pwa_mistakes"
 };
@@ -89,14 +90,17 @@ function safeGetStorage(key, fallback = "") {
 function safeSetStorage(key, value) {
   const strVal = String(value ?? "");
   window.__memStore[key] = strVal;
-  if (key === STORAGE_KEYS.lawText || key === STORAGE_KEYS.smmmPool) {
+  if (key === STORAGE_KEYS.lawText || key === STORAGE_KEYS.smmmPool || key === STORAGE_KEYS.ymmPool) {
     idbSet(key, strVal);
   }
   try {
     window.localStorage.setItem(key, strVal);
     return { ok: true, persisted: true };
   } catch {
-    return { ok: true, persisted: key === STORAGE_KEYS.lawText || key === STORAGE_KEYS.smmmPool };
+    return {
+      ok: true,
+      persisted: key === STORAGE_KEYS.lawText || key === STORAGE_KEYS.smmmPool || key === STORAGE_KEYS.ymmPool
+    };
   }
 }
 
@@ -195,6 +199,13 @@ let currentSmmmQuestion = {
 };
 let selectedSmmmOptionIndex = null;
 
+let currentYmmQuestion = {
+  subject: "Gelir Üzerinden Alınan Vergiler",
+  question: "YMM yazılı sınav vaka sorusu üretmek için ders seçip 'Yazılı Vaka Sorusu Üret' veya 'YMM Yazılı Sınav PDF Seti Üret ve İndir' butonuna basın.",
+  solution: "Kanuni dayanak, şartlar ve hesaplama adımları burada gösterilir.",
+  keyPoints: ["İlgili kanun maddesi ve istisna/indirim şartları", "Sayısal tutar ve oran kontrolü", "Beyanname / raporlama etkisi"]
+};
+
 function switchTab(tab) {
   if (typeof window.__coreSwitchTab === "function") {
     window.__coreSwitchTab(tab);
@@ -217,21 +228,37 @@ window.switchTab = switchTab;
 document.addEventListener("vergi:tabchanged", (e) => {
   const tab = e.detail?.tab;
   if (tab === "hatalar") renderMistakes();
-  if (tab === "smmm") syncSmmmPoolBadge();
+  if (tab === "smmm") syncPoolBadges();
+  if (tab === "ymm") syncPoolBadges();
 });
 
-function syncSmmmPoolBadge() {
-  const badge = document.getElementById("smmmPoolBadge");
-  const pool = safeGetStorage(STORAGE_KEYS.smmmPool, "").trim();
-  if (!badge) return;
-  if (pool.length > 0) {
-    badge.textContent = `Havuz: ${(pool.length / 1000).toFixed(1)}K kr`;
-    badge.style.background = "#ecfdf5";
-    badge.style.color = "#065f46";
-  } else {
-    badge.textContent = "Havuz: Boş";
-    badge.style.background = "#eef2ff";
-    badge.style.color = "#3730a3";
+function syncPoolBadges() {
+  const smmmBadge = document.getElementById("smmmPoolBadge");
+  const smmmPool = safeGetStorage(STORAGE_KEYS.smmmPool, "").trim();
+  if (smmmBadge) {
+    if (smmmPool.length > 0) {
+      smmmBadge.textContent = `Havuz: ${(smmmPool.length / 1000).toFixed(1)}K kr`;
+      smmmBadge.style.background = "#ecfdf5";
+      smmmBadge.style.color = "#065f46";
+    } else {
+      smmmBadge.textContent = "Havuz: Boş";
+      smmmBadge.style.background = "#eef2ff";
+      smmmBadge.style.color = "#3730a3";
+    }
+  }
+
+  const ymmBadge = document.getElementById("ymmPoolBadge");
+  const ymmPool = safeGetStorage(STORAGE_KEYS.ymmPool, "").trim();
+  if (ymmBadge) {
+    if (ymmPool.length > 0) {
+      ymmBadge.textContent = `YMM Havuz: ${(ymmPool.length / 1000).toFixed(1)}K kr`;
+      ymmBadge.style.background = "#ecfdf5";
+      ymmBadge.style.color = "#065f46";
+    } else {
+      ymmBadge.textContent = "YMM Havuz: Boş";
+      ymmBadge.style.background = "#fef3c7";
+      ymmBadge.style.color = "#92400e";
+    }
   }
 }
 
@@ -263,7 +290,15 @@ async function loadStoredState() {
     const smmmTa = document.getElementById("smmmPoolTextInput");
     if (smmmTa && !smmmTa.value) smmmTa.value = idbSmmm;
   }
-  syncSmmmPoolBadge();
+
+  const idbYmm = await idbGet(STORAGE_KEYS.ymmPool);
+  if (typeof idbYmm === "string" && idbYmm.length > 0) {
+    window.__memStore[STORAGE_KEYS.ymmPool] = idbYmm;
+    const ymmTa = document.getElementById("ymmPoolTextInput");
+    if (ymmTa && !ymmTa.value) ymmTa.value = idbYmm;
+  }
+
+  syncPoolBadges();
 }
 
 if (window.pdfjsLib && window.pdfjsLib.GlobalWorkerOptions) {
@@ -473,11 +508,28 @@ function setSmmmPoolStatus(msg, isError = false) {
   el.classList.remove("hidden");
 }
 
+function setYmmPoolStatus(msg, isError = false) {
+  const el = document.getElementById("ymmPoolStatus");
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = isError ? "#e11d48" : "#92400e";
+  el.style.fontWeight = "600";
+  el.classList.remove("hidden");
+}
+
 function setSmmmPdfProgress(msg, isError = false) {
   const el = document.getElementById("smmmPdfProgress");
   if (!el) return;
   el.textContent = msg;
   el.style.color = isError ? "#e11d48" : "#3730a3";
+  el.classList.remove("hidden");
+}
+
+function setYmmPdfProgress(msg, isError = false) {
+  const el = document.getElementById("ymmPdfProgress");
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = isError ? "#e11d48" : "#92400e";
   el.classList.remove("hidden");
 }
 
@@ -533,8 +585,34 @@ function appendSmmmPoolText(incoming, sourceLabel) {
 
   ta.value = merged;
   safeSetStorage(STORAGE_KEYS.smmmPool, merged);
-  syncSmmmPoolBadge();
+  syncPoolBadges();
   setSmmmPoolStatus(`"${sourceLabel}" SMMM havuzuna eklendi${trimmedNote} — Toplam: ${merged.length.toLocaleString("tr-TR")} karakter.`);
+}
+
+function appendYmmPoolText(incoming, sourceLabel) {
+  const cleaned = String(incoming || "")
+    .replace(/\s+\n/g, "\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+  if (!cleaned) throw new Error("PDF dosyasında okunabilir metin bulunamadı.");
+
+  const ta = document.getElementById("ymmPoolTextInput");
+  if (!ta) return;
+  const header = `--- YMM Örnek Kaynak: ${sourceLabel} ---\n`;
+  let merged = ta.value.trim()
+    ? `${ta.value.trim()}\n\n${header}${cleaned}`
+    : `${header}${cleaned}`;
+
+  let trimmedNote = "";
+  if (merged.length > MAX_LAW_CHARS) {
+    merged = merged.slice(0, MAX_LAW_CHARS);
+    trimmedNote = ` (${MAX_LAW_CHARS.toLocaleString("tr-TR")} karakter sınırı uygulandı)`;
+  }
+
+  ta.value = merged;
+  safeSetStorage(STORAGE_KEYS.ymmPool, merged);
+  syncPoolBadges();
+  setYmmPoolStatus(`"${sourceLabel}" YMM havuzuna eklendi${trimmedNote} — Toplam: ${merged.length.toLocaleString("tr-TR")} karakter.`);
 }
 
 function htmlToPlainText(htmlString) {
@@ -595,9 +673,12 @@ async function fetchTextFromUrl(rawUrl) {
 async function extractTextFromPdfFile(file, target = "law") {
   if (!file) return;
   const isSmmm = target === "smmm";
-  const statusFn = isSmmm ? setSmmmPoolStatus : setLawStatus;
-  const appendFn = isSmmm ? appendSmmmPoolText : appendLawText;
-  const fileNameEl = document.getElementById(isSmmm ? "smmmPdfFileName" : "pdfFileName");
+  const isYmm = target === "ymm";
+
+  const statusFn = isYmm ? setYmmPoolStatus : (isSmmm ? setSmmmPoolStatus : setLawStatus);
+  const appendFn = isYmm ? appendYmmPoolText : (isSmmm ? appendSmmmPoolText : appendLawText);
+  const fileNameId = isYmm ? "ymmPdfFileName" : (isSmmm ? "smmmPdfFileName" : "pdfFileName");
+  const fileNameEl = document.getElementById(fileNameId);
 
   if (!window.pdfjsLib) {
     statusFn("PDF okuyucu kütüphanesi yüklenemedi. İnternet bağlantınızı kontrol edin.", true);
@@ -634,7 +715,8 @@ async function extractMultiplePdfFiles(fileList, target = "law") {
   for (const file of files) {
     await extractTextFromPdfFile(file, target);
   }
-  const fileNameEl = document.getElementById(target === "smmm" ? "smmmPdfFileName" : "pdfFileName");
+  const fileNameId = target === "ymm" ? "ymmPdfFileName" : (target === "smmm" ? "smmmPdfFileName" : "pdfFileName");
+  const fileNameEl = document.getElementById(fileNameId);
   if (fileNameEl && files.length > 1) {
     fileNameEl.textContent = `${files.length} PDF dosyası işlendi`;
   }
@@ -784,6 +866,19 @@ function renderSmmmQuestion(q) {
     };
     container.appendChild(btn);
   });
+}
+
+function renderYmmQuestion(q) {
+  currentYmmQuestion = q;
+  const qEl = document.getElementById("ymmQuestionText");
+  if (qEl) qEl.textContent = q.question;
+  const draftEl = document.getElementById("ymmDraftAnswerInput");
+  if (draftEl) draftEl.value = "";
+  const solBox = document.getElementById("ymmSolutionBox");
+  if (solBox) {
+    solBox.classList.add("hidden");
+    solBox.innerHTML = "";
+  }
 }
 
 function startTimerIfConfigured() {
@@ -1165,6 +1260,94 @@ Yalnızca şu JSON nesnesini döndür:
   }).filter((q) => q.question.length > 0);
 }
 
+// YMM Yazılı Sınav Soruları Üretici
+async function generateYmmWrittenBatch(subject, focus, formatType, ymmSlice, startIndex, count) {
+  const customPrefix = ymmSlice
+    ? `Sen TÜRMOB Yeminli Mali Müşavirlik (YMM) yazılı sınavlarına yönelik vaka ve analiz sorusu hazırlayan kıdemli bir vergi hukukçusu, denetçi ve akademisyensin. Aşağıdaki YMM Yazılı Sınav Örnek Havuzu metnindeki soru dilini, vaka kurgusunu, çok aşamalı analiz yapısını ve derinliği takip ederek özgün YMM yazılı sınav soruları üret.\n\nYMM ÖRNEK SORU HAVUZU:\n${ymmSlice}\n\n`
+    : `Sen TÜRMOB Yeminli Mali Müşavirlik (YMM) yazılı sınavlarına yönelik vaka ve analiz sorusu hazırlayan kıdemli bir vergi hukukçusu, denetçi ve akademisyensin. Türk vergi kanunları, muhasebe standartları, denetim ve meslek hukuku çerçevesinde derinlikli YMM yazılı sınav soruları üret.\n\n`;
+
+  const prompt = `Ders: "${subject}" | Odak: "${focus || "Genel YMM Yazılı Kapsamı"}" | Format: "${formatType}".
+Tam olarak ${count} adet özgün YMM yazılı sınav vaka/analiz sorusu üret (Soru numaraları ${startIndex}'den başlasın). Her soru açık uçlu/yazılı vaka niteliğinde olsun (gerekirse a), b), c) alt bentleri içerebilir); uydurma kanun/madde/oran kullanma.
+JSON içindeki metinlerde asla çift tırnak (") kullanma; tek tırnak (') kullan.
+Yalnızca şu JSON nesnesini döndür:
+{
+  "questions": [
+    {
+      "no": ${startIndex},
+      "question": "...",
+      "solution": "...",
+      "keyPoints": ["...", "..."]
+    }
+  ]
+}`;
+
+  const raw = await callGemini(prompt, true, customPrefix);
+  const parsed = parseJsonLoose(raw);
+  const arr = Array.isArray(parsed.questions) ? parsed.questions : (Array.isArray(parsed) ? parsed : []);
+  return arr.map((item, idx) => ({
+    no: Number(item.no) || (startIndex + idx),
+    question: String(item.question || "").trim(),
+    solution: String(item.solution || "").trim(),
+    keyPoints: Array.isArray(item.keyPoints) ? item.keyPoints.map((k) => String(k || "").trim()).filter(Boolean) : []
+  })).filter((q) => q.question.length > 0);
+}
+
+async function generateYmmSingleQuestion() {
+  const subject = document.getElementById("ymmSubjectSelect")?.value || "Gelir Üzerinden Alınan Vergiler";
+  const focus = (document.getElementById("ymmFocusInput")?.value || "").trim();
+  const formatType = document.getElementById("ymmFormatSelect")?.value || "Yazılı Vaka & Analiz";
+  const ymmPool = safeGetStorage(STORAGE_KEYS.ymmPool, "").trim();
+  const ymmSlice = ymmPool.length > 60000 ? ymmPool.slice(0, 60000) : ymmPool;
+
+  const btn = document.getElementById("generateYmmBtn");
+  const prevText = btn ? btn.textContent : "";
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "YMM Yazılı Sorusu Üretiliyor...";
+  }
+
+  try {
+    const batch = await generateYmmWrittenBatch(subject, focus, formatType, ymmSlice, 1, 1);
+    if (!batch.length) throw new Error("YMM yazılı sorusu üretilemedi.");
+    const item = batch[0];
+
+    const badgeEl = document.getElementById("ymmQuestionBadge");
+    const tagEl = document.getElementById("ymmSourceTag");
+    if (badgeEl) badgeEl.textContent = subject;
+    if (tagEl) tagEl.textContent = ymmSlice ? "YMM Havuz Referanslı" : formatType;
+
+    renderYmmQuestion({
+      subject,
+      question: item.question,
+      solution: item.solution,
+      keyPoints: item.keyPoints
+    });
+  } catch (err) {
+    alert("Hata: " + err.message);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = prevText;
+    }
+  }
+}
+
+function showYmmSolution() {
+  const box = document.getElementById("ymmSolutionBox");
+  if (!box) return;
+  const kpHtml = Array.isArray(currentYmmQuestion.keyPoints) && currentYmmQuestion.keyPoints.length
+    ? `<div style="margin-top:10px;padding-top:10px;border-top:1px solid #fde68a;">
+         <strong style="display:block;font-size:12px;text-transform:uppercase;margin-bottom:4px;">Kritik Değerlendirme Noktaları</strong>
+         <ul style="margin:0;padding-left:18px;font-size:13px;">${currentYmmQuestion.keyPoints.map((k) => `<li style="margin-bottom:4px;">${escapeHtml(k)}</li>`).join("")}</ul>
+       </div>`
+    : "";
+
+  box.innerHTML = `<strong style="display:block;font-size:12px;text-transform:uppercase;margin-bottom:6px;">Model Çözüm ve Mevzuat Dayanağı</strong>
+    <p style="margin:0;white-space:pre-line;">${escapeHtml(currentYmmQuestion.solution || "")}</p>${kpHtml}`;
+  box.classList.remove("hidden");
+}
+
+// Çoktan seçmeli SMMM PDF oluşturucu
 function renderExamPagesToPdf(allQuestions, meta) {
   if (!window.jspdf || !window.jspdf.jsPDF) {
     throw new Error("PDF oluşturucu kütüphanesi yüklenemedi. İnternet bağlantınızı kontrol edin.");
@@ -1220,19 +1403,26 @@ function renderExamPagesToPdf(allQuestions, meta) {
 
   const wrapLines = (text, fontStr, maxWidth) => {
     ctx.font = fontStr;
-    const words = String(text || "").split(/\s+/).filter(Boolean);
+    const paragraphs = String(text || "").split(/\r?\n/);
     const lines = [];
-    let current = "";
-    for (const w of words) {
-      const candidate = current ? `${current} ${w}` : w;
-      if (ctx.measureText(candidate).width <= maxWidth) {
-        current = candidate;
-      } else {
-        if (current) lines.push(current);
-        current = w;
+    for (const para of paragraphs) {
+      const words = para.split(/\s+/).filter(Boolean);
+      if (!words.length) {
+        lines.push("");
+        continue;
       }
+      let current = "";
+      for (const w of words) {
+        const candidate = current ? `${current} ${w}` : w;
+        if (ctx.measureText(candidate).width <= maxWidth) {
+          current = candidate;
+        } else {
+          if (current) lines.push(current);
+          current = w;
+        }
+      }
+      if (current) lines.push(current);
     }
-    if (current) lines.push(current);
     return lines.length ? lines : [""];
   };
 
@@ -1322,6 +1512,221 @@ function renderExamPagesToPdf(allQuestions, meta) {
     .replace(/[^a-z0-9ğüşıöç]+/gi, "-")
     .replace(/^-|-$/g, "");
   pdf.save(`SMMM-${safeSlug || "test"}-${allQuestions.length}-soru.pdf`);
+}
+
+// YMM Yazılı Sınav PDF oluşturucu
+function renderYmmWrittenExamToPdf(allQuestions, meta) {
+  if (!window.jspdf || !window.jspdf.jsPDF) {
+    throw new Error("PDF oluşturucu kütüphanesi yüklenemedi. İnternet bağlantınızı kontrol edin.");
+  }
+
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+  const pdfW = pdf.internal.pageSize.getWidth();
+  const pdfH = pdf.internal.pageSize.getHeight();
+
+  const scale = 2.5;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(pdfW * scale);
+  canvas.height = Math.round(pdfH * scale);
+  const ctx = canvas.getContext("2d");
+
+  const marginX = 44 * scale;
+  const topY = 48 * scale;
+  const bottomLimit = (pdfH - 42) * scale;
+  const contentW = canvas.width - marginX * 2;
+  let cursorY = topY;
+  let pageNum = 1;
+  let hasDrawnOnPage = false;
+
+  const flushPage = (isFirstPage) => {
+    if (!hasDrawnOnPage) return;
+    if (!isFirstPage) pdf.addPage();
+    const imgData = canvas.toDataURL("image/jpeg", 0.92);
+    pdf.addImage(imgData, "JPEG", 0, 0, pdfW, pdfH);
+  };
+
+  const startNewPage = (headerTitle) => {
+    if (hasDrawnOnPage) {
+      flushPage(pageNum === 1);
+      pageNum += 1;
+    }
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = "#78350f";
+    ctx.fillRect(marginX, 24 * scale, contentW, 28 * scale);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = `bold ${11 * scale}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+    ctx.fillText(headerTitle, marginX + 10 * scale, 42 * scale);
+
+    ctx.fillStyle = "#64748b";
+    ctx.font = `${9.5 * scale}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+    ctx.fillText(`Sayfa ${pageNum}`, canvas.width - marginX - 55 * scale, 42 * scale);
+
+    cursorY = topY + 24 * scale;
+    hasDrawnOnPage = true;
+  };
+
+  const wrapLines = (text, fontStr, maxWidth) => {
+    ctx.font = fontStr;
+    const paragraphs = String(text || "").split(/\r?\n/);
+    const lines = [];
+    for (const para of paragraphs) {
+      const words = para.split(/\s+/).filter(Boolean);
+      if (!words.length) {
+        lines.push("");
+        continue;
+      }
+      let current = "";
+      for (const w of words) {
+        const candidate = current ? `${current} ${w}` : w;
+        if (ctx.measureText(candidate).width <= maxWidth) {
+          current = candidate;
+        } else {
+          if (current) lines.push(current);
+          current = w;
+        }
+      }
+      if (current) lines.push(current);
+    }
+    return lines.length ? lines : [""];
+  };
+
+  const mainTitle = `YMM YAZILI SINAV SETİ — ${meta.subject.toLocaleUpperCase("tr-TR")}`;
+  startNewPage(mainTitle);
+
+  ctx.fillStyle = "#334155";
+  ctx.font = `${10.5 * scale}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+  const subInfo = `Soru Sayısı: ${allQuestions.length}  |  Format: ${meta.formatType}  |  Odak: ${meta.focus || "Genel"}  |  Tarih: ${meta.dateStr}`;
+  ctx.fillText(subInfo, marginX, cursorY);
+  cursorY += 22 * scale;
+
+  ctx.strokeStyle = "#cbd5e1";
+  ctx.lineWidth = 1 * scale;
+  ctx.beginPath();
+  ctx.moveTo(marginX, cursorY - 8 * scale);
+  ctx.lineTo(marginX + contentW, cursorY - 8 * scale);
+  ctx.stroke();
+
+  const qFont = `bold ${11.5 * scale}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+  const bodyFont = `${10.8 * scale}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+
+  allQuestions.forEach((q, idx) => {
+    const qNum = idx + 1;
+    const qLines = wrapLines(`SORU ${qNum}: ${q.question}`, qFont, contentW);
+    const blockHeight = (qLines.length * 16 + 24) * scale;
+
+    if (cursorY + blockHeight > bottomLimit) {
+      startNewPage(mainTitle);
+    }
+
+    ctx.fillStyle = "#0f172a";
+    ctx.font = qFont;
+    qLines.forEach((line) => {
+      ctx.fillText(line, marginX, cursorY);
+      cursorY += 16 * scale;
+    });
+
+    cursorY += 14 * scale;
+  });
+
+  startNewPage("YMM YAZILI SINAV — MODEL ÇÖZÜMLER VE DEĞERLENDİRME");
+
+  allQuestions.forEach((q, idx) => {
+    const qNum = idx + 1;
+    const solLines = wrapLines(q.solution || "İlgili mevzuat ve muhasebe/denetim ilkeleri çerçevesinde değerlendirilmelidir.", bodyFont, contentW - 8 * scale);
+    const kpText = q.keyPoints && q.keyPoints.length ? `Kritik Noktalar: ${q.keyPoints.join(" | ")}` : "";
+    const kpLines = kpText ? wrapLines(kpText, bodyFont, contentW - 8 * scale) : [];
+    const needed = (18 + (solLines.length + kpLines.length) * 14.5 + 16) * scale;
+
+    if (cursorY + needed > bottomLimit) {
+      startNewPage("YMM YAZILI SINAV — MODEL ÇÖZÜMLER VE DEĞERLENDİRME");
+    }
+
+    ctx.fillStyle = "#92400e";
+    ctx.font = qFont;
+    ctx.fillText(`Soru ${qNum} Çözüm Rehberi`, marginX, cursorY);
+    cursorY += 16 * scale;
+
+    ctx.fillStyle = "#1e293b";
+    ctx.font = bodyFont;
+    solLines.forEach((line) => {
+      ctx.fillText(line, marginX + 6 * scale, cursorY);
+      cursorY += 14.5 * scale;
+    });
+
+    if (kpLines.length) {
+      cursorY += 4 * scale;
+      ctx.fillStyle = "#047857";
+      kpLines.forEach((line) => {
+        ctx.fillText(line, marginX + 6 * scale, cursorY);
+        cursorY += 14.5 * scale;
+      });
+    }
+
+    cursorY += 14 * scale;
+  });
+
+  flushPage(pageNum === 1);
+
+  const safeSlug = meta.subject
+    .toLocaleLowerCase("tr")
+    .replace(/[^a-z0-9ğüşıöç]+/gi, "-")
+    .replace(/^-|-$/g, "");
+  pdf.save(`YMM-Yazili-${safeSlug || "sinav"}-${allQuestions.length}-soru.pdf`);
+}
+
+async function generateYmmPdfTestSet() {
+  const subject = document.getElementById("ymmSubjectSelect")?.value || "Gelir Üzerinden Alınan Vergiler";
+  const focus = (document.getElementById("ymmFocusInput")?.value || "").trim();
+  const formatType = document.getElementById("ymmFormatSelect")?.value || "Yazılı Vaka & Analiz";
+  const requestedCount = Math.min(Math.max(parseInt(document.getElementById("ymmPdfCountInput")?.value || "4", 10) || 4, 1), 20);
+  const ymmPool = safeGetStorage(STORAGE_KEYS.ymmPool, "").trim();
+  const ymmSlice = ymmPool.length > 60000 ? ymmPool.slice(0, 60000) : ymmPool;
+
+  const btn = document.getElementById("generateYmmPdfBtn");
+  const prevText = btn ? btn.textContent : "";
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "YMM PDF Hazırlanıyor...";
+  }
+
+  try {
+    const batchSize = 2;
+    const collected = [];
+
+    while (collected.length < requestedCount) {
+      const remaining = requestedCount - collected.length;
+      const currentBatch = Math.min(batchSize, remaining);
+      const startNo = collected.length + 1;
+      setYmmPdfProgress(`YMM yazılı soruları üretiliyor (${collected.length} / ${requestedCount})... Lütfen bekleyin.`);
+
+      const batch = await generateYmmWrittenBatch(subject, focus, formatType, ymmSlice, startNo, currentBatch);
+      if (!batch.length) {
+        throw new Error("Bu pakette YMM yazılı sorusu üretilemedi; tekrar deneyin.");
+      }
+      collected.push(...batch.slice(0, remaining));
+    }
+
+    setYmmPdfProgress(`YMM PDF dosyası oluşturuluyor (${collected.length} soru)...`);
+    renderYmmWrittenExamToPdf(collected, {
+      subject,
+      focus,
+      formatType,
+      dateStr: new Date().toLocaleDateString("tr-TR")
+    });
+
+    setYmmPdfProgress(`Tamamlandı! ${collected.length} soruluk YMM yazılı sınav PDF'i indirildi.`);
+  } catch (err) {
+    setYmmPdfProgress("Hata: " + err.message, true);
+    alert("YMM PDF Üretim Hatası: " + err.message);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = prevText;
+    }
+  }
 }
 
 async function generateSmmmPdfTestSet() {
@@ -1651,6 +2056,46 @@ function bindDirectListeners() {
     };
   }
 
+  // YMM Havuz dinleyicileri
+  const ymmPdfInput = document.getElementById("ymmPdfFileInput");
+  if (ymmPdfInput) {
+    ymmPdfInput.onchange = async (e) => {
+      await extractMultiplePdfFiles(e.target.files, "ymm");
+      e.target.value = "";
+    };
+  }
+
+  const saveYmmPoolBtn = document.getElementById("saveYmmPoolBtn");
+  if (saveYmmPoolBtn) {
+    saveYmmPoolBtn.onclick = () => {
+      const txt = document.getElementById("ymmPoolTextInput")?.value.trim() || "";
+      safeSetStorage(STORAGE_KEYS.ymmPool, txt);
+      syncPoolBadges();
+      setYmmPoolStatus(`YMM örnek soru havuzu kaydedildi (${txt.length.toLocaleString("tr-TR")} karakter).`);
+    };
+  }
+
+  const clearYmmPoolBtn = document.getElementById("clearYmmPoolBtn");
+  if (clearYmmPoolBtn) {
+    clearYmmPoolBtn.onclick = () => {
+      const ta = document.getElementById("ymmPoolTextInput");
+      if (ta) ta.value = "";
+      safeSetStorage(STORAGE_KEYS.ymmPool, "");
+      syncPoolBadges();
+      setYmmPoolStatus("YMM örnek soru havuzu temizlendi.");
+    };
+  }
+
+  const generateYmmBtn = document.getElementById("generateYmmBtn");
+  if (generateYmmBtn) generateYmmBtn.onclick = generateYmmSingleQuestion;
+
+  const showYmmSolutionBtn = document.getElementById("showYmmSolutionBtn");
+  if (showYmmSolutionBtn) showYmmSolutionBtn.onclick = showYmmSolution;
+
+  const generateYmmPdfBtn = document.getElementById("generateYmmPdfBtn");
+  if (generateYmmPdfBtn) generateYmmPdfBtn.onclick = generateYmmPdfTestSet;
+
+  // SMMM Havuz dinleyicileri
   const smmmPdfInput = document.getElementById("smmmPdfFileInput");
   if (smmmPdfInput) {
     smmmPdfInput.onchange = async (e) => {
@@ -1664,7 +2109,7 @@ function bindDirectListeners() {
     saveSmmmPoolBtn.onclick = () => {
       const txt = document.getElementById("smmmPoolTextInput")?.value.trim() || "";
       safeSetStorage(STORAGE_KEYS.smmmPool, txt);
-      syncSmmmPoolBadge();
+      syncPoolBadges();
       setSmmmPoolStatus(`SMMM örnek soru havuzu kaydedildi (${txt.length.toLocaleString("tr-TR")} karakter).`);
     };
   }
@@ -1675,7 +2120,7 @@ function bindDirectListeners() {
       const ta = document.getElementById("smmmPoolTextInput");
       if (ta) ta.value = "";
       safeSetStorage(STORAGE_KEYS.smmmPool, "");
-      syncSmmmPoolBadge();
+      syncPoolBadges();
       setSmmmPoolStatus("SMMM örnek soru havuzu temizlendi.");
     };
   }
@@ -1779,7 +2224,8 @@ function bindDirectListeners() {
         mistakes,
         lawText: safeGetStorage(STORAGE_KEYS.lawText, ""),
         lawUrl: safeGetStorage(STORAGE_KEYS.lawUrl, ""),
-        smmmPool: safeGetStorage(STORAGE_KEYS.smmmPool, "")
+        smmmPool: safeGetStorage(STORAGE_KEYS.smmmPool, ""),
+        ymmPool: safeGetStorage(STORAGE_KEYS.ymmPool, "")
       };
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
@@ -1816,8 +2262,13 @@ function bindDirectListeners() {
             safeSetStorage(STORAGE_KEYS.smmmPool, data.smmmPool);
             const smmmTa = document.getElementById("smmmPoolTextInput");
             if (smmmTa) smmmTa.value = data.smmmPool;
-            syncSmmmPoolBadge();
           }
+          if (typeof data.ymmPool === "string") {
+            safeSetStorage(STORAGE_KEYS.ymmPool, data.ymmPool);
+            const ymmTa = document.getElementById("ymmPoolTextInput");
+            if (ymmTa) ymmTa.value = data.ymmPool;
+          }
+          syncPoolBadges();
           saveAllState();
           updateBadges();
           renderMistakes();
@@ -1852,6 +2303,9 @@ async function initApp() {
     const smmmTa = document.getElementById("smmmPoolTextInput");
     if (smmmTa) smmmTa.value = safeGetStorage(STORAGE_KEYS.smmmPool, "");
 
+    const ymmTa = document.getElementById("ymmPoolTextInput");
+    if (ymmTa) ymmTa.value = safeGetStorage(STORAGE_KEYS.ymmPool, "");
+
     const lawUrlInput = document.getElementById("lawUrlInput");
     if (lawUrlInput) lawUrlInput.value = safeGetStorage(STORAGE_KEYS.lawUrl, "");
 
@@ -1865,6 +2319,7 @@ async function initApp() {
     renderMistakes();
     renderQuestion(currentQuestion);
     renderSmmmQuestion(currentSmmmQuestion);
+    renderYmmQuestion(currentYmmQuestion);
   } catch (err) {
     console.error("initApp hatası:", err);
   }
