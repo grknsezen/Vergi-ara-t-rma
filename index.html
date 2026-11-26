@@ -11,6 +11,7 @@
   <title>Vergi Araştırma Asistanı</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
     :root {
       --bg-app: #f2f2f7;
@@ -620,12 +621,20 @@
             <option value="Sayısal / Hesaplama">Tarz: Sayısal / Kayıt</option>
             <option value="Yorum ve Mevzuat">Tarz: Yorum / Mevzuat</option>
           </select>
-          <button id="goSmmmPoolBtn" type="button" onclick="window.__coreSwitchTab('ayarlar')" style="min-height:44px;border:1px solid #c7d2fe;background:#eef2ff;color:#3730a3;border-radius:13px;padding:0 12px;font-size:13px;font-weight:700;cursor:pointer;">
-            📄 Örnek PDF Yükle
-          </button>
+          <div style="display:flex;align-items:center;justify-content:space-between;border:1px solid #cbd5e1;border-radius:13px;padding:4px 12px;background:#f8fafc;font-size:13px;">
+            <span style="font-weight:600;color:#334155;">Soru Adedi</span>
+            <input id="smmmPdfCountInput" type="number" min="5" max="60" value="40" style="width:62px;min-height:34px;text-align:right;font-weight:700;padding:4px 6px;border-radius:9px;background:#ffffff;" />
+          </div>
         </div>
 
-        <button id="generateSmmmBtn" type="button" class="btn-indigo" style="width:100%;">SMMM Yeterlilik Test Sorusu Üret</button>
+        <button id="generateSmmmBtn" type="button" class="btn-indigo" style="width:100%;">Tek Soru Üret (Ekranda Çöz)</button>
+
+        <div style="border-top:1px solid #f1f5f9;padding-top:14px;">
+          <button id="generateSmmmPdfBtn" type="button" class="btn-emerald" style="width:100%;">
+            📥 Gerçek Sınav Sayısı Kadar PDF Test Üret ve İndir
+          </button>
+          <p id="smmmPdfProgress" class="hidden" style="margin:8px 0 0;font-size:12px;font-weight:600;color:#3730a3;line-height:1.45;"></p>
+        </div>
       </div>
 
       <div id="smmmQuestionCard" class="card-box">
@@ -634,10 +643,10 @@
           <span id="smmmSourceTag" style="font-size:11px;font-weight:600;color:#64748b;">Ders Bazlı Üretim</span>
         </div>
         <p id="smmmQuestionText" style="margin:0;font-size:16px;font-weight:500;color:#0f172a;line-height:1.55;">
-          Ders seçip "SMMM Yeterlilik Test Sorusu Üret" butonuna basın. Ayarlar sekmesinden SMMM örnek soru PDF'i yüklerseniz sorular doğrudan o tarza göre üretilir.
+          Ders seçip ekranda tek soru çözebilir veya yukarıdaki butonla gerçek sınav soru sayısı kadar PDF test seti indirebilirsiniz.
         </p>
         <div id="smmmOptionsContainer" style="display:flex;flex-direction:column;gap:10px;"></div>
-        <button id="checkSmmmAnswerBtn" type="button" class="btn-emerald" style="width:100%;">Cevabı ve Çözümü Göster</button>
+        <button id="checkSmmmAnswerBtn" type="button" class="btn-dark" style="width:100%;">Cevabı ve Çözümü Göster</button>
         <div id="smmmFeedbackBox" class="hidden" style="border-radius:14px;padding:15px;font-size:14px;line-height:1.55;"></div>
       </div>
     </section>
@@ -719,7 +728,7 @@
           <span style="font-size:11px;font-weight:700;background:#eef2ff;color:#4338ca;padding:3px 9px;border-radius:9999px;">Bağımsız Alan</span>
         </div>
         <p style="margin:0;font-size:13px;line-height:1.5;color:#475569;">
-          SMMM yeterlilik çıkmış veya örnek sorularını (çoklu PDF veya metin) buraya yükleyin. Mevzuat Havuzu ile karışmaz; yalnızca <strong>SMMM Test</strong> sekmesinde soru tarzını belirlemek için kullanılır.
+          SMMM yeterlilik çıkmış veya örnek sorularını (çoklu PDF veya metin) buraya yükleyin. Üretilen PDF test seti bu PDF'in formatını ve soru tarzını takip eder.
         </p>
 
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px dashed #a5b4fc;background:#eef2ff;border-radius:14px;padding:12px;">
