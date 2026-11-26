@@ -10,13 +10,16 @@ const STORAGE_KEYS = {
   generalPool: "exam_app_general_pool_text",
   lawsText: "exam_app_legislation_laws_text",
   communiquesText: "exam_app_legislation_communiques_text",
-  resourceLinks: "exam_app_resource_links_json"
+  resourceLinks: "exam_app_resource_links_json",
+  lawLinks: "exam_app_law_links_json",
+  commLinks: "exam_app_comm_links_json",
+  wizardHistory: "exam_app_wizard_history_json"
 };
 
 const DEFAULT_GEMINI_MODEL = "gemini-3.8-flash";
 const YMM_SLICE_LIMIT = 20000;
 const GENERAL_SLICE_LIMIT = 15000;
-const LEG_SLICE_LIMIT = 8000;
+const LEG_SLICE_LIMIT = 10000;
 const FREE_TIER_BATCH_SIZE = 5;
 
 let currentMcqList = [];
@@ -49,27 +52,35 @@ function safeSetStorage(key, value) {
     localStorage.setItem(key, value);
     return true;
   } catch (e) {
-    alert("Tarayıcı depolama alanı doldu. Havuz metnini biraz kısaltarak tekrar deneyin.");
+    alert("Tarayıcı depolama alanı doldu. Eski metinlerden bir kısmını kısaltarak tekrar deneyin.");
     return false;
   }
 }
 
-function getResourceLinks() {
+function getJsonStorage(key, fallback = []) {
   try {
-    const raw = safeGetStorage(STORAGE_KEYS.resourceLinks, "[]");
+    const raw = safeGetStorage(key, JSON.stringify(fallback));
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    return Array.isArray(parsed) ? parsed : fallback;
   } catch (_) {
-    return [];
+    return fallback;
   }
 }
 
-function saveResourceLinks(links) {
-  safeSetStorage(STORAGE_KEYS.resourceLinks, JSON.stringify(links));
+function saveJsonStorage(key, arr) {
+  safeSetStorage(key, JSON.stringify(arr));
 }
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function escapeHtml(str) {
+  return String(str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 function toPdfSafeTurkish(text) {
@@ -105,17 +116,21 @@ function parseJsonLoose(rawText) {
 function buildLegislationContext() {
   const laws = safeGetStorage(STORAGE_KEYS.lawsText, "").trim().slice(0, LEG_SLICE_LIMIT);
   const communiques = safeGetStorage(STORAGE_KEYS.communiquesText, "").trim().slice(0, LEG_SLICE_LIMIT);
-  const links = getResourceLinks();
+  const lawLinks = getJsonStorage(STORAGE_KEYS.lawLinks, []);
+  const commLinks = getJsonStorage(STORAGE_KEYS.commLinks, []);
+  const genLinks = getJsonStorage(STORAGE_KEYS.resourceLinks, []);
 
   const parts = [];
-  if (laws) {
-    parts.push(`[KANUNLAR BÖLÜMÜ]\n${laws}`);
+  if (laws) parts.push(`[KANUNLAR BÖLÜMÜ]\n${laws}`);
+  if (lawLinks.length) {
+    parts.push(`[KANUN LİNKLERİ]\n${lawLinks.map((l) => `- ${l.title}: ${l.url}`).join("\n")}`);
   }
-  if (communiques) {
-    parts.push(`[TEBLİĞLER BÖLÜMÜ]\n${communiques}`);
+  if (communiques) parts.push(`[TEBLİĞLER BÖLÜMÜ]\n${communiques}`);
+  if (commLinks.length) {
+    parts.push(`[TEBLİĞ LİNKLERİ]\n${commLinks.map((l) => `- ${l.title}: ${l.url}`).join("\n")}`);
   }
-  if (links.length) {
-    parts.push(`[KAYNAK LİNKLERİ]\n${links.map((l) => `- ${l.title || "Kaynak"}: ${l.url}`).join("\n")}`);
+  if (genLinks.length) {
+    parts.push(`[GENEL KAYNAK LİNKLERİ]\n${genLinks.map((l) => `- ${l.title}: ${l.url}`).join("\n")}`);
   }
   return parts.join("\n\n");
 }
@@ -187,7 +202,7 @@ async function callGemini(promptText, expectJson = true, systemInstructionText =
       }
 
       if (res.status === 429) {
-        throw new Error("Ücretsiz kota sınırına ulaşıldı (429). 1-2 dakika bekleyip 5 soru ile tekrar deneyin.");
+        throw new Error("Ücretsiz kota sınırına ulaşıldı (429). 1-2 dakika bekleyip tekrar deneyin.");
       }
       throw new Error(`Gemini API Hatası (${res.status}): ${errBody.slice(0, 220)}`);
     } catch (networkErr) {
@@ -218,14 +233,15 @@ async function extractTextFromPdfFile(file) {
   return fullText;
 }
 
-function renderLinksUI() {
-  const ul = document.getElementById("resourceLinkList");
+// GENEL LİNK LİSTESİ RENDER & ÇEKİM YARDIMCILARI
+function renderLinkList(ulId, storageKey) {
+  const ul = document.getElementById(ulId);
   if (!ul) return;
-  const links = getResourceLinks();
+  const links = getJsonStorage(storageKey, []);
   ul.innerHTML = "";
 
   if (!links.length) {
-    ul.innerHTML = `<li class="link-item">Henüz bağlantı eklenmedi.</li>`;
+    ul.innerHTML = `<li class="link-item" style="color:#64748b;">Henüz bağlantı eklenmedi.</li>`;
     return;
   }
 
@@ -234,23 +250,127 @@ function renderLinksUI() {
     li.className = "link-item";
     li.innerHTML = `
       <div>
-        <strong>${item.title || "Bağlantı"}</strong><br>
-        <a href="${item.url}" target="_blank" rel="noopener noreferrer">${item.url}</a>
+        <strong>${escapeHtml(item.title || "Bağlantı")}</strong><br>
+        <a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.url)}</a>
       </div>
-      <button type="button" class="btn btn-danger btn-sm" data-del-link="${idx}">Sil</button>
+      <button type="button" class="btn btn-danger btn-sm" data-del-idx="${idx}">Sil</button>
     `;
     ul.appendChild(li);
   });
 
-  ul.querySelectorAll("[data-del-link]").forEach((btn) => {
+  ul.querySelectorAll("[data-del-idx]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const i = parseInt(btn.getAttribute("data-del-link"), 10);
-      const updated = getResourceLinks().filter((_, idx) => idx !== i);
-      saveResourceLinks(updated);
-      renderLinksUI();
+      const i = parseInt(btn.getAttribute("data-del-idx"), 10);
+      const updated = getJsonStorage(storageKey, []).filter((_, idx) => idx !== i);
+      saveJsonStorage(storageKey, updated);
+      renderLinkList(ulId, storageKey);
       updatePoolStatusUI();
     });
   });
+}
+
+function addLinkToStorage(titleInputId, urlInputId, storageKey, ulId, statusElId) {
+  const titleInput = document.getElementById(titleInputId);
+  const urlInput = document.getElementById(urlInputId);
+  const status = document.getElementById(statusElId);
+  const url = (urlInput?.value || "").trim();
+  const title = (titleInput?.value || "").trim();
+
+  if (!url || !/^https?:\/\//i.test(url)) {
+    if (status) {
+      status.className = "status-text error";
+      status.textContent = "Lütfen http:// veya https:// ile başlayan geçerli bir bağlantı girin.";
+    }
+    return;
+  }
+
+  const links = getJsonStorage(storageKey, []);
+  links.push({ title: title || "Kaynak Linki", url });
+  saveJsonStorage(storageKey, links);
+  if (titleInput) titleInput.value = "";
+  if (urlInput) urlInput.value = "";
+  renderLinkList(ulId, storageKey);
+  updatePoolStatusUI();
+  if (status) {
+    status.className = "status-text";
+    status.textContent = "Bağlantı listeye eklendi.";
+  }
+}
+
+async function fetchLinksIntoTextStorage(linkStorageKey, textStorageKey, statusElId, labelName) {
+  const links = getJsonStorage(linkStorageKey, []);
+  const status = document.getElementById(statusElId);
+
+  if (!links.length) {
+    if (status) {
+      status.className = "status-text error";
+      status.textContent = `Önce ${labelName} listesine en az bir bağlantı ekleyin.`;
+    }
+    return;
+  }
+
+  if (status) {
+    status.className = "status-text";
+    status.textContent = `${labelName} bağlantı içerikleri çekiliyor...`;
+  }
+
+  let extractedAny = false;
+  let appendText = "";
+
+  for (const item of links) {
+    try {
+      const resp = await fetch(item.url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const html = await resp.text();
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      const text = (doc.body?.innerText || "").replace(/\s+/g, " ").trim().slice(0, 12000);
+      if (text) {
+        appendText += `\n\n--- LİNK (${labelName}): ${item.title || item.url} (${item.url}) ---\n${text}`;
+        extractedAny = true;
+      }
+    } catch (_) {
+      appendText += `\n\n--- LİNK KAYDI (${labelName}): ${item.title || item.url} (${item.url}) ---`;
+    }
+  }
+
+  const current = safeGetStorage(textStorageKey, "");
+  safeSetStorage(textStorageKey, (current + appendText).trim());
+  updatePoolStatusUI();
+
+  if (status) {
+    status.className = "status-text";
+    status.textContent = extractedAny
+      ? `Erişilebilen bağlantı metinleri ${labelName} alanına aktarıldı.`
+      : `Bağlantılar ${labelName} alanına referans olarak eklendi (hedef site doğrudan tarayıcı çekimine kapalı olabilir).`;
+  }
+}
+
+async function handleMultiPdfUpload(files, textStorageKey, statusElId, labelName) {
+  if (!files.length) return;
+  const status = document.getElementById(statusElId);
+  if (status) {
+    status.className = "status-text";
+    status.textContent = `${files.length} adet ${labelName} PDF'i okunuyor...`;
+  }
+
+  try {
+    let combined = safeGetStorage(textStorageKey, "");
+    for (const f of files) {
+      const text = await extractTextFromPdfFile(f);
+      combined += "\n" + text;
+    }
+    safeSetStorage(textStorageKey, combined.trim());
+    updatePoolStatusUI();
+    if (status) {
+      status.className = "status-text";
+      status.textContent = `${files.length} adet PDF başarıyla ${labelName} alanına eklendi.`;
+    }
+  } catch (err) {
+    if (status) {
+      status.className = "status-text error";
+      status.textContent = "PDF Okuma Hatası: " + err.message;
+    }
+  }
 }
 
 function updatePoolStatusUI() {
@@ -258,7 +378,10 @@ function updatePoolStatusUI() {
   const genText = safeGetStorage(STORAGE_KEYS.generalPool, "");
   const lawsText = safeGetStorage(STORAGE_KEYS.lawsText, "");
   const commText = safeGetStorage(STORAGE_KEYS.communiquesText, "");
-  const links = getResourceLinks();
+  const totalLinks =
+    getJsonStorage(STORAGE_KEYS.resourceLinks, []).length +
+    getJsonStorage(STORAGE_KEYS.lawLinks, []).length +
+    getJsonStorage(STORAGE_KEYS.commLinks, []).length;
 
   const ymmArea = document.getElementById("ymmPoolTextarea");
   const genArea = document.getElementById("generalPoolTextarea");
@@ -274,24 +397,19 @@ function updatePoolStatusUI() {
   if (badge) {
     badge.textContent =
       `YMM Havuz: ${ymmText.length.toLocaleString("tr-TR")} kr | ` +
-      `SMMM/Genel Havuz: ${genText.length.toLocaleString("tr-TR")} kr | ` +
-      `Link: ${links.length} | ` +
-      `Kanun: ${lawsText.trim() ? "Var" : "Yok"} | ` +
-      `Tebliğ: ${commText.trim() ? "Var" : "Yok"}`;
+      `SMMM Havuz: ${genText.length.toLocaleString("tr-TR")} kr | ` +
+      `Kanunlar: ${lawsText.length.toLocaleString("tr-TR")} kr | ` +
+      `Tebliğler: ${commText.length.toLocaleString("tr-TR")} kr | ` +
+      `Toplam Link: ${totalLinks}`;
   }
 }
 
-// 1. SMMM YETERLİLİK VERGİ MEVZUATI TESTİ (5'ER SORULUK PAKETLEME)
+// 1. SMMM TEST (5'ER SORULUK PAKETLEME)
 async function generateMcqBatch(topic, difficulty, count, generalSlice, onStatus) {
   const legContext = buildLegislationContext();
-  const sys = `Sen TÜRMOB Serbest Muhasebeci Mali Müşavirlik (SMMM) Yeterlilik Sınavı 'Vergi Mevzuatı ve Uygulaması' komisyonu üyesisin.
-TÜRMOB SMMM Vergi Mevzuatı ve Uygulaması sınav tarzında sorular üret:
-- 193 sayılı GVK (ticari kazanç, yurt dışı vergi mahsubu, huzur hakkı/kira/menkul/değer artışı, geçici vergi),
-- 5520 sayılı KVK (tasfiye beyannamesi, örtülü sermaye, finansman gider kısıtlaması, dar mükellefiyet, yurt içi asgari KV),
-- 3065 sayılı KDV Kanunu (ödenecek KDV, 2 No.lu sorumlu KDV, ihraç kayıtlı teslimde tecil-terkin, verginin konusu),
-- 213 sayılı VUK (emsal bedel, zamanaşımı, izaha davet),
-- 6183 sayılı AATUHK, 197 sayılı MTV, 4760 sayılı ÖTV ve 1319 sayılı Emlak VK.
-Sayısal sorularda tüm verileri ve oranları sorunun içinde açıkça ver ve kendi içinde tutarlı hesapla.
+  const sys = `Sen TÜRMOB SMMM Yeterlilik Sınavı 'Vergi Mevzuatı ve Uygulaması' komisyonu üyesisin.
+GVK, KVK, KDV, VUK, 6183, MTV, ÖTV ve Emlak Vergisi kapsamından somut, hesaplamalı ve mevzuat odaklı sorular üret.
+Sayısal sorularda tüm verileri ve oranları açıkça ver ve kendi içinde tutarlı hesapla.
 
 SMMM / ÇALIŞMA HAVUZU:
 ${generalSlice || "TÜRMOB SMMM Vergi Mevzuatı ve Uygulaması Müfredatı"}
@@ -362,13 +480,13 @@ function renderMcqToScreen(questions, topic) {
         (letter) => `
         <label class="mcq-option">
           <input type="radio" name="mcq_${idx}" value="${letter}" />
-          <span><strong>${letter})</strong> ${q.options?.[letter] || ""}</span>
+          <span><strong>${letter})</strong> ${escapeHtml(q.options?.[letter] || "")}</span>
         </label>`
       )
       .join("");
 
     div.innerHTML = `
-      <div class="mcq-question">${idx + 1}. ${q.question}</div>
+      <div class="mcq-question">${idx + 1}. ${escapeHtml(q.question)}</div>
       <div>${optsHtml}</div>
       <div class="mcq-explanation hidden" id="mcq_exp_${idx}"></div>
     `;
@@ -387,7 +505,7 @@ function gradeMcqQuiz() {
     if (isCorrect) correctCount++;
 
     expDiv.className = `mcq-explanation ${isCorrect ? "correct" : "wrong"}`;
-    expDiv.innerHTML = `<strong>${isCorrect ? "Doğru!" : `Yanlış (Seçiminiz: ${selected || "Boş"})`} — Doğru Cevap: ${q.answer}</strong><br>${q.explanation || ""}`;
+    expDiv.innerHTML = `<strong>${isCorrect ? "Doğru!" : `Yanlış (Seçiminiz: ${selected || "Boş"})`} — Doğru Cevap: ${escapeHtml(q.answer)}</strong><br>${escapeHtml(q.explanation || "")}`;
     expDiv.classList.remove("hidden");
   });
 
@@ -462,7 +580,7 @@ function exportMcqToPdf(questions, topic, difficulty) {
   doc.save(`SMMM_Vergi_Mevzuati_${toPdfSafeTurkish(topic).replace(/\s+/g, "_")}.pdf`);
 }
 
-// 2. YMM İKİ AŞAMALI VAKA ÜRETİMİ
+// 2. YMM İKİ AŞAMALI VAKA
 function setYmmStatus(msg, isError = false) {
   const el = document.getElementById("ymmPdfStatus");
   if (!el) return;
@@ -509,13 +627,7 @@ Sadece şu JSON formatında döndür:
     const questionText = String(parsed.question || "").trim();
     if (!questionText) throw new Error("Soru metni boş geldi.");
 
-    currentYmmExam = {
-      no: 1,
-      subject,
-      focus,
-      question: questionText,
-      solution: ""
-    };
+    currentYmmExam = { no: 1, subject, focus, question: questionText, solution: "" };
 
     document.getElementById("ymmPreviewTitle").textContent = `${subject} — Çatı Vaka Sorusu`;
     document.getElementById("ymmQuestionContent").textContent = questionText;
@@ -639,7 +751,7 @@ function exportCurrentYmmToPdf() {
     y = 18;
     doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
-    doc.text(toPdfSafeTurkish("SINAV KOMISYONU CEVABI"), margin, y);
+    doc.text(toPdfSafeTurkish("SINAV KOMISYONU CEVAPLARI"), margin, y);
     y += 7;
     writeText(currentYmmExam.solution, 9.2);
   }
@@ -648,46 +760,159 @@ function exportCurrentYmmToPdf() {
   setYmmStatus("YMM vaka PDF dosyası indirildi.");
 }
 
-// 3. LİNK İÇERİĞİNİ HAVUZA ÇEKME
-async function fetchLinksIntoPool() {
-  const links = getResourceLinks();
-  const status = document.getElementById("uploadStatusText");
-  if (!links.length) {
-    status.className = "status-text error";
-    status.textContent = "Önce listeye en az bir bağlantı ekleyin.";
+// 3. VERGİ SİHİRBAZI (DANIŞMANLIK)
+function renderWizardHistory() {
+  const box = document.getElementById("wizardChatHistory");
+  if (!box) return;
+  const history = getJsonStorage(STORAGE_KEYS.wizardHistory, []);
+
+  if (!history.length) {
+    box.innerHTML = `<div class="chat-empty">Vergi Sihirbazı hazır. Aşağıya somut olayınızı veya mevzuat sorunuzu yazıp <strong>Danış ve Analiz Et</strong> butonuna basabilirsiniz.</div>`;
     return;
   }
 
-  status.className = "status-text";
-  status.textContent = "Bağlantı içerikleri çekiliyor...";
+  box.innerHTML = "";
+  history.forEach((msg) => {
+    const div = document.createElement("div");
+    div.className = `chat-msg ${msg.role === "user" ? "user" : "assistant"}`;
+    const roleLabel = msg.role === "user" ? "Soru / Olay" : "Vergi Sihirbazı Görüşü";
+    div.innerHTML = `<div class="chat-role">${roleLabel}</div><div>${escapeHtml(msg.text)}</div>`;
+    box.appendChild(div);
+  });
 
-  let extractedAny = false;
-  let poolAppend = "";
+  box.scrollTop = box.scrollHeight;
+}
 
-  for (const item of links) {
-    try {
-      const resp = await fetch(item.url);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const html = await resp.text();
-      const doc = new DOMParser().parseFromString(html, "text/html");
-      const text = (doc.body?.innerText || "").replace(/\s+/g, " ").trim().slice(0, 12000);
-      if (text) {
-        poolAppend += `\n\n--- LİNK: ${item.title || item.url} (${item.url}) ---\n${text}`;
-        extractedAny = true;
-      }
-    } catch (_) {
-      poolAppend += `\n\n--- LİNK KAYDI: ${item.title || item.url} (${item.url}) ---`;
-    }
+async function askTaxWizard() {
+  const input = document.getElementById("wizardInput");
+  const status = document.getElementById("wizardStatusText");
+  const btn = document.getElementById("wizardSendBtn");
+  const question = (input?.value || "").trim();
+
+  if (!question) {
+    status.className = "status-text error";
+    status.textContent = "Lütfen danışmak istediğiniz konuyu veya olayı yazın.";
+    return;
   }
 
-  const currentGen = safeGetStorage(STORAGE_KEYS.generalPool, "");
-  safeSetStorage(STORAGE_KEYS.generalPool, (currentGen + poolAppend).trim());
-  updatePoolStatusUI();
+  const category = document.getElementById("wizardCategorySelect")?.value || "Genel Vergi Danışmanlığı";
+  const includeContext = document.getElementById("wizardContextToggle")?.checked ?? true;
+  const history = getJsonStorage(STORAGE_KEYS.wizardHistory, []);
 
+  history.push({ role: "user", text: question, ts: new Date().toLocaleTimeString("tr-TR") });
+  saveJsonStorage(STORAGE_KEYS.wizardHistory, history);
+  renderWizardHistory();
+  if (input) input.value = "";
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Analiz Ediliyor...";
+  }
   status.className = "status-text";
-  status.textContent = extractedAny
-    ? "Erişilebilen bağlantı metinleri SMMM/Genel havuzuna eklendi."
-    : "Bağlantılar havuz notu olarak kaydedildi (hedef site doğrudan tarayıcı çekimine izin vermemiş olabilir).";
+  status.textContent = "Vergi Sihirbazı mevzuatı ve dayanakları inceliyor...";
+
+  try {
+    const legContext = includeContext ? buildLegislationContext() : "";
+    const recentTurns = history
+      .slice(-6, -1)
+      .map((m) => `${m.role === "user" ? "DANIŞAN" : "VERGİ SİHİRBAZI"}: ${m.text}`)
+      .join("\n\n");
+
+    const sysPrompt = `Sen Türkiye vergi mevzuatı (VUK, GVK, KVK, KDV, 6183, İYUK, ÇVÖA, TTK, TMS/TFRS) alanında uzman, kıdemli bir YMM ve vergi danışmanısın ("Vergi Sihirbazı").
+Uzmanlık Odak Alanı: ${category}.
+Yanıtlarını her zaman profesyonel, net ve yapılandırılmış şekilde ver:
+1. ÖZET GÖRÜŞ (Doğrudan sonuç)
+2. İLGİLİ KANUN VE TEBLİĞ DAYANAKLARI (Madde numaralarıyla; uydurma madde veya oran yazma)
+3. UYGULAMA / HESAPLAMA VE RİSK DEĞERLENDİRMESİ (Sayısal veri varsa adım adım hesapla)
+4. ÖNERİLEN AKSİYON / MUHASEBE VEYA BEYAN NOTU
+
+${legContext ? `KULLANICININ KAYITLI MEVZUAT NOTLARI:\n${legContext}` : ""}`;
+
+    const fullPrompt = `${recentTurns ? `ÖNCEKİ GÖRÜŞME BAĞLAMI:\n${recentTurns}\n\n` : ""}YENİ DANIŞMANLIK SORUSU:\n${question}`;
+
+    const answer = await callGemini(fullPrompt, false, sysPrompt, (msg) => {
+      status.className = "status-text";
+      status.textContent = msg;
+    });
+
+    history.push({ role: "assistant", text: answer.trim(), ts: new Date().toLocaleTimeString("tr-TR") });
+    saveJsonStorage(STORAGE_KEYS.wizardHistory, history);
+    renderWizardHistory();
+    status.textContent = "Danışmanlık görüşü hazırlandı.";
+  } catch (err) {
+    status.className = "status-text error";
+    status.textContent = "Hata: " + err.message;
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Danış ve Analiz Et";
+    }
+  }
+}
+
+function exportWizardToPdf() {
+  const history = getJsonStorage(STORAGE_KEYS.wizardHistory, []);
+  const status = document.getElementById("wizardStatusText");
+  if (!history.length) {
+    status.className = "status-text error";
+    status.textContent = "PDF oluşturmak için önce en az bir danışmanlık görüşmesi yapın.";
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 14;
+  const maxWidth = pageWidth - margin * 2;
+  let y = 18;
+  const dateStr = new Date().toLocaleDateString("tr-TR");
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.text(toPdfSafeTurkish("VERGI SIHIRBAZI - DANISMANLIK RAPORU"), margin, y);
+  y += 6;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.text(toPdfSafeTurkish(`Tarih: ${dateStr}`), margin, y);
+  y += 8;
+
+  history.forEach((msg) => {
+    const header = msg.role === "user" ? "SORU / SOMUT OLAY:" : "VERGI SIHIRBAZI GORUSU:";
+    if (y > pageHeight - 20) {
+      doc.addPage();
+      y = 18;
+    }
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text(toPdfSafeTurkish(header), margin, y);
+    y += 5;
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9.3);
+    const paragraphs = String(msg.text || "").split(/\r?\n/);
+    for (const para of paragraphs) {
+      if (!para.trim()) {
+        y += 2.5;
+        continue;
+      }
+      const lines = doc.splitTextToSize(toPdfSafeTurkish(para), maxWidth);
+      for (const line of lines) {
+        if (y > pageHeight - 15) {
+          doc.addPage();
+          y = 18;
+        }
+        doc.text(line, margin, y);
+        y += 4.4;
+      }
+      y += 1.2;
+    }
+    y += 4;
+  });
+
+  doc.save(`Vergi_Sihirbazi_Gorusu_${dateStr.replace(/\./g, "-")}.pdf`);
+  status.className = "status-text";
+  status.textContent = "Danışmanlık görüşmesi PDF olarak indirildi.";
 }
 
 // 4. OLAY DİNLEYİCİLERİ
@@ -695,9 +920,6 @@ document.addEventListener("DOMContentLoaded", () => {
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./sw.js").catch(() => {});
   }
-
-  const countInput = document.getElementById("mcqCountInput");
-  if (countInput) countInput.value = "5";
 
   const savedModel = safeGetStorage(STORAGE_KEYS.model, DEFAULT_GEMINI_MODEL);
   const normModel = normalizeModelName(savedModel);
@@ -729,6 +951,7 @@ document.addEventListener("DOMContentLoaded", () => {
     modal.classList.add("hidden");
   });
 
+  // SMMM Test
   document.getElementById("generateMcqBtn")?.addEventListener("click", async () => {
     const topic =
       (document.getElementById("mcqTopicInput")?.value || "").trim() ||
@@ -789,6 +1012,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   document.getElementById("gradeMcqBtn")?.addEventListener("click", gradeMcqQuiz);
 
+  // YMM Vaka
   document.getElementById("generateYmmSingleBtn")?.addEventListener("click", generateYmmQuestionStep);
   document.getElementById("generateYmmSolutionBtn")?.addEventListener("click", generateYmmSolutionStep);
   document.getElementById("generateYmmPdfBtn")?.addEventListener("click", exportCurrentYmmToPdf);
@@ -796,72 +1020,81 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("ymmSolutionWrapper")?.classList.toggle("hidden");
   });
 
-  document.getElementById("addLinkBtn")?.addEventListener("click", () => {
-    const titleInput = document.getElementById("resourceLinkTitleInput");
-    const urlInput = document.getElementById("resourceLinkInput");
-    const url = (urlInput?.value || "").trim();
-    const title = (titleInput?.value || "").trim();
+  // Vergi Sihirbazı
+  document.querySelectorAll(".wizard-chip").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const inp = document.getElementById("wizardInput");
+      if (inp) {
+        inp.value = chip.getAttribute("data-prompt") || "";
+        inp.focus();
+      }
+    });
+  });
 
-    if (!url || !/^https?:\/\//i.test(url)) {
-      const status = document.getElementById("uploadStatusText");
-      status.className = "status-text error";
-      status.textContent = "Lütfen http:// veya https:// ile başlayan geçerli bir bağlantı girin.";
-      return;
+  document.getElementById("wizardSendBtn")?.addEventListener("click", askTaxWizard);
+  document.getElementById("wizardPdfBtn")?.addEventListener("click", exportWizardToPdf);
+  document.getElementById("wizardClearBtn")?.addEventListener("click", () => {
+    saveJsonStorage(STORAGE_KEYS.wizardHistory, []);
+    renderWizardHistory();
+    const status = document.getElementById("wizardStatusText");
+    if (status) {
+      status.className = "status-text";
+      status.textContent = "Sohbet geçmişi temizlendi.";
     }
+  });
 
-    const links = getResourceLinks();
-    links.push({ title: title || "Kaynak Linki", url });
-    saveResourceLinks(links);
-    titleInput.value = "";
-    urlInput.value = "";
-    renderLinksUI();
+  // Mevzuat — Kanunlar (Çoklu PDF + URL)
+  document.getElementById("lawsPdfUpload")?.addEventListener("change", (e) => {
+    handleMultiPdfUpload(Array.from(e.target.files || []), STORAGE_KEYS.lawsText, "legStatusText", "Kanun");
+  });
+  document.getElementById("addLawLinkBtn")?.addEventListener("click", () => {
+    addLinkToStorage("lawLinkTitleInput", "lawLinkUrlInput", STORAGE_KEYS.lawLinks, "lawLinkList", "legStatusText");
+  });
+  document.getElementById("fetchLawLinksBtn")?.addEventListener("click", () => {
+    fetchLinksIntoTextStorage(STORAGE_KEYS.lawLinks, STORAGE_KEYS.lawsText, "legStatusText", "Kanun");
+  });
+
+  // Mevzuat — Tebliğler (Çoklu PDF + URL)
+  document.getElementById("commPdfUpload")?.addEventListener("change", (e) => {
+    handleMultiPdfUpload(Array.from(e.target.files || []), STORAGE_KEYS.communiquesText, "legStatusText", "Tebliğ");
+  });
+  document.getElementById("addCommLinkBtn")?.addEventListener("click", () => {
+    addLinkToStorage("commLinkTitleInput", "commLinkUrlInput", STORAGE_KEYS.commLinks, "commLinkList", "legStatusText");
+  });
+  document.getElementById("fetchCommLinksBtn")?.addEventListener("click", () => {
+    fetchLinksIntoTextStorage(STORAGE_KEYS.commLinks, STORAGE_KEYS.communiquesText, "legStatusText", "Tebliğ");
+  });
+
+  document.getElementById("saveLegislationBtn")?.addEventListener("click", () => {
+    safeSetStorage(STORAGE_KEYS.lawsText, document.getElementById("lawsTextarea").value);
+    safeSetStorage(STORAGE_KEYS.communiquesText, document.getElementById("communiquesTextarea").value);
     updatePoolStatusUI();
+    const status = document.getElementById("legStatusText");
+    status.className = "status-text";
+    status.textContent = "Kanun ve Tebliğ metinleri kaydedildi.";
   });
 
-  document.getElementById("fetchLinksToPoolBtn")?.addEventListener("click", fetchLinksIntoPool);
-
-  document.getElementById("ymmPdfUpload")?.addEventListener("change", async (e) => {
-    const files = Array.from(e.target.files || []);
-    if (!files.length) return;
-    const status = document.getElementById("uploadStatusText");
+  document.getElementById("clearLegislationBtn")?.addEventListener("click", () => {
+    safeSetStorage(STORAGE_KEYS.lawsText, "");
+    safeSetStorage(STORAGE_KEYS.communiquesText, "");
+    updatePoolStatusUI();
+    const status = document.getElementById("legStatusText");
     status.className = "status-text";
-    status.textContent = "YMM sınav PDF'leri okunuyor...";
-
-    try {
-      let combined = safeGetStorage(STORAGE_KEYS.ymmPool, "");
-      for (const f of files) {
-        const text = await extractTextFromPdfFile(f);
-        combined += "\n" + text;
-      }
-      safeSetStorage(STORAGE_KEYS.ymmPool, combined.trim());
-      updatePoolStatusUI();
-      status.textContent = `${files.length} adet YMM sınav PDF'i havuza eklendi.`;
-    } catch (err) {
-      status.className = "status-text error";
-      status.textContent = "PDF Okuma Hatası: " + err.message;
-    }
+    status.textContent = "Mevzuat metin alanları temizlendi.";
   });
 
-  document.getElementById("generalPdfUpload")?.addEventListener("change", async (e) => {
-    const files = Array.from(e.target.files || []);
-    if (!files.length) return;
-    const status = document.getElementById("uploadStatusText");
-    status.className = "status-text";
-    status.textContent = "SMMM / Genel ders PDF'leri okunuyor...";
-
-    try {
-      let combined = safeGetStorage(STORAGE_KEYS.generalPool, "");
-      for (const f of files) {
-        const text = await extractTextFromPdfFile(f);
-        combined += "\n" + text;
-      }
-      safeSetStorage(STORAGE_KEYS.generalPool, combined.trim());
-      updatePoolStatusUI();
-      status.textContent = `${files.length} adet SMMM/genel PDF havuza eklendi.`;
-    } catch (err) {
-      status.className = "status-text error";
-      status.textContent = "PDF Okuma Hatası: " + err.message;
-    }
+  // Havuz — PDF & Linkler
+  document.getElementById("ymmPdfUpload")?.addEventListener("change", (e) => {
+    handleMultiPdfUpload(Array.from(e.target.files || []), STORAGE_KEYS.ymmPool, "uploadStatusText", "YMM Sınav");
+  });
+  document.getElementById("generalPdfUpload")?.addEventListener("change", (e) => {
+    handleMultiPdfUpload(Array.from(e.target.files || []), STORAGE_KEYS.generalPool, "uploadStatusText", "SMMM/Genel");
+  });
+  document.getElementById("addLinkBtn")?.addEventListener("click", () => {
+    addLinkToStorage("resourceLinkTitleInput", "resourceLinkInput", STORAGE_KEYS.resourceLinks, "resourceLinkList", "uploadStatusText");
+  });
+  document.getElementById("fetchLinksToPoolBtn")?.addEventListener("click", () => {
+    fetchLinksIntoTextStorage(STORAGE_KEYS.resourceLinks, STORAGE_KEYS.generalPool, "uploadStatusText", "Genel Havuz");
   });
 
   document.getElementById("savePoolsBtn")?.addEventListener("click", () => {
@@ -883,24 +1116,10 @@ document.addEventListener("DOMContentLoaded", () => {
     updatePoolStatusUI();
   });
 
-  document.getElementById("saveLegislationBtn")?.addEventListener("click", () => {
-    safeSetStorage(STORAGE_KEYS.lawsText, document.getElementById("lawsTextarea").value);
-    safeSetStorage(STORAGE_KEYS.communiquesText, document.getElementById("communiquesTextarea").value);
-    updatePoolStatusUI();
-    const status = document.getElementById("legStatusText");
-    status.className = "status-text";
-    status.textContent = "Kanun ve tebliğ notları kaydedildi.";
-  });
-
-  document.getElementById("clearLegislationBtn")?.addEventListener("click", () => {
-    safeSetStorage(STORAGE_KEYS.lawsText, "");
-    safeSetStorage(STORAGE_KEYS.communiquesText, "");
-    updatePoolStatusUI();
-    const status = document.getElementById("legStatusText");
-    status.className = "status-text";
-    status.textContent = "Mevzuat alanları temizlendi.";
-  });
-
-  renderLinksUI();
+  // İlk Yükleme
+  renderLinkList("lawLinkList", STORAGE_KEYS.lawLinks);
+  renderLinkList("commLinkList", STORAGE_KEYS.commLinks);
+  renderLinkList("resourceLinkList", STORAGE_KEYS.resourceLinks);
+  renderWizardHistory();
   updatePoolStatusUI();
 });
