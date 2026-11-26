@@ -11,6 +11,7 @@ const STORAGE_KEYS = {
 };
 
 const DEFAULT_GEMINI_MODEL = "gemini-3.8-flash";
+const FALLBACK_GEMINI_MODEL = "gemini-4-argon";
 const YMM_SLICE_LIMIT = 85000;
 let currentMcqList = [];
 
@@ -72,6 +73,44 @@ function parseJsonLoose(rawText) {
   }
 }
 
+async function requestSingleModel(apiKey, model, payload, maxRetries, onRetryStatus) {
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("\n") || "";
+      if (!text.trim()) {
+        throw new Error("Gemini boş yanıt döndürdü.");
+      }
+      return text;
+    }
+
+    const errBody = await res.text();
+    const isTransient = res.status === 429 || res.status === 500 || res.status === 503 || res.status === 504;
+
+    if (isTransient && attempt < maxRetries) {
+      const waitMs = (attempt + 1) * 3000;
+      if (typeof onRetryStatus === "function") {
+        onRetryStatus(`${model} yoğun (${res.status}), ${Math.round(waitMs / 1000)} sn sonra tekrar deneniyor (${attempt + 1}/${maxRetries})...`);
+      }
+      await sleep(waitMs);
+      continue;
+    }
+
+    const err = new Error(`Gemini API Hatası (${res.status}): ${errBody.slice(0, 260)}`);
+    err.status = res.status;
+    err.isTransient = isTransient;
+    throw err;
+  }
+}
+
 async function callGemini(promptText, expectJson = true, systemInstructionText = "", onRetryStatus = null) {
   const apiKey = safeGetStorage(STORAGE_KEYS.apiKey, "").trim();
   if (!apiKey) {
@@ -79,12 +118,10 @@ async function callGemini(promptText, expectJson = true, systemInstructionText =
   }
 
   const rawSavedModel = safeGetStorage(STORAGE_KEYS.model, DEFAULT_GEMINI_MODEL);
-  const model = normalizeModelName(rawSavedModel);
-  if (rawSavedModel !== model) {
-    safeSetStorage(STORAGE_KEYS.model, model);
+  const primaryModel = normalizeModelName(rawSavedModel);
+  if (rawSavedModel !== primaryModel) {
+    safeSetStorage(STORAGE_KEYS.model, primaryModel);
   }
-
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
   const payload = {
     contents: [
@@ -109,36 +146,17 @@ async function callGemini(promptText, expectJson = true, systemInstructionText =
     payload.generationConfig.responseMimeType = "application/json";
   }
 
-  const maxRetries = 4;
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("\n") || "";
-      if (!text.trim()) {
-        throw new Error("Gemini boş yanıt döndürdü.");
-      }
-      return text;
-    }
-
-    const errBody = await res.text();
-    const isTransient = res.status === 429 || res.status === 500 || res.status === 503 || res.status === 504;
-
-    if (isTransient && attempt < maxRetries) {
-      const waitMs = (attempt + 1) * 3500;
+  try {
+    return await requestSingleModel(apiKey, primaryModel, payload, 3, onRetryStatus);
+  } catch (err) {
+    const candidateFallback = primaryModel === DEFAULT_GEMINI_MODEL ? FALLBACK_GEMINI_MODEL : DEFAULT_GEMINI_MODEL;
+    if (err?.isTransient && candidateFallback !== primaryModel) {
       if (typeof onRetryStatus === "function") {
-        onRetryStatus(`Sunucu yoğun (${res.status}), ${Math.round(waitMs / 1000)} sn sonra tekrar deneniyor (${attempt + 1}/${maxRetries})...`);
+        onRetryStatus(`${primaryModel} yoğun, ${candidateFallback} modeline geçilerek tekrar deneniyor...`);
       }
-      await sleep(waitMs);
-      continue;
+      return await requestSingleModel(apiKey, candidateFallback, payload, 2, onRetryStatus);
     }
-
-    throw new Error(`Gemini API Hatası (${res.status}): ${errBody.slice(0, 260)}`);
+    throw err;
   }
 }
 
@@ -535,7 +553,7 @@ async function generateYmmSingleOnScreen() {
   }
 
   try {
-    setYmmPdfProgress("2026/2 TÜRMOB tarzında çatı vaka ve komisyon cevabı üretiliyor (30-60 sn sürebilir)...");
+    setYmmPdfProgress("2026/2 TÜRMOB tarzında çatı vaka ve komisyon cevabı üretiliyor...");
     const batch = await generateYmmWrittenBatch(subject, focus, formatType, ymmSlice, 1, 1, (retryMsg) =>
       setYmmPdfProgress(retryMsg)
     );
