@@ -93,6 +93,24 @@ let selectedOptionIndex = null;
 let timerInterval = null;
 let remainingSeconds = 0;
 
+function switchTab(tab) {
+  const target = ALL_TABS.includes(tab) ? tab : "konu";
+  ALL_TABS.forEach((t) => {
+    const sec = document.getElementById("tab-" + t);
+    if (sec) sec.classList.toggle("hidden", t !== target);
+    const nav = document.getElementById("nav-" + t);
+    if (nav) {
+      nav.className = t === target
+        ? "flex flex-col items-center justify-center py-1 text-[11px] font-bold text-slate-900"
+        : "flex flex-col items-center justify-center py-1 text-[11px] font-medium text-slate-500";
+    }
+  });
+  window.scrollTo({ top: 0, behavior: "smooth" });
+  if (target === "hatalar") renderMistakes();
+  if (target === "konu") renderTopicStats();
+}
+window.switchTab = switchTab;
+
 function loadStoredState() {
   try {
     stats = JSON.parse(localStorage.getItem(STORAGE_KEYS.stats) || '{"correct":0,"total":0,"byTopic":{}}');
@@ -106,24 +124,6 @@ function loadStoredState() {
     mistakes = [];
   }
 }
-
-function switchTab(tab) {
-  const target = ALL_TABS.includes(tab) ? tab : "konu";
-  ALL_TABS.forEach((t) => {
-    const sec = document.getElementById("tab-" + t);
-    if (sec) sec.classList.toggle("hidden", t !== target);
-    const nav = document.getElementById("nav-" + t);
-    if (nav) {
-      nav.className = t === target
-        ? "flex flex-col items-center text-[11px] font-bold text-slate-900"
-        : "flex flex-col items-center text-[11px] font-medium text-slate-400";
-    }
-  });
-  window.scrollTo({ top: 0, behavior: "smooth" });
-  if (target === "hatalar") renderMistakes();
-  if (target === "konu") renderTopicStats();
-}
-window.switchTab = switchTab;
 
 if (window.pdfjsLib && window.pdfjsLib.GlobalWorkerOptions) {
   window.pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -443,4 +443,259 @@ function updateNetworkStatus() {
     dot.className = "w-2 h-2 rounded-full bg-emerald-400";
     text.textContent = "Çevrimiçi";
   } else {
-    badge.className = "text-[11px] px-2.5 py-1 rounded-full border flex items-center gap-1.5 bg-rose-950/70 text-rose
+    badge.className = "text-[11px] px-2.5 py-1 rounded-full border flex items-center gap-1.5 bg-rose-950/70 text-rose-300 border-rose-700/60";
+    dot.className = "w-2 h-2 rounded-full bg-rose-400";
+    text.textContent = "Çevrimdışı";
+  }
+}
+
+window.addEventListener("online", updateNetworkStatus);
+window.addEventListener("offline", updateNetworkStatus);
+
+function updateBadges(key) {
+  const badge = document.getElementById("modeBadge");
+  const activeKey = (key ?? localStorage.getItem(STORAGE_KEYS.apiKey) ?? "").trim();
+  if (badge) {
+    if (activeKey.length > 10) {
+      badge.textContent = "Canlı Gemini API Aktif";
+      badge.className = "text-[11px] text-emerald-400 truncate mt-0.5";
+    } else {
+      badge.textContent = "Demo Modu (Ayarlardan API Anahtarı Ekleyin)";
+      badge.className = "text-[11px] text-amber-400 truncate mt-0.5";
+    }
+  }
+  const scoreEl = document.getElementById("scoreBadge");
+  if (scoreEl) scoreEl.textContent = `${stats.correct} / ${stats.total}`;
+}
+
+function renderTopicStats() {
+  const el = document.getElementById("topicStatsList");
+  if (!el) return;
+  const entries = Object.entries(stats.byTopic || {});
+  if (!entries.length) {
+    el.textContent = "Henüz soru çözülmedi. Soru çözdükçe mevzuat bazlı doğru/yanlış dağılımı burada görünecek.";
+    return;
+  }
+  el.innerHTML = entries.map(([topic, d]) => {
+    const rate = d.total ? Math.round((d.correct / d.total) * 100) : 0;
+    return `<div class="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0 gap-2">
+      <span class="truncate font-medium text-slate-800">${escapeHtml(topic)}</span>
+      <span class="text-xs shrink-0 text-slate-600">${d.correct}/${d.total} (%${rate})</span>
+    </div>`;
+  }).join("");
+}
+
+function renderMistakes() {
+  const listEl = document.getElementById("mistakesList");
+  const filterEl = document.getElementById("mistakeFilter");
+  if (!listEl || !filterEl) return;
+  const currentFilter = filterEl.value || "ALL";
+  const topics = ["ALL", ...new Set(mistakes.map((m) => m.topic))];
+  filterEl.innerHTML = topics.map((t) => `<option value="${escapeAttr(t)}">${t === "ALL" ? "Tüm Mevzuatlar" : escapeHtml(t)}</option>`).join("");
+  filterEl.value = topics.includes(currentFilter) ? currentFilter : "ALL";
+
+  const filtered = mistakes.filter((m) => filterEl.value === "ALL" || m.topic === filterEl.value);
+  if (!filtered.length) {
+    listEl.textContent = "Bu filtrede kayıtlı yanlış soru yok.";
+    return;
+  }
+
+  listEl.innerHTML = filtered.map((m) => {
+    const realIndex = mistakes.indexOf(m);
+    return `<div class="rounded-xl border border-rose-200 bg-rose-50/50 p-3.5 space-y-2">
+      <div class="flex items-center justify-between gap-2">
+        <span class="text-xs font-semibold text-rose-800">${escapeHtml(m.topic)}</span>
+        <button onclick="removeMistake(${realIndex})" type="button" class="text-xs text-emerald-700 font-semibold hover:underline">Tekrar Çözdüm / Sil</button>
+      </div>
+      <p class="font-medium text-slate-900">${escapeHtml(m.question)}</p>
+      <p class="text-xs text-slate-600"><strong>Doğru Cevap:</strong> ${escapeHtml(m.correctOption || "")}</p>
+      <p class="text-xs text-slate-700">${escapeHtml(m.explanation || "")}</p>
+      <textarea rows="2" placeholder="Kendi kısa notunuz veya mevzuat/tebliğ notu..."
+        onchange="updateMistakeNote(${realIndex}, this.value)"
+        class="w-full rounded-lg border border-slate-300 bg-white p-2 text-xs text-slate-800">${escapeHtml(m.note || "")}</textarea>
+    </div>`;
+  }).join("");
+}
+
+function updateMistakeNote(index, note) {
+  if (!mistakes[index]) return;
+  mistakes[index].note = note;
+  saveAllState();
+}
+window.updateMistakeNote = updateMistakeNote;
+
+function removeMistake(index) {
+  mistakes.splice(index, 1);
+  saveAllState();
+  renderMistakes();
+}
+window.removeMistake = removeMistake;
+
+function renderQuestion(q) {
+  currentQuestion = q;
+  selectedOptionIndex = null;
+  const qTextEl = document.getElementById("questionText");
+  if (qTextEl) qTextEl.textContent = q.question;
+  const fb = document.getElementById("feedbackBox");
+  if (fb) {
+    fb.classList.add("hidden");
+    fb.innerHTML = "";
+  }
+
+  const container = document.getElementById("optionsContainer");
+  if (!container) return;
+  container.innerHTML = "";
+  q.options.forEach((opt, idx) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "w-full text-left rounded-xl border border-slate-300 px-4 py-3 text-sm hover:bg-slate-50 transition";
+    btn.textContent = opt;
+    btn.onclick = () => {
+      selectedOptionIndex = idx;
+      [...container.children].forEach((c, i) => {
+        c.className = i === idx
+          ? "w-full text-left rounded-xl border-2 border-indigo-600 bg-indigo-50 px-4 py-3 text-sm font-medium transition"
+          : "w-full text-left rounded-xl border border-slate-300 px-4 py-3 text-sm hover:bg-slate-50 transition";
+      });
+    };
+    container.appendChild(btn);
+  });
+
+  startTimerIfConfigured();
+}
+
+function startTimerIfConfigured() {
+  if (timerInterval) clearInterval(timerInterval);
+  const mins = parseInt(document.getElementById("timerMinutes")?.value || "0", 10);
+  const display = document.getElementById("timerDisplay");
+  if (!display) return;
+  if (!mins || mins <= 0) {
+    display.classList.add("hidden");
+    return;
+  }
+  remainingSeconds = mins * 60;
+  display.classList.remove("hidden");
+  const tick = () => {
+    const m = String(Math.floor(remainingSeconds / 60)).padStart(2, "0");
+    const s = String(remainingSeconds % 60).padStart(2, "0");
+    display.textContent = `${m}:${s}`;
+    if (remainingSeconds <= 0) {
+      clearInterval(timerInterval);
+      display.textContent = "Süre Doldu";
+      return;
+    }
+    remainingSeconds -= 1;
+  };
+  tick();
+  timerInterval = setInterval(tick, 1000);
+}
+
+function buildStrictTaxAdvisorInstruction() {
+  const lawText = (localStorage.getItem(STORAGE_KEYS.lawText) || "").trim();
+  const activeTopic = (document.getElementById("topicInput")?.value || "").trim();
+  const catLabel = CATEGORY_LABELS[activeCategory] || "Kanunlar";
+  const todayStr = new Date().toLocaleDateString("tr-TR");
+
+  const honestyGuardrail = [
+    "KESİN DOĞRULUK VE UYDURMAMA KURALI:",
+    "- Asla kanun/tebliğ/özelge/sirküler/yönetmelik numarası, madde, oran, tutar veya süre uydurma; emin olmadığın hiçbir bilgiyi kesinmiş gibi sunma.",
+    "- Mevzuat Havuzu'nda kaynak metin verilmişse öncelikle o metindeki hükümlere sadık kal; metinde yer almayan veya belirsiz kalan noktalarda 'Mevzuat Havuzu'nda yer almıyor / teyit edilmelidir' diye açıkça belirt.",
+    "- Güncel/dönemsel tutar, had, oran veya sonradan değişmiş olabilecek düzenlemeler konusunda tam kesinlik yoksa veya güncel Resmî Gazete/GİB teyidi gerekiyorsa tahmin yürütme; ilgili mevzuat mantığını açıklayıp güncel teyit gerektirdiğini net yaz.",
+    `- Bugünün tarihi: ${todayStr}. Aktif mevzuat bölümü: ${catLabel} | Seçili başlık: ${activeTopic || "Belirtilmedi"}.`
+  ].join("\n");
+
+  if (lawText) {
+    return `Sen Türk vergi mevzuatı alanında çalışan kıdemli bir danışman ve çalışma rehberisin.\n${honestyGuardrail}\n\nÖNCELİKLİ MEVZUAT KAYNAĞI:\n${lawText}\n\n`;
+  }
+  return `Sen Türk vergi mevzuatı alanında çalışan kıdemli bir danışman ve çalışma rehberisin.\n${honestyGuardrail}\n\n`;
+}
+
+async function callGemini(promptText, expectJson = false, customPrefix = "") {
+  const apiKey = (localStorage.getItem(STORAGE_KEYS.apiKey) || "").trim();
+  const model = localStorage.getItem(STORAGE_KEYS.model) || "gemini-3.8-flash";
+  if (!apiKey) throw new Error("API anahtarı kayıtlı değil. Ayarlar sekmesinden ekleyin.");
+
+  const prefix = customPrefix || buildStrictTaxAdvisorInstruction();
+  const body = {
+    contents: [{ role: "user", parts: [{ text: prefix + promptText }] }]
+  };
+  if (expectJson) {
+    body.generationConfig = { responseMimeType: "application/json" };
+  }
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data?.error?.message || `HTTP ${res.status}`);
+  }
+  const parts = data?.candidates?.[0]?.content?.parts || [];
+  return parts.map((p) => p.text || "").join("\n").trim();
+}
+
+function parseJsonLoose(raw) {
+  let cleaned = String(raw || "")
+    .replace(/```json|```/gi, "")
+    .replace(/[“”]/g, '"')
+    .trim();
+
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start === -1 || end === -1 || end <= start) {
+    throw new Error("Model geçerli JSON döndürmedi. Tekrar deneyin.");
+  }
+
+  cleaned = cleaned.slice(start, end + 1).replace(/,\s*([}\]])/g, "$1");
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    const sanitized = cleaned.replace(/[\u0000-\u001F]+/g, " ");
+    return JSON.parse(sanitized);
+  }
+}
+
+async function generateLessonAndQuestion(onlyQuestion = false) {
+  const topicInput = document.getElementById("topicInput");
+  const autoRandom = document.getElementById("autoRandomOnGenerate")?.checked;
+  const catLabel = CATEGORY_LABELS[activeCategory] || "Kanunlar";
+  let topic = topicInput ? topicInput.value.trim() : "";
+
+  if (autoRandom && !onlyQuestion) {
+    topic = pickRandomGibTopic(topic);
+  } else if (!topic) {
+    topic = pickRandomGibTopic("");
+  }
+
+  const difficulty = document.getElementById("difficultySelect")?.value || "Vaka";
+  const btn = document.getElementById(onlyQuestion ? "newQuestionBtn" : "generateBtn");
+  const prevText = btn ? btn.textContent : "";
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Üretiliyor...";
+  }
+
+  try {
+    const prompt = `Kaynak bağlam: gib.gov.tr mevzuatı | Mevzuat Bölümü: "${catLabel}" | Seçili Başlık: "${topic}" | Zorluk: "${difficulty}".
+Bu bölüm ve başlık kapsamından önemli bir konu veya vaka seçerek konu özeti, kritik ayrım ve 4 şıklı çoktan seçmeli soru üret. Uydurma numara, madde veya oran kullanma; Mevzuat Havuzu metni varsa ona dayan.
+Yalnızca şu şemada tek bir JSON nesnesi döndür (iç metinlerde çift tırnak yerine tek tırnak kullan):
+{
+  "lessonTitle": "...",
+  "lessonSummary": "...",
+  "lessonCritical": "...",
+  "lessonBasis": "...",
+  "question": "...",
+  "options": ["A) ...", "B) ...", "C) ...", "D) ..."],
+  "answerIndex": 0,
+  "explanation": "..."
+}`;
+    const text = await callGemini(prompt, true);
+    const parsed = parseJsonLoose(text);
+
+    if (!onlyQuestion) {
+      const titleEl = document.getElementById("lessonTitle");
+      const sumEl = document
