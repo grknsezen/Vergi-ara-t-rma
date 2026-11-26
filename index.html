@@ -20,6 +20,38 @@
     .safe-top { padding-top: env(safe-area-inset-top, 12px); }
     .safe-bottom { padding-bottom: calc(env(safe-area-inset-bottom, 10px) + 6px); }
   </style>
+  <script>
+    (function () {
+      const TABS = ["konu", "soru", "sohbet", "hatalar", "ayarlar"];
+      function applyTabState(tab) {
+        const target = TABS.includes(tab) ? tab : "konu";
+        TABS.forEach((t) => {
+          const sec = document.getElementById("tab-" + t);
+          if (sec) sec.classList.toggle("hidden", t !== target);
+          const nav = document.getElementById("nav-" + t);
+          if (nav) {
+            nav.className = t === target
+              ? "flex flex-col items-center justify-center py-1 text-[11px] font-bold text-slate-900"
+              : "flex flex-col items-center justify-center py-1 text-[11px] font-medium text-slate-500";
+          }
+        });
+        window.scrollTo({ top: 0, behavior: "instant" in window ? "instant" : "auto" });
+        document.dispatchEvent(new CustomEvent("vergi:tabchanged", { detail: { tab: target } }));
+      }
+      window.__coreSwitchTab = applyTabState;
+      window.switchTab = applyTabState;
+
+      document.addEventListener("click", function (ev) {
+        const btn = ev.target.closest("#nav-konu, #nav-soru, #nav-sohbet, #nav-hatalar, #nav-ayarlar, [data-tab]");
+        if (!btn) return;
+        const tab = btn.dataset.tab || (btn.id ? btn.id.replace("nav-", "") : "");
+        if (TABS.includes(tab)) {
+          ev.preventDefault();
+          applyTabState(tab);
+        }
+      }, true);
+    })();
+  </script>
 </head>
 <body class="bg-slate-100 text-slate-900 min-h-screen antialiased">
   <div id="updateBanner" class="hidden bg-emerald-600 text-white px-4 py-2.5 text-xs flex items-center justify-between gap-2 sticky top-0 z-30">
@@ -346,19 +378,19 @@
 
   <nav id="bottomNav" class="fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur border-t border-slate-200 safe-bottom z-40">
     <div class="max-w-3xl mx-auto grid grid-cols-5 py-2 text-center">
-      <button id="nav-konu" type="button" onclick="window.switchTab('konu')" class="flex flex-col items-center justify-center py-1 text-[11px] font-bold text-slate-900">
+      <button id="nav-konu" type="button" data-tab="konu" onclick="window.__coreSwitchTab('konu')" class="flex flex-col items-center justify-center py-1 text-[11px] font-bold text-slate-900">
         <span class="text-base leading-none mb-1">📘</span><span>Konu</span>
       </button>
-      <button id="nav-soru" type="button" onclick="window.switchTab('soru')" class="flex flex-col items-center justify-center py-1 text-[11px] font-medium text-slate-500">
+      <button id="nav-soru" type="button" data-tab="soru" onclick="window.__coreSwitchTab('soru')" class="flex flex-col items-center justify-center py-1 text-[11px] font-medium text-slate-500">
         <span class="text-base leading-none mb-1">✍️</span><span>Soru</span>
       </button>
-      <button id="nav-sohbet" type="button" onclick="window.switchTab('sohbet')" class="flex flex-col items-center justify-center py-1 text-[11px] font-medium text-slate-500">
+      <button id="nav-sohbet" type="button" data-tab="sohbet" onclick="window.__coreSwitchTab('sohbet')" class="flex flex-col items-center justify-center py-1 text-[11px] font-medium text-slate-500">
         <span class="text-base leading-none mb-1">💬</span><span>Soru-Cevap</span>
       </button>
-      <button id="nav-hatalar" type="button" onclick="window.switchTab('hatalar')" class="flex flex-col items-center justify-center py-1 text-[11px] font-medium text-slate-500">
+      <button id="nav-hatalar" type="button" data-tab="hatalar" onclick="window.__coreSwitchTab('hatalar')" class="flex flex-col items-center justify-center py-1 text-[11px] font-medium text-slate-500">
         <span class="text-base leading-none mb-1">📕</span><span>Hata Defteri</span>
       </button>
-      <button id="nav-ayarlar" type="button" onclick="window.switchTab('ayarlar')" class="flex flex-col items-center justify-center py-1 text-[11px] font-medium text-slate-500">
+      <button id="nav-ayarlar" type="button" data-tab="ayarlar" onclick="window.__coreSwitchTab('ayarlar')" class="flex flex-col items-center justify-center py-1 text-[11px] font-medium text-slate-500">
         <span class="text-base leading-none mb-1">⚙️</span><span>Ayarlar</span>
       </button>
     </div>
