@@ -2,8 +2,8 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#0b1120" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f172a" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Vergi Asistanı" />
@@ -12,6 +12,26 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <style>
+    :root {
+      --bg-app: #f2f2f7;
+      --bg-card: #ffffff;
+      --text-primary: #0f172a;
+      --text-secondary: #475569;
+      --text-muted: #64748b;
+      --border-soft: rgba(15, 23, 42, 0.08);
+      --accent-dark: #0f172a;
+      --accent-emerald: #059669;
+      --accent-indigo: #4f46e5;
+      --nav-height: 62px;
+      --safari-bar-offset: 56px;
+    }
+
+    @media all and (display-mode: standalone) {
+      :root {
+        --safari-bar-offset: 0px;
+      }
+    }
+
     *, *::before, *::after {
       box-sizing: border-box;
     }
@@ -19,41 +39,43 @@
     html, body {
       margin: 0;
       padding: 0;
-      background-color: #f1f5f9;
-      color: #0f172a;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg-app);
+      color: var(--text-primary);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
       -webkit-tap-highlight-color: transparent;
+      overscroll-behavior-y: none;
     }
 
     body {
-      padding-bottom: calc(152px + env(safe-area-inset-bottom, 20px));
+      padding-bottom: calc(var(--nav-height) + var(--safari-bar-offset) + env(safe-area-inset-bottom, 20px) + 28px);
     }
 
     .hidden {
       display: none !important;
     }
 
-    .safe-top {
-      padding-top: env(safe-area-inset-top, 12px);
-    }
-
+    /* Üst Başlık (iOS Translucent Header) */
     header.app-header {
       position: sticky;
       top: 0;
       z-index: 40;
-      background-color: #020617;
+      background: rgba(15, 23, 42, 0.94);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
       color: #ffffff;
-      border-bottom: 1px solid rgba(30, 41, 59, 0.9);
+      padding-top: env(safe-area-inset-top, 10px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     }
 
     .header-inner {
-      max-width: 768px;
+      max-width: 680px;
       margin: 0 auto;
-      padding: 12px 16px;
+      padding: 12px 18px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 8px;
+      gap: 10px;
     }
 
     .header-left {
@@ -77,8 +99,9 @@
 
     .header-title {
       margin: 0;
-      font-size: 16px;
+      font-size: 17px;
       font-weight: 700;
+      letter-spacing: -0.02em;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -87,6 +110,7 @@
     .header-sub {
       margin: 2px 0 0;
       font-size: 11px;
+      font-weight: 500;
       color: #fbbf24;
       white-space: nowrap;
       overflow: hidden;
@@ -103,18 +127,19 @@
     .net-pill {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: 5px;
       font-size: 11px;
-      padding: 4px 10px;
+      font-weight: 600;
+      padding: 5px 10px;
       border-radius: 9999px;
-      background: rgba(6, 78, 59, 0.7);
+      background: rgba(6, 78, 59, 0.65);
       color: #6ee7b7;
-      border: 1px solid rgba(16, 185, 129, 0.45);
+      border: 1px solid rgba(16, 185, 129, 0.35);
     }
 
     .net-dot {
-      width: 7px;
-      height: 7px;
+      width: 6px;
+      height: 6px;
       border-radius: 9999px;
       background: #34d399;
       display: inline-block;
@@ -122,16 +147,17 @@
 
     .score-pill {
       font-size: 12px;
-      font-weight: 600;
-      padding: 4px 10px;
+      font-weight: 700;
+      padding: 5px 11px;
       border-radius: 9999px;
-      background: #0f172a;
-      color: #e2e8f0;
-      border: 1px solid #1e293b;
+      background: rgba(255, 255, 255, 0.1);
+      color: #f8fafc;
+      border: 1px solid rgba(255, 255, 255, 0.12);
     }
 
+    /* Ana İçerik Alanı */
     main.app-main {
-      max-width: 768px;
+      max-width: 680px;
       margin: 0 auto;
       padding: 16px;
       display: flex;
@@ -144,82 +170,135 @@
     }
 
     .card-box {
-      background: #ffffff;
-      border-radius: 16px;
-      padding: 18px;
-      border: 1px solid #e2e8f0;
-      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+      background: var(--bg-card);
+      border-radius: 20px;
+      padding: 20px;
+      border: 1px solid var(--border-soft);
+      box-shadow: 0 4px 20px rgba(15, 23, 42, 0.04);
     }
 
     .card-box > * + * {
-      margin-top: 12px;
+      margin-top: 14px;
     }
 
+    .eyebrow {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #94a3b8;
+    }
+
+    .section-heading {
+      margin: 2px 0 0;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.015em;
+      color: var(--text-primary);
+    }
+
+    /* iOS Segmented Control (Kanunlar / Tebliğler / Sirkülerler) */
     #lawCategoryTabs {
       display: grid !important;
       grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-      gap: 6px !important;
-      background: #f1f5f9;
+      gap: 4px !important;
+      background: #e2e8f0;
       padding: 4px;
-      border-radius: 12px;
-      border: 1px solid #e2e8f0;
+      border-radius: 14px;
     }
 
     .law-cat-btn {
       width: 100%;
+      min-height: 36px;
       border: 0;
       background: transparent;
       color: #475569;
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 600;
-      padding: 8px 6px;
-      border-radius: 8px;
+      padding: 7px 6px;
+      border-radius: 10px;
       cursor: pointer;
+      transition: all 0.18s ease;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
     .law-cat-btn.bg-slate-900 {
-      background: #0f172a !important;
-      color: #ffffff !important;
+      background: #ffffff !important;
+      color: #0f172a !important;
       font-weight: 700 !important;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.09);
     }
 
+    /* Mevzuat Açılır Listesi */
     #gibTopicList {
-      max-height: 240px;
+      max-height: 260px;
       overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
       display: flex;
       flex-direction: column;
       gap: 6px;
       background: #ffffff;
-      border: 1px solid #cbd5e1;
-      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
       padding: 8px;
     }
 
     .law-pick-item {
       width: 100%;
+      min-height: 42px;
       text-align: left;
       background: #f8fafc;
       color: #0f172a;
-      border: 1px solid #e2e8f0;
-      border-radius: 10px;
-      padding: 9px 11px;
-      font-size: 12px;
+      border: 1px solid transparent;
+      border-radius: 11px;
+      padding: 10px 12px;
+      font-size: 13px;
       font-weight: 500;
-      line-height: 1.35;
+      line-height: 1.4;
       cursor: pointer;
+      transition: background 0.15s ease;
     }
 
+    .law-pick-item:active,
     .law-pick-item:hover,
     .law-pick-item.is-selected {
       background: #eef2ff;
-      border-color: #4f46e5;
+      border-color: #6366f1;
       color: #312e81;
       font-weight: 700;
     }
 
+    /* Form Elemanları (16px: iOS Otomatik Zoom Önleme) */
+    input[type="text"],
+    input[type="password"],
+    input[type="url"],
+    input[type="number"],
+    select,
+    textarea {
+      width: 100%;
+      min-height: 44px;
+      border: 1px solid #cbd5e1;
+      border-radius: 13px;
+      padding: 11px 14px;
+      font-size: 16px;
+      color: #0f172a;
+      background: #f8fafc;
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      outline: none;
+      background: #ffffff;
+      border-color: #4f46e5;
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+    }
+
+    /* Butonlar */
     .two-col {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -228,74 +307,75 @@
 
     .btn-dark {
       width: 100%;
+      min-height: 46px;
       background: #0f172a;
       color: #ffffff;
-      border: 2px solid #0f172a;
-      border-radius: 12px;
-      padding: 12px 14px;
-      font-size: 14px;
+      border: 0;
+      border-radius: 14px;
+      padding: 12px 16px;
+      font-size: 15px;
       font-weight: 600;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: 8px;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.14);
+    }
+
+    .btn-dark:active {
+      transform: scale(0.99);
     }
 
     .btn-indigo {
+      min-height: 46px;
       background: #4f46e5;
       color: #ffffff;
-      border: 2px solid #4f46e5;
-      border-radius: 12px;
-      padding: 12px 14px;
-      font-size: 14px;
+      border: 0;
+      border-radius: 14px;
+      padding: 12px 16px;
+      font-size: 15px;
       font-weight: 600;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: 8px;
+      box-shadow: 0 2px 8px rgba(79, 70, 229, 0.22);
     }
 
     .btn-emerald {
       width: 100%;
-      background: #047857;
+      min-height: 48px;
+      background: linear-gradient(135deg, #059669 0%, #047857 100%);
       color: #ffffff;
       border: 0;
-      border-radius: 12px;
+      border-radius: 14px;
       padding: 14px 16px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(5, 150, 105, 0.24);
+    }
+
+    .btn-emerald:active {
+      transform: scale(0.99);
+    }
+
+    .btn-emerald-sm {
+      width: 100%;
+      min-height: 44px;
+      background: #059669;
+      color: #ffffff;
+      border: 0;
+      border-radius: 13px;
+      padding: 11px 14px;
       font-size: 14px;
       font-weight: 600;
       cursor: pointer;
     }
 
-    .btn-emerald-sm {
-      width: 100%;
-      background: #059669;
-      color: #ffffff;
-      border: 0;
-      border-radius: 12px;
-      padding: 10px 14px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-
-    input[type="text"],
-    input[type="password"],
-    input[type="url"],
-    input[type="number"],
-    select,
-    textarea {
-      width: 100%;
-      border: 1px solid #cbd5e1;
-      border-radius: 12px;
-      padding: 10px 12px;
-      font-size: 13px;
-      color: #0f172a;
-      background: #ffffff;
-    }
-
+    /* iOS Alt Tab Bar */
     #bottomNav {
       position: fixed !important;
       left: 0 !important;
@@ -305,23 +385,26 @@
       visibility: visible !important;
       opacity: 1 !important;
       z-index: 9999 !important;
-      background: rgba(255, 255, 255, 0.98) !important;
-      border-top: 1px solid #cbd5e1 !important;
-      padding-top: 4px;
-      padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 56px) !important;
-      box-shadow: 0 -2px 10px rgba(15, 23, 42, 0.08);
+      background: rgba(255, 255, 255, 0.92) !important;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-top: 1px solid rgba(15, 23, 42, 0.1) !important;
+      padding-top: 6px;
+      padding-bottom: calc(env(safe-area-inset-bottom, 20px) + var(--safari-bar-offset)) !important;
+      box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.06);
     }
 
     .bottom-nav-grid {
-      max-width: 768px;
+      max-width: 680px;
       margin: 0 auto;
       display: grid !important;
       grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-      padding: 4px 2px;
+      padding: 0 4px;
     }
 
     .bottom-nav-grid button {
       min-width: 0;
+      min-height: 48px;
       overflow: hidden;
       border: 0;
       background: transparent;
@@ -329,6 +412,7 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
+      gap: 3px;
       padding: 4px 2px;
       font-size: 10px;
       cursor: pointer;
@@ -402,13 +486,13 @@
     })();
   </script>
 </head>
-<body class="bg-slate-100 text-slate-900 min-h-screen antialiased">
-  <div id="updateBanner" class="hidden bg-emerald-600 text-white px-4 py-2.5 text-xs flex items-center justify-between gap-2 sticky top-0 z-30">
-    <span>Yeni sürüm hazır. Güncellemek için dokunun.</span>
-    <button id="reloadUpdateBtn" type="button" class="bg-white text-emerald-700 font-semibold px-3 py-1 rounded-lg">Yenile</button>
+<body>
+  <div id="updateBanner" class="hidden bg-emerald-600 text-white px-4 py-3 text-xs flex items-center justify-between gap-2 sticky top-0 z-50">
+    <span class="font-medium">Yeni sürüm hazır. Güncellemek için dokunun.</span>
+    <button id="reloadUpdateBtn" type="button" class="bg-white text-emerald-700 font-bold px-3.5 py-1.5 rounded-xl">Yenile</button>
   </div>
 
-  <header class="app-header safe-top">
+  <header class="app-header">
     <div class="header-inner">
       <div class="header-left">
         <div class="header-title-row">
@@ -428,14 +512,15 @@
   </header>
 
   <main class="app-main">
+    <!-- 1. KONU SEKMESİ -->
     <section id="tab-konu">
       <div class="card-box">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
           <div>
-            <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#94a3b8;">Mevzuat Kontrol Merkezi</span>
-            <h2 style="margin:2px 0 0;font-size:14px;font-weight:700;color:#0f172a;">Mevzuat Seçimi</h2>
+            <span class="eyebrow">Mevzuat Kontrol Merkezi</span>
+            <h2 class="section-heading">Mevzuat Seçimi</h2>
           </div>
-          <span id="categoryCountBadge" style="font-size:11px;color:#64748b;font-weight:600;"></span>
+          <span id="categoryCountBadge" style="font-size:12px;color:#64748b;font-weight:600;background:#f1f5f9;padding:4px 10px;border-radius:9999px;"></span>
         </div>
 
         <div id="lawCategoryTabs">
@@ -448,17 +533,17 @@
           <span>📚</span><span>Mevzuat Seç</span>
         </button>
 
-        <div id="lawPickerPanel" class="hidden" style="border:1px solid #cbd5e1;background:#f8fafc;border-radius:16px;padding:12px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
+        <div id="lawPickerPanel" class="hidden" style="border:1px solid #e2e8f0;background:#f8fafc;border-radius:16px;padding:12px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;">
             <span id="pickerPanelTitle" style="font-size:12px;font-weight:700;text-transform:uppercase;color:#334155;">GİB Kanunlar Listesi</span>
-            <button id="closeLawPickerBtn" type="button" onclick="closeLawPickerPanel()" style="font-size:11px;font-weight:600;color:#475569;background:#fff;border:1px solid #cbd5e1;border-radius:6px;padding:4px 8px;cursor:pointer;">Kapat</button>
+            <button id="closeLawPickerBtn" type="button" onclick="closeLawPickerPanel()" style="font-size:12px;font-weight:600;color:#475569;background:#fff;border:1px solid #cbd5e1;border-radius:8px;padding:5px 10px;cursor:pointer;">Kapat</button>
           </div>
-          <input id="lawSearchInput" type="text" placeholder="Bu bölümde ara..." style="margin-bottom:8px;" />
+          <input id="lawSearchInput" type="text" placeholder="Bu bölümde ara..." style="margin-bottom:8px;background:#ffffff;" />
           <div id="gibTopicList" role="listbox" aria-label="Mevzuat Listesi"></div>
         </div>
 
         <div>
-          <label for="topicInput" style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:4px;">Seçili Mevzuat</label>
+          <label for="topicInput" style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">Seçili Mevzuat</label>
           <input id="topicInput" type="text" placeholder="Mevzuat Seç ile listeden seçin veya yazın..." />
         </div>
 
@@ -468,9 +553,9 @@
             <option value="Vaka" selected>Seviye: Vaka</option>
             <option value="Sınav Düzeyi">Seviye: Sınav Düzeyi</option>
           </select>
-          <div style="display:flex;align-items:center;justify-content:space-between;border:1px solid #cbd5e1;border-radius:12px;padding:6px 10px;background:#f8fafc;font-size:13px;">
-            <span style="font-weight:500;">Süre (dk)</span>
-            <input id="timerMinutes" type="number" min="0" max="120" value="0" style="width:58px;text-align:right;font-weight:700;padding:4px 6px;" />
+          <div style="display:flex;align-items:center;justify-content:space-between;border:1px solid #cbd5e1;border-radius:13px;padding:4px 12px;background:#f8fafc;font-size:14px;">
+            <span style="font-weight:500;color:#334155;">Süre (dk)</span>
+            <input id="timerMinutes" type="number" min="0" max="120" value="0" style="width:62px;min-height:34px;text-align:right;font-weight:700;padding:4px 6px;border-radius:9px;background:#ffffff;" />
           </div>
         </div>
 
@@ -479,97 +564,101 @@
 
       <div id="lessonCard" class="card-box">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-          <span style="font-size:12px;font-weight:600;background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;padding:4px 10px;border-radius:9999px;">Konu Özeti</span>
-          <span id="lessonCategoryLabel" style="font-size:11px;font-weight:600;color:#64748b;">Kanunlar</span>
+          <span style="font-size:12px;font-weight:700;background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;padding:4px 12px;border-radius:9999px;">Konu Özeti</span>
+          <span id="lessonCategoryLabel" style="font-size:12px;font-weight:600;color:#64748b;">Kanunlar</span>
         </div>
-        <h2 id="lessonTitle" style="margin:0;font-size:18px;font-weight:700;color:#0f172a;">Mevzuat Çalışma Kartı</h2>
-        <p id="lessonSummary" style="margin:0;font-size:14px;color:#334155;line-height:1.55;">
+        <h2 id="lessonTitle" style="margin:0;font-size:19px;font-weight:700;letter-spacing:-0.015em;color:#0f172a;">Mevzuat Çalışma Kartı</h2>
+        <p id="lessonSummary" style="margin:0;font-size:15px;color:#334155;line-height:1.6;">
           Seçtiğiniz mevzuata göre konu özeti, kritik ayrım ve vaka sorusu üretmek için butona basın.
         </p>
-        <div id="lessonCritical" style="background:#fffbeb;border:1px solid #fde68a;border-left:4px solid #f59e0b;padding:12px 14px;border-radius:0 12px 12px 0;font-size:13px;color:#451a03;">
+        <div id="lessonCritical" style="background:#fffbeb;border:1px solid #fde68a;border-left:4px solid #f59e0b;padding:13px 15px;border-radius:0 14px 14px 0;font-size:14px;line-height:1.5;color:#451a03;">
           <strong>Kritik Ayrım:</strong> Temel hükümler, istisnalar ve uygulama ayrım noktaları burada özetlenir.
         </div>
-        <p id="lessonBasis" style="margin:0;font-size:12px;color:#64748b;padding-top:8px;border-top:1px solid #f1f5f9;">Dayanak: gib.gov.tr Mevzuat</p>
+        <p id="lessonBasis" style="margin:0;font-size:12px;font-weight:500;color:#64748b;padding-top:10px;border-top:1px solid #f1f5f9;">Dayanak: gib.gov.tr Mevzuat</p>
       </div>
     </section>
 
+    <!-- 2. SORU SEKMESİ -->
     <section id="tab-soru" class="hidden">
       <div class="card-box">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
           <div style="display:flex;align-items:center;gap:8px;">
-            <span id="questionBadge" style="font-size:12px;font-weight:600;background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;padding:4px 10px;border-radius:9999px;">Vaka Sorusu</span>
-            <span id="timerDisplay" class="hidden" style="font-size:12px;font-weight:700;background:#ffe4e6;color:#9f1239;padding:4px 10px;border-radius:9999px;">00:00</span>
+            <span id="questionBadge" style="font-size:12px;font-weight:700;background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;padding:4px 12px;border-radius:9999px;">Vaka Sorusu</span>
+            <span id="timerDisplay" class="hidden" style="font-size:12px;font-weight:700;background:#ffe4e6;color:#9f1239;padding:4px 12px;border-radius:9999px;">00:00</span>
           </div>
           <div style="display:flex;gap:8px;">
-            <button id="wrongQuizBtn" type="button" style="border:0;background:#fef3c7;color:#78350f;font-size:12px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;">Hatalardan Tekrar</button>
-            <button id="newQuestionBtn" type="button" style="border:0;background:#f1f5f9;color:#1e293b;font-size:12px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;">Yeni Soru Üret</button>
+            <button id="wrongQuizBtn" type="button" style="border:0;background:#fef3c7;color:#78350f;font-size:12px;font-weight:700;padding:8px 12px;border-radius:10px;cursor:pointer;">Hatalardan Tekrar</button>
+            <button id="newQuestionBtn" type="button" style="border:0;background:#f1f5f9;color:#1e293b;font-size:12px;font-weight:700;padding:8px 12px;border-radius:10px;cursor:pointer;">Yeni Soru Üret</button>
           </div>
         </div>
-        <p id="questionText" style="margin:0;font-size:15px;font-weight:500;color:#0f172a;line-height:1.5;">
+        <p id="questionText" style="margin:0;font-size:16px;font-weight:500;color:#0f172a;line-height:1.55;">
           Yeni soru üretmek için "Yeni Soru Üret" butonuna basın veya Konu sekmesinden bir mevzuat seçin.
         </p>
-        <div id="optionsContainer" style="display:flex;flex-direction:column;gap:8px;"></div>
+        <div id="optionsContainer" style="display:flex;flex-direction:column;gap:10px;"></div>
         <button id="checkAnswerBtn" type="button" class="btn-indigo" style="width:100%;">Cevabı Kontrol Et</button>
-        <div id="feedbackBox" class="hidden" style="border-radius:12px;padding:14px;font-size:13px;"></div>
+        <div id="feedbackBox" class="hidden" style="border-radius:14px;padding:15px;font-size:14px;line-height:1.5;"></div>
       </div>
     </section>
 
+    <!-- 3. SORU-CEVAP (SOHBET) SEKMESİ -->
     <section id="tab-sohbet" class="hidden">
       <div class="card-box">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;border-bottom:1px solid #f1f5f9;padding-bottom:10px;">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;border-bottom:1px solid #f1f5f9;padding-bottom:12px;">
           <div>
-            <span style="font-size:11px;font-weight:700;text-transform:uppercase;color:#4338ca;">Mevzuat Danışma Masası</span>
-            <h2 style="margin:2px 0 0;font-size:14px;font-weight:700;color:#0f172a;">Yorum, Bağlantı ve Çalışma Yönlendirmesi</h2>
+            <span class="eyebrow" style="color:#4338ca;">Mevzuat Danışma Masası</span>
+            <h2 class="section-heading">Yorum, Bağlantı ve Çalışma Yönlendirmesi</h2>
           </div>
-          <button id="clearChatBtn" type="button" style="font-size:12px;font-weight:600;color:#475569;background:#f8fafc;border:1px solid #cbd5e1;border-radius:8px;padding:4px 10px;cursor:pointer;">Temizle</button>
+          <button id="clearChatBtn" type="button" style="font-size:12px;font-weight:600;color:#475569;background:#f8fafc;border:1px solid #cbd5e1;border-radius:10px;padding:6px 12px;cursor:pointer;">Temizle</button>
         </div>
 
-        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
           <button type="button" data-prompt="KVK m. 5/1-e istisnası ile KDV m. 17/4-r ve VUK değerleme/amortisman hükümleri arasındaki bağlantıyı değerlendir; incelenmesi gereken kritik şartları ve çalışma adımlarını sırala."
-            class="chat-quick-btn" style="font-size:12px;background:#f1f5f9;color:#1e293b;border:1px solid #e2e8f0;border-radius:10px;padding:6px 10px;cursor:pointer;">KVK–KDV–VUK Bağlantısı</button>
+            class="chat-quick-btn" style="font-size:12px;font-weight:600;background:#f1f5f9;color:#1e293b;border:1px solid #e2e8f0;border-radius:11px;padding:8px 12px;cursor:pointer;">KVK–KDV–VUK Bağlantısı</button>
           <button type="button" data-prompt="Bir vergi incelemesi veya uyuşmazlık vakasında VUK zamanaşımı, vergi ziyaı/uzlaşma ve ilgili maddi vergi kanunu (GVK/KVK/KDV) birlikte nasıl ele alınmalıdır? Beni adım adım yönlendir."
-            class="chat-quick-btn" style="font-size:12px;background:#f1f5f9;color:#1e293b;border:1px solid #e2e8f0;border-radius:10px;padding:6px 10px;cursor:pointer;">İnceleme & Yönlendirme</button>
+            class="chat-quick-btn" style="font-size:12px;font-weight:600;background:#f1f5f9;color:#1e293b;border:1px solid #e2e8f0;border-radius:11px;padding:8px 12px;cursor:pointer;">İnceleme & Yönlendirme</button>
           <button type="button" data-prompt="Seçili mevzuat veya Mevzuat Havuzu kapsamındaki en önemli uygulama ayrımlarını yorumla ve nasıl çalışmam gerektiğini öner."
-            class="chat-quick-btn" style="font-size:12px;background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;border-radius:10px;padding:6px 10px;cursor:pointer;">Kritik Yorum & Çalışma Planı</button>
+            class="chat-quick-btn" style="font-size:12px;font-weight:600;background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;border-radius:11px;padding:8px 12px;cursor:pointer;">Kritik Yorum & Çalışma Planı</button>
         </div>
 
-        <div id="chatMessages" style="max-height:50vh;overflow-y:auto;display:flex;flex-direction:column;gap:10px;">
-          <div style="border:1px solid #e2e8f0;background:#f8fafc;border-radius:14px;padding:12px;font-size:13px;color:#334155;">
+        <div id="chatMessages" style="max-height:48vh;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:10px;">
+          <div style="border:1px solid #e2e8f0;background:#f8fafc;border-radius:16px;padding:14px;font-size:14px;line-height:1.55;color:#334155;">
             Sorunuzu <strong>Mevzuat Yorumu</strong>, <strong>Kanunlar Arası Bağlantı</strong> ve <strong>Yönlendirme</strong> başlıklarıyla değerlendiririm. Mevzuat Havuzu metni varsa öncelikli olarak ona dayanır, belirsiz noktaları açıkça belirtirim.
           </div>
         </div>
 
-        <div style="display:flex;gap:8px;">
+        <div style="display:flex;gap:8px;align-items:center;">
           <input id="chatInput" type="text" placeholder="Vaka, kanun bağlantısı veya mevzuat yorumu sorun..." style="flex:1;" />
-          <button id="sendChatBtn" type="button" style="background:#020617;color:#fff;border:0;border-radius:12px;padding:10px 16px;font-size:13px;font-weight:600;cursor:pointer;">Gönder</button>
+          <button id="sendChatBtn" type="button" style="min-height:44px;background:#0f172a;color:#fff;border:0;border-radius:13px;padding:0 18px;font-size:14px;font-weight:600;cursor:pointer;flex-shrink:0;">Gönder</button>
         </div>
       </div>
     </section>
 
+    <!-- 4. HATA DEFTERİ SEKMESİ -->
     <section id="tab-hatalar" class="hidden">
       <div class="card-box">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
-          <h2 style="margin:0;font-size:14px;font-weight:700;color:#1e293b;">Hata Defteri</h2>
+          <h2 class="section-heading" style="margin:0;">Hata Defteri</h2>
           <div style="display:flex;align-items:center;gap:8px;">
-            <select id="mistakeFilter" style="width:auto;padding:6px 10px;font-size:12px;">
+            <select id="mistakeFilter" style="width:auto;min-height:36px;padding:6px 10px;font-size:13px;">
               <option value="ALL">Tüm Mevzuatlar</option>
             </select>
-            <button id="clearMistakesBtn" type="button" style="border:0;background:transparent;color:#e11d48;font-size:12px;font-weight:600;cursor:pointer;">Tümünü Sil</button>
+            <button id="clearMistakesBtn" type="button" style="border:0;background:transparent;color:#e11d48;font-size:13px;font-weight:600;cursor:pointer;">Tümünü Sil</button>
           </div>
         </div>
-        <div id="mistakesList" style="font-size:13px;color:#475569;">Henüz yanlış cevaplanan soru kaydı yok.</div>
+        <div id="mistakesList" style="font-size:14px;color:#475569;">Henüz yanlış cevaplanan soru kaydı yok.</div>
       </div>
     </section>
 
+    <!-- 5. AYARLAR SEKMESİ -->
     <section id="tab-ayarlar" class="hidden">
       <div class="card-box">
-        <h2 style="margin:0;font-size:14px;font-weight:700;color:#1e293b;">API ve Model Ayarları</h2>
+        <h2 class="section-heading" style="margin:0;">API ve Model Ayarları</h2>
         <div>
-          <label style="display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:4px;">Gemini API Anahtarı</label>
+          <label style="display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px;">Gemini API Anahtarı</label>
           <input id="apiKeyInput" type="password" placeholder="API anahtarınızı yapıştırın..." />
         </div>
         <div>
-          <label style="display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:4px;">Model Seçimi</label>
+          <label style="display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px;">Model Seçimi</label>
           <select id="modelSelect">
             <option value="gemini-3.8-flash" selected>gemini-3.8-flash (Hızlı ve Güncel)</option>
             <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (Hafif / Yüksek Hız)</option>
@@ -578,40 +667,40 @@
           </select>
         </div>
         <button id="saveSettingsBtn" type="button" class="btn-emerald-sm">Ayarları Telefona Kaydet</button>
-        <p id="settingsStatus" class="hidden" style="margin:0;font-size:12px;font-weight:600;color:#047857;">Kaydedildi.</p>
+        <p id="settingsStatus" class="hidden" style="margin:0;font-size:13px;font-weight:600;color:#047857;">Kaydedildi.</p>
       </div>
 
       <div class="card-box">
-        <h2 style="margin:0;font-size:14px;font-weight:700;color:#1e293b;">Mevzuat Havuzu (Çoklu PDF ve Geniş Kapasite)</h2>
-        <p style="margin:0;font-size:12px;color:#64748b;">Birden fazla PDF seçebilir, linkten veri çekebilir veya metin yapıştırabilirsiniz (200.000 karakter kapasitesi).</p>
+        <h2 class="section-heading" style="margin:0;">Mevzuat Havuzu (Çoklu PDF ve Geniş Kapasite)</h2>
+        <p style="margin:0;font-size:13px;line-height:1.5;color:#64748b;">Birden fazla PDF seçebilir, linkten veri çekebilir veya metin yapıştırabilirsiniz (200.000 karakter kapasitesi).</p>
 
-        <div style="display:flex;gap:8px;">
+        <div style="display:flex;gap:8px;align-items:center;">
           <input id="lawUrlInput" type="url" placeholder="Kanun, tebliğ veya sirküler bağlantısı..." style="flex:1;" />
-          <button id="fetchUrlBtn" type="button" style="border:0;background:#4f46e5;color:#fff;border-radius:12px;padding:10px 14px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">Linkten Çek</button>
+          <button id="fetchUrlBtn" type="button" style="min-height:44px;border:0;background:#4f46e5;color:#fff;border-radius:13px;padding:0 14px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;">Linkten Çek</button>
         </div>
 
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px dashed #cbd5e1;background:#f8fafc;border-radius:12px;padding:10px 12px;">
-          <span id="pdfFileName" style="font-size:12px;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">PDF dosyası seçilmedi</span>
-          <label style="background:#fff;border:1px solid #cbd5e1;color:#1e293b;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">
-            PDF Yükle (Çoklu)
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px dashed #cbd5e1;background:#f8fafc;border-radius:14px;padding:12px;">
+          <span id="pdfFileName" style="font-size:13px;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">PDF dosyası seçilmedi</span>
+          <label style="background:#fff;border:1px solid #cbd5e1;color:#1e293b;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;">
+            PDF Yükle
             <input id="pdfFileInput" type="file" accept="application/pdf,.pdf" multiple class="hidden" />
           </label>
         </div>
 
-        <p id="lawSourceStatus" class="hidden" style="margin:0;font-size:12px;"></p>
+        <p id="lawSourceStatus" class="hidden" style="margin:0;font-size:13px;"></p>
 
-        <textarea id="lawTextInput" rows="7" placeholder="İlgili mevzuat metni, başlık listesi veya PDF/linkten çekilen veriler..."></textarea>
+        <textarea id="lawTextInput" rows="6" placeholder="İlgili mevzuat metni, başlık listesi veya PDF/linkten çekilen veriler..."></textarea>
         <div class="two-col">
-          <button id="saveLawBtn" type="button" style="border:0;background:#0f172a;color:#fff;border-radius:12px;padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer;">Havuzu Kaydet</button>
-          <button id="clearLawBtn" type="button" style="border:1px solid #cbd5e1;background:#fff;color:#e11d48;border-radius:12px;padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer;">Havuzu Temizle</button>
+          <button id="saveLawBtn" type="button" style="min-height:44px;border:0;background:#0f172a;color:#fff;border-radius:13px;padding:10px 14px;font-size:14px;font-weight:600;cursor:pointer;">Havuzu Kaydet</button>
+          <button id="clearLawBtn" type="button" style="min-height:44px;border:1px solid #cbd5e1;background:#fff;color:#e11d48;border-radius:13px;padding:10px 14px;font-size:14px;font-weight:600;cursor:pointer;">Havuzu Temizle</button>
         </div>
       </div>
 
       <div class="card-box">
-        <h2 style="margin:0;font-size:14px;font-weight:700;color:#1e293b;">Yedekleme ve Geri Yükleme</h2>
+        <h2 class="section-heading" style="margin:0;">Yedekleme ve Geri Yükleme</h2>
         <div class="two-col">
-          <button id="exportBackupBtn" type="button" style="border:0;background:#f1f5f9;color:#1e293b;border-radius:12px;padding:10px;font-size:12px;font-weight:600;cursor:pointer;">JSON Yedek İndir</button>
-          <label style="background:#f1f5f9;color:#1e293b;border-radius:12px;padding:10px;font-size:12px;font-weight:600;cursor:pointer;text-align:center;">
+          <button id="exportBackupBtn" type="button" style="min-height:44px;border:0;background:#f1f5f9;color:#1e293b;border-radius:13px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;">JSON Yedek İndir</button>
+          <label style="min-height:44px;display:flex;align-items:center;justify-content:center;background:#f1f5f9;color:#1e293b;border-radius:13px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;text-align:center;">
             JSON Geri Yükle
             <input id="importBackupInput" type="file" accept="application/json,.json" class="hidden" />
           </label>
@@ -620,22 +709,23 @@
     </section>
   </main>
 
+  <!-- iOS ALT SEKME ÇUBUĞU -->
   <nav id="bottomNav">
     <div class="bottom-nav-grid">
       <button id="nav-konu" type="button" data-tab="konu" onclick="window.__coreSwitchTab('konu')" class="flex flex-col items-center justify-center py-1 text-[10px] font-bold text-slate-900">
-        <span style="font-size:16px;line-height:1;margin-bottom:3px;">📘</span><span>Konu</span>
+        <span style="font-size:18px;line-height:1;">📘</span><span>Konu</span>
       </button>
       <button id="nav-soru" type="button" data-tab="soru" onclick="window.__coreSwitchTab('soru')" class="flex flex-col items-center justify-center py-1 text-[10px] font-medium text-slate-500">
-        <span style="font-size:16px;line-height:1;margin-bottom:3px;">✍️</span><span>Soru</span>
+        <span style="font-size:18px;line-height:1;">✍️</span><span>Soru</span>
       </button>
       <button id="nav-sohbet" type="button" data-tab="sohbet" onclick="window.__coreSwitchTab('sohbet')" class="flex flex-col items-center justify-center py-1 text-[10px] font-medium text-slate-500">
-        <span style="font-size:16px;line-height:1;margin-bottom:3px;">💬</span><span>Soru-Cevap</span>
+        <span style="font-size:18px;line-height:1;">💬</span><span>Soru-Cevap</span>
       </button>
       <button id="nav-hatalar" type="button" data-tab="hatalar" onclick="window.__coreSwitchTab('hatalar')" class="flex flex-col items-center justify-center py-1 text-[10px] font-medium text-slate-500">
-        <span style="font-size:16px;line-height:1;margin-bottom:3px;">📕</span><span>Hata Defteri</span>
+        <span style="font-size:18px;line-height:1;">📕</span><span>Hata Defteri</span>
       </button>
       <button id="nav-ayarlar" type="button" data-tab="ayarlar" onclick="window.__coreSwitchTab('ayarlar')" class="flex flex-col items-center justify-center py-1 text-[10px] font-medium text-slate-500">
-        <span style="font-size:16px;line-height:1;margin-bottom:3px;">⚙️</span><span>Ayarlar</span>
+        <span style="font-size:18px;line-height:1;">⚙️</span><span>Ayarlar</span>
       </button>
     </div>
   </nav>
