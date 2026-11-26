@@ -1,12 +1,15 @@
-{  
-  "name": "Vergi Araştırma Asistanı",  
-  "short_name": "Vergi Asistanı",  
-  "description": "Günlük vergi konu anlatımı, vaka sorusu ve mevzuat araştırma uygulaması",  
-  "start_url": "./index.html",  
-  "scope": "./",  
-  "display": "standalone",  
-  "background_color": "#f8fafc",  
-  "theme_color": "#0f172a",  
-  "orientation": "portrait",  
-  "lang": "tr"  
-}  
+{
+  "name": "Akıllı Sınav Çalışma Asistanı",
+  "short_name": "Sınav Asistanı",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f1f5f9",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230f172a'/><text x='50' y='64' font-size='44' font-family='sans-serif' font-weight='bold' fill='white' text-anchor='middle'>YMM</text></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    }
+  ]
+}
