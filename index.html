@@ -80,7 +80,7 @@
 
     #lawCategoryTabs {
       display: grid !important;
-      grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+      grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
       gap: 6px !important;
       background: #f1f5f9;
       padding: 4px;
@@ -92,9 +92,9 @@
       border: 0;
       background: transparent;
       color: #475569;
-      font-size: 11px;
+      font-size: 12px;
       font-weight: 600;
-      padding: 8px 4px;
+      padding: 8px 6px;
       border-radius: 8px;
       cursor: pointer;
       white-space: nowrap;
@@ -300,9 +300,7 @@
           <div id="lawCategoryTabs">
             <button id="cat-kanunlar" type="button" onclick="selectCategoryFromUi('kanunlar')" data-category="kanunlar" class="law-cat-btn bg-slate-900 text-white">Kanunlar</button>
             <button id="cat-tebligler" type="button" onclick="selectCategoryFromUi('tebligler')" data-category="tebligler" class="law-cat-btn">Tebliğler</button>
-            <button id="cat-ozelgeler" type="button" onclick="selectCategoryFromUi('ozelgeler')" data-category="ozelgeler" class="law-cat-btn">Özelgeler</button>
             <button id="cat-sirkulerler" type="button" onclick="selectCategoryFromUi('sirkulerler')" data-category="sirkulerler" class="law-cat-btn">Sirkülerler</button>
-            <button id="cat-yonetmelikler" type="button" onclick="selectCategoryFromUi('yonetmelikler')" data-category="yonetmelikler" class="law-cat-btn">Yönetmelikler</button>
           </div>
         </div>
 
@@ -477,7 +475,7 @@
         </div>
 
         <div style="display:flex;gap:8px;">
-          <input id="lawUrlInput" type="url" placeholder="Mevzuat, tebliğ, özelge, sirküler veya yönetmelik bağlantısı..." style="flex:1;" />
+          <input id="lawUrlInput" type="url" placeholder="Kanun, tebliğ veya sirküler bağlantısı..." style="flex:1;" />
           <button id="fetchUrlBtn" type="button" style="border:0;background:#4f46e5;color:#fff;border-radius:12px;padding:10px 14px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">Linkten Çek</button>
         </div>
 
