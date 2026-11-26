@@ -310,6 +310,7 @@
       padding: 14px;
       margin-bottom: 14px;
       background: var(--surface-alt);
+      white-space: pre-line;
     }
 
     .mcq-question {
@@ -325,6 +326,7 @@
       border-radius: 6px;
       cursor: pointer;
       margin-bottom: 4px;
+      white-space: normal;
     }
 
     .mcq-option:hover {
@@ -336,6 +338,7 @@
       padding: 10px 12px;
       border-radius: 6px;
       font-size: 0.9rem;
+      white-space: normal;
     }
 
     .mcq-explanation.correct {
@@ -446,7 +449,7 @@
         <span class="brand-badge">AI</span>
         <div>
           <h1>Akıllı Sınav Çalışma Asistanı</h1>
-          <p class="subtitle">Çoktan Seçmeli Test &amp; TÜRMOB YMM Yazılı Vaka Üretici</p>
+          <p class="subtitle">TÜRMOB SMMM Vergi Mevzuatı &amp; YMM Yazılı Vaka Üretici</p>
         </div>
       </div>
       <div class="topbar-actions">
@@ -457,44 +460,47 @@
 
   <main class="container">
     <nav class="tabs" role="tablist">
-      <button class="tab-btn active" data-tab="mcqTab">1. Test Sınavı</button>
+      <button class="tab-btn active" data-tab="mcqTab">1. SMMM Test (Vergi Mevzuatı)</button>
       <button class="tab-btn" data-tab="ymmTab">2. YMM Yazılı Vaka</button>
       <button class="tab-btn" data-tab="poolTab">3. PDF &amp; Link Havuzu</button>
       <button class="tab-btn" data-tab="legTab">4. Mevzuat (Kanun &amp; Tebliğ)</button>
     </nav>
 
-    <!-- SEKME 1: ÇOKTAN SEÇMELİ TEST -->
+    <!-- SEKME 1: SMMM YETERLİLİK TEST SINAVI (VERGİ MEVZUATI VE UYGULAMASI) -->
     <section id="mcqTab" class="tab-panel active">
       <div class="card">
-        <h2>Çoktan Seçmeli Test Üret</h2>
+        <h2>SMMM Yeterlilik Testi — Vergi Mevzuatı ve Uygulaması</h2>
+        <p class="hint">
+          TÜRMOB SMMM Vergi Mevzuatı ve Uygulaması sınav tarzında; GVK, KVK, KDV, VUK, 6183, MTV, ÖTV ve Emlak Vergisi kapsamından hesaplamalı ve mevzuat odaklı çoktan seçmeli test üretir.
+        </p>
         <div class="grid-3">
           <div class="form-group">
-            <label for="mcqTopicInput">Konu / Ders Başlığı</label>
-            <input type="text" id="mcqTopicInput" placeholder="Örn: Kurumlar Vergisi İstisnaları, KDV Tevkifatı..." />
+            <label for="mcqTopicInput">Vergi Mevzuatı Odak / Konu</label>
+            <input type="text" id="mcqTopicInput" value="Vergi Mevzuatı ve Uygulaması (SMMM Yeterlilik)" placeholder="Örn: GVK Geçici Vergi & İstisna, KDV İhraç Kayıtlı, KVK Örtülü Sermaye..." />
           </div>
           <div class="form-group">
-            <label for="mcqDifficultySelect">Zorluk Düzeyi</label>
+            <label for="mcqDifficultySelect">Sınav Düzeyi</label>
             <select id="mcqDifficultySelect">
-              <option value="Orta">Orta</option>
-              <option value="Zor (YMM / Uzmanlık Düzeyi)" selected>Zor (YMM / Uzmanlık Düzeyi)</option>
-              <option value="Temel">Temel</option>
+              <option value="SMMM Yeterlilik (Standart Sınav Düzeyi)" selected>SMMM Yeterlilik (Standart Sınav Düzeyi)</option>
+              <option value="SMMM Yeterlilik (Hesaplama & Vaka Ağırlıklı)">SMMM Yeterlilik (Hesaplama &amp; Vaka Ağırlıklı)</option>
+              <option value="Temel Mevzuat">Temel Mevzuat</option>
             </select>
           </div>
           <div class="form-group">
             <label for="mcqCountInput">Soru Sayısı (1 - 20)</label>
-            <input type="number" id="mcqCountInput" min="1" max="20" value="5" />
+            <input type="number" id="mcqCountInput" min="1" max="20" value="10" />
           </div>
         </div>
         <div class="btn-row">
-          <button id="generateMcqBtn" class="btn btn-primary">Ekranda Test Başlat</button>
-          <button id="generateMcqPdfBtn" class="btn btn-accent">Test + Cevap Anahtarı PDF İndir</button>
+          <button id="generateMcqBtn" class="btn btn-primary">Ekranda SMMM Testi Başlat</button>
+          <button id="generateMcqPdfBtn" class="btn btn-accent">SMMM Test + Cevap Anahtarı PDF İndir</button>
         </div>
         <p id="mcqStatusText" class="status-text"></p>
       </div>
 
       <div id="mcqQuizArea" class="card hidden">
         <div class="quiz-header">
-          <h3 id="mcqQuizTitle">Sınav Soruları</h3>
+          <h3 id="mcqQuizTitle">SMMM Vergi Mevzuatı Test Soruları</h3>
           <span id="mcqScoreBadge" class="badge"></span>
         </div>
         <div id="mcqQuestionsContainer"></div>
@@ -504,7 +510,7 @@
       </div>
     </section>
 
-    <!-- SEKME 2: YMM YAZILI VAKA (HAFİF & İKİ AŞAMALI) -->
+    <!-- SEKME 2: YMM YAZILI VAKA -->
     <section id="ymmTab" class="tab-panel">
       <div class="card">
         <h2>TÜRMOB YMM Yazılı Vaka Üretici (Hızlı &amp; İki Aşamalı)</h2>
@@ -574,7 +580,7 @@
             <input type="file" id="ymmPdfUpload" accept="application/pdf" multiple />
           </div>
           <div class="form-group">
-            <label for="generalPdfUpload">Genel Test / Ders Notu PDF'i Yükle</label>
+            <label for="generalPdfUpload">SMMM / Genel Test &amp; Ders Notu PDF'i Yükle</label>
             <input type="file" id="generalPdfUpload" accept="application/pdf" multiple />
           </div>
         </div>
@@ -583,7 +589,7 @@
         <div class="link-box">
           <label for="resourceLinkInput">Kaynak Bağlantısı (URL) Ekle</label>
           <div class="grid-2">
-            <input type="text" id="resourceLinkTitleInput" placeholder="Bağlantı başlığı (Örn: GİB Rehber / Sınav Duyurusu)" />
+            <input type="text" id="resourceLinkTitleInput" placeholder="Bağlantı başlığı (Örn: TÜRMOB SMMM Sınav / GİB Rehber)" />
             <input type="url" id="resourceLinkInput" placeholder="https://..." />
           </div>
           <div class="btn-row">
@@ -597,12 +603,12 @@
 
         <div class="form-group">
           <label for="ymmPoolTextarea">Kayıtlı YMM Sınav Havuzu Metni</label>
-          <textarea id="ymmPoolTextarea" rows="7" placeholder="Yüklenen YMM sınav PDF veya link metinleri burada görünür..."></textarea>
+          <textarea id="ymmPoolTextarea" rows="6" placeholder="Yüklenen YMM sınav PDF veya link metinleri burada görünür..."></textarea>
         </div>
 
         <div class="form-group">
-          <label for="generalPoolTextarea">Kayıtlı Genel Çalışma Havuzu Metni</label>
-          <textarea id="generalPoolTextarea" rows="5" placeholder="Genel ders notu PDF veya link metinleri burada görünür..."></textarea>
+          <label for="generalPoolTextarea">Kayıtlı SMMM / Genel Çalışma Havuzu Metni</label>
+          <textarea id="generalPoolTextarea" rows="6" placeholder="Yüklenen SMMM sınav PDF veya ders notu metinleri burada görünür..."></textarea>
         </div>
 
         <div class="btn-row">
@@ -618,18 +624,18 @@
       <div class="card">
         <h2>Mevzuat Referansları (Kanunlar &amp; Tebliğler)</h2>
         <p class="hint">
-          Soru ve komisyon cevabı üretilirken dikkate alınmasını istediğiniz kanun maddelerini ve tebliğ düzenlemelerini iki ayrı bölüm halinde kaydedin.
+          SMMM Vergi Mevzuatı testleri ve YMM vakaları üretilirken dikkate alınmasını istediğiniz kanun maddelerini ve tebliğ düzenlemelerini iki ayrı bölüm halinde kaydedin.
         </p>
 
         <div class="grid-2">
           <div class="form-group">
-            <label for="lawsTextarea">1. Bölüm: Kanunlar (VUK, GVK, KVK, KDV, 6183, İYUK vb.)</label>
-            <textarea id="lawsTextarea" rows="12" placeholder="Örn:&#10;- 213 sayılı VUK m. 116-126 (Vergi Hataları), m. 353, m. 376, m. 379, mük. m. 298/Ç&#10;- 5520 sayılı KVK m. 5, m. 30&#10;- 3065 sayılı KDV Kanunu m. 9"></textarea>
+            <label for="lawsTextarea">1. Bölüm: Kanunlar (GVK, KVK, KDV, VUK, 6183, MTV, ÖTV, Emlak VK)</label>
+            <textarea id="lawsTextarea" rows="12" placeholder="Örn:&#10;- 193 sayılı GVK (Ticari/Gayrimenkul/Menkul kazanç, geçici vergi)&#10;- 5520 sayılı KVK (Tasfiye, örtülü sermaye, finansman gider kısıtlaması, yurt içi asgari KV)&#10;- 3065 sayılı KDV Kanunu (2 No.lu KDV, ihraç kayıtlı teslimde tecil-terkin, verginin konusu)&#10;- 213 sayılı VUK (Emsal bedel, zamanaşımı, izaha davet)"></textarea>
           </div>
 
           <div class="form-group">
             <label for="communiquesTextarea">2. Bölüm: Tebliğler (Genel Tebliğler, Sirküler, Uygulama Esasları)</label>
-            <textarea id="communiquesTextarea" rows="12" placeholder="Örn:&#10;- KDV Genel Uygulama Tebliği (Sorumlu Sıfatıyla KDV / İade Mahsup)&#10;- VUK Genel Tebliğleri (Yeniden Değerleme / Özel Usulsüzlük / Uzlaşma)&#10;- Kurumlar Vergisi Genel Tebliği"></textarea>
+            <textarea id="communiquesTextarea" rows="12" placeholder="Örn:&#10;- GVK Genel Tebliğleri (Yıllık tarife, mesken kira istisnası, geçici vergi)&#10;- KDV Genel Uygulama Tebliği (Sorumlu sıfatıyla KDV, ihraç kayıtlı teslimler)&#10;- KVK ve VUK Genel Tebliğleri"></textarea>
           </div>
         </div>
 
