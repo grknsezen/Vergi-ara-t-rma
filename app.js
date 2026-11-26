@@ -94,6 +94,10 @@ let timerInterval = null;
 let remainingSeconds = 0;
 
 function switchTab(tab) {
+  if (typeof window.__coreSwitchTab === "function") {
+    window.__coreSwitchTab(tab);
+    return;
+  }
   const target = ALL_TABS.includes(tab) ? tab : "konu";
   ALL_TABS.forEach((t) => {
     const sec = document.getElementById("tab-" + t);
@@ -105,11 +109,14 @@ function switchTab(tab) {
         : "flex flex-col items-center justify-center py-1 text-[11px] font-medium text-slate-500";
     }
   });
-  window.scrollTo({ top: 0, behavior: "smooth" });
-  if (target === "hatalar") renderMistakes();
-  if (target === "konu") renderTopicStats();
 }
 window.switchTab = switchTab;
+
+document.addEventListener("vergi:tabchanged", (e) => {
+  const tab = e.detail?.tab;
+  if (tab === "hatalar") renderMistakes();
+  if (tab === "konu") renderTopicStats();
+});
 
 function loadStoredState() {
   try {
@@ -698,4 +705,500 @@ Yalnızca şu şemada tek bir JSON nesnesi döndür (iç metinlerde çift tırna
 
     if (!onlyQuestion) {
       const titleEl = document.getElementById("lessonTitle");
-      const sumEl = document
+      const sumEl = document.getElementById("lessonSummary");
+      const critEl = document.getElementById("lessonCritical");
+      const basisEl = document.getElementById("lessonBasis");
+      if (titleEl) titleEl.textContent = parsed.lessonTitle || topic;
+      if (sumEl) sumEl.textContent = parsed.lessonSummary || "";
+      if (critEl) critEl.innerHTML = `<strong>Kritik Ayrım:</strong> ${escapeHtml(parsed.lessonCritical || "")}`;
+      if (basisEl) basisEl.textContent = `Dayanak (${catLabel}): ${parsed.lessonBasis || topic}`;
+    }
+
+    const opts = Array.isArray(parsed.options) && parsed.options.length >= 2
+      ? parsed.options.slice(0, 4)
+      : ["A) Seçenek 1", "B) Seçenek 2", "C) Seçenek 3", "D) Seçenek 4"];
+
+    renderQuestion({
+      topic: `${catLabel} — ${topic}`,
+      question: parsed.question || `${topic} kapsamındaki vaka sorusu`,
+      options: opts,
+      answerIndex: Math.min(Math.max(Number(parsed.answerIndex) || 0, 0), opts.length - 1),
+      explanation: parsed.explanation || ""
+    });
+
+    if (onlyQuestion) switchTab("soru");
+  } catch (err) {
+    alert("Hata: " + err.message);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = prevText;
+    }
+  }
+}
+
+function startWrongQuiz() {
+  if (!mistakes.length) {
+    alert("Hata defterinde tekrar edilecek soru bulunmuyor.");
+    return;
+  }
+  const picked = mistakes[Math.floor(Math.random() * mistakes.length)];
+  const opts = picked.options && picked.options.length === 4
+    ? picked.options
+    : ["A) Doğru değerlendirme", "B) İstisna kapsamında değildir", "C) Tamamı matraha eklenir", "D) Zamanaşımına uğramıştır"];
+  renderQuestion({
+    topic: picked.topic,
+    question: picked.question,
+    options: opts,
+    answerIndex: typeof picked.answerIndex === "number" ? picked.answerIndex : 0,
+    explanation: picked.explanation || ""
+  });
+  switchTab("soru");
+}
+
+function checkAnswer() {
+  if (selectedOptionIndex === null) {
+    alert("Lütfen önce bir şık seçin.");
+    return;
+  }
+  if (timerInterval) clearInterval(timerInterval);
+
+  const isCorrect = selectedOptionIndex === currentQuestion.answerIndex;
+  stats.total += 1;
+  if (!stats.byTopic[currentQuestion.topic]) {
+    stats.byTopic[currentQuestion.topic] = { correct: 0, total: 0 };
+  }
+  stats.byTopic[currentQuestion.topic].total += 1;
+
+  const box = document.getElementById("feedbackBox");
+  if (box) box.classList.remove("hidden");
+
+  if (isCorrect) {
+    stats.correct += 1;
+    stats.byTopic[currentQuestion.topic].correct += 1;
+    if (box) {
+      box.className = "rounded-xl p-4 text-sm space-y-2 border bg-emerald-50 border-emerald-200 text-emerald-950";
+      box.innerHTML = `<p class="font-bold">Doğru Yanıt!</p><p>${escapeHtml(currentQuestion.explanation)}</p>`;
+    }
+  } else {
+    if (box) {
+      box.className = "rounded-xl p-4 text-sm space-y-2 border bg-rose-50 border-rose-200 text-rose-950";
+      box.innerHTML = `<p class="font-bold">Yanlış Yanıt — Doğru Seçenek: ${escapeHtml(currentQuestion.options[currentQuestion.answerIndex] || "")}</p><p>${escapeHtml(currentQuestion.explanation)}</p>`;
+    }
+    mistakes.unshift({
+      topic: currentQuestion.topic,
+      question: currentQuestion.question,
+      options: currentQuestion.options,
+      answerIndex: currentQuestion.answerIndex,
+      correctOption: currentQuestion.options[currentQuestion.answerIndex] || "",
+      explanation: currentQuestion.explanation,
+      note: ""
+    });
+  }
+
+  saveAllState();
+  updateBadges();
+  renderTopicStats();
+  renderMistakes();
+}
+
+function appendUserChatMessage(text) {
+  const wrap = document.getElementById("chatMessages");
+  if (!wrap) return;
+  const div = document.createElement("div");
+  div.className = "rounded-2xl bg-slate-950 text-white px-4 py-3 text-sm ml-8 shadow-sm";
+  div.textContent = text;
+  wrap.appendChild(div);
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
+function createAssistantChatCard() {
+  const wrap = document.getElementById("chatMessages");
+  const card = document.createElement("div");
+  card.className = "rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-800 mr-4 space-y-3 shadow-xs";
+  card.innerHTML = `
+    <div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
+      <span class="text-[11px] font-bold uppercase tracking-wider text-indigo-700">Mevzuat Değerlendirmesi</span>
+      <span class="text-[11px] text-slate-400">Analiz</span>
+    </div>
+    <p class="text-slate-600 text-xs">Mevzuat bağlantıları ve yorum hazırlanıyor...</p>
+  `;
+  if (wrap) {
+    wrap.appendChild(card);
+    wrap.scrollTop = wrap.scrollHeight;
+  }
+  return card;
+}
+
+function renderStructuredAdvisorCard(card, data) {
+  const bulletsHtml = (items) => {
+    const arr = Array.isArray(items) && items.length ? items : ["Bu başlık için ayrıca teyit edilmesi gereken özel bir bağlantı belirtilmemiştir."];
+    return `<ul class="list-disc pl-4 space-y-1 text-xs text-slate-700 leading-relaxed">${arr.map((i) => `<li>${escapeHtml(i)}</li>`).join("")}</ul>`;
+  };
+
+  const cautionBlock = data.caution
+    ? `<div class="rounded-xl border border-amber-200 bg-amber-50/90 p-3 text-xs text-amber-950 leading-relaxed">
+         <strong class="font-bold">Teyit / Sınır Notu:</strong> ${escapeHtml(data.caution)}
+       </div>`
+    : "";
+
+  card.innerHTML = `
+    <div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
+      <span class="text-[11px] font-bold uppercase tracking-wider text-indigo-700">Mevzuat Değerlendirmesi</span>
+      <span class="text-[11px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">Kaynak Kontrollü</span>
+    </div>
+    <div class="space-y-1">
+      <h4 class="text-xs font-bold uppercase tracking-wide text-slate-900">1. Mevzuat Yorumu</h4>
+      <p class="text-xs text-slate-700 leading-relaxed whitespace-pre-line">${escapeHtml(data.comment || "")}</p>
+    </div>
+    <div class="space-y-1 pt-1 border-t border-slate-100">
+      <h4 class="text-xs font-bold uppercase tracking-wide text-slate-900">2. Kanunlar Arası Bağlantılar</h4>
+      ${bulletsHtml(data.crossLawLinks)}
+    </div>
+    <div class="space-y-1 pt-1 border-t border-slate-100">
+      <h4 class="text-xs font-bold uppercase tracking-wide text-slate-900">3. Sizi Yönlendiren Adımlar</h4>
+      ${bulletsHtml(data.guidance)}
+    </div>
+    ${cautionBlock}
+  `;
+}
+
+async function handleChatSend(overrideQuestion = "") {
+  const input = document.getElementById("chatInput");
+  const q = String(overrideQuestion || (input ? input.value : "") || "").trim();
+  if (!q) return;
+  if (!overrideQuestion && input) input.value = "";
+
+  appendUserChatMessage(q);
+  const card = createAssistantChatCard();
+  const wrap = document.getElementById("chatMessages");
+  if (wrap) wrap.scrollTop = wrap.scrollHeight;
+
+  const advisorPrompt = `Kullanıcı sorusu / vakası: "${q}"
+
+Görevlerin:
+1. "comment": Mevzuat yorumu yap. Kesin hükümleri net açıkla; uydurma numara, madde, oran/tutar veya kesin olmayan yargı üretme.
+2. "crossLawLinks": İlgili kanunlar, tebliğler, yönetmelikler veya tahsil/usul hükümleri arasındaki somut bağlantıları madde/kavram düzeyinde listele (yalnızca gerçek ve emin olunan bağlantıları yaz).
+3. "guidance": Kullanıcıyı bir sonraki adımda neyi kontrol etmesi, hangi ayrımı netleştirmesi veya hangi kaynağı incelemesi gerektiği konusunda somut ve yönlendirici maddelerle yönlendir.
+4. "caution": Eğer soruda güncel/dönemsel had-oran-tebliğ teyidi gerekiyorsa, Mevzuat Havuzu'nda kaynak eksikse veya belirsizlik varsa bunu açıkça yaz; her şey netse boş bırak "".
+
+Yalnızca şu JSON şemasında yanıt ver (iç metinlerde çift tırnak yerine tek tırnak kullan):
+{
+  "comment": "...",
+  "crossLawLinks": ["...", "..."],
+  "guidance": ["...", "..."],
+  "caution": "..."
+}`;
+
+  try {
+    const raw = await callGemini(advisorPrompt, true);
+    const parsed = parseJsonLoose(raw);
+    renderStructuredAdvisorCard(card, parsed);
+  } catch (err) {
+    card.innerHTML = `
+      <div class="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-900">
+        <strong>Hata:</strong> ${escapeHtml(err.message)}
+      </div>
+    `;
+  } finally {
+    if (wrap) wrap.scrollTop = wrap.scrollHeight;
+  }
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, (m) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[m]));
+}
+
+function escapeAttr(str) {
+  return String(str).replace(/"/g, "&quot;");
+}
+
+document.addEventListener("click", (e) => {
+  const catBtn = e.target.closest(".law-cat-btn");
+  if (catBtn) {
+    e.preventDefault();
+    selectCategoryFromUi(catBtn.dataset.category || "kanunlar");
+    return;
+  }
+
+  const quickBtn = e.target.closest(".chat-quick-btn");
+  if (quickBtn) {
+    e.preventDefault();
+    const prompt = quickBtn.dataset.prompt || "";
+    if (prompt) handleChatSend(prompt);
+    return;
+  }
+
+  const presetBtn = e.target.closest(".preset-btn");
+  if (presetBtn) {
+    e.preventDefault();
+    const text = PRESETS[presetBtn.dataset.preset] || "";
+    const ta = document.getElementById("lawTextInput");
+    if (ta) ta.value = ta.value ? `${ta.value}\n\n${text}` : text;
+  }
+});
+
+function bindDirectListeners() {
+  const searchInput = document.getElementById("lawSearchInput");
+  if (searchInput) {
+    searchInput.oninput = (e) => {
+      populateGibTopicSelect(document.getElementById("topicInput")?.value.trim() || "", e.target.value);
+    };
+  }
+
+  const topicSelect = document.getElementById("gibTopicSelect");
+  if (topicSelect) {
+    topicSelect.onchange = (e) => {
+      const chosen = e.target.value;
+      if (!chosen) return;
+      const tInput = document.getElementById("topicInput");
+      if (tInput) tInput.value = chosen;
+      const autoCb = document.getElementById("autoRandomOnGenerate");
+      if (autoCb) autoCb.checked = false;
+      syncSelectionModeBadge();
+      closeLawPickerPanel();
+    };
+  }
+
+  const autoRandomEl = document.getElementById("autoRandomOnGenerate");
+  if (autoRandomEl) autoRandomEl.onchange = syncSelectionModeBadge;
+
+  const saveSettingsBtn = document.getElementById("saveSettingsBtn");
+  if (saveSettingsBtn) {
+    saveSettingsBtn.onclick = () => {
+      const key = document.getElementById("apiKeyInput")?.value.trim() || "";
+      const model = document.getElementById("modelSelect")?.value || "gemini-3.8-flash";
+      localStorage.setItem(STORAGE_KEYS.apiKey, key);
+      localStorage.setItem(STORAGE_KEYS.model, model);
+      updateBadges(key);
+      const st = document.getElementById("settingsStatus");
+      if (st) {
+        st.classList.remove("hidden");
+        setTimeout(() => st.classList.add("hidden"), 2500);
+      }
+    };
+  }
+
+  const saveLawBtn = document.getElementById("saveLawBtn");
+  if (saveLawBtn) {
+    saveLawBtn.onclick = () => {
+      const law = document.getElementById("lawTextInput")?.value.trim() || "";
+      localStorage.setItem(STORAGE_KEYS.lawText, law);
+      syncCategoryUi();
+      populateGibTopicSelect(
+        document.getElementById("topicInput")?.value.trim() || "",
+        document.getElementById("lawSearchInput")?.value || ""
+      );
+      setLawStatus("Mevzuat metni kaydedildi ve bölümlere işlendi.");
+    };
+  }
+
+  const fetchUrlBtn = document.getElementById("fetchUrlBtn");
+  if (fetchUrlBtn) {
+    fetchUrlBtn.onclick = () => fetchTextFromUrl(document.getElementById("lawUrlInput")?.value || "");
+  }
+
+  const pdfFileInput = document.getElementById("pdfFileInput");
+  if (pdfFileInput) {
+    pdfFileInput.onchange = (e) => {
+      const file = e.target.files?.[0];
+      extractTextFromPdfFile(file);
+      e.target.value = "";
+    };
+  }
+
+  const generateBtn = document.getElementById("generateBtn");
+  if (generateBtn) generateBtn.onclick = () => generateLessonAndQuestion(false);
+
+  const newQuestionBtn = document.getElementById("newQuestionBtn");
+  if (newQuestionBtn) newQuestionBtn.onclick = () => generateLessonAndQuestion(true);
+
+  const wrongQuizBtn = document.getElementById("wrongQuizBtn");
+  if (wrongQuizBtn) wrongQuizBtn.onclick = startWrongQuiz;
+
+  const checkAnswerBtn = document.getElementById("checkAnswerBtn");
+  if (checkAnswerBtn) checkAnswerBtn.onclick = checkAnswer;
+
+  const sendChatBtn = document.getElementById("sendChatBtn");
+  if (sendChatBtn) sendChatBtn.onclick = () => handleChatSend();
+
+  const chatInput = document.getElementById("chatInput");
+  if (chatInput) {
+    chatInput.onkeydown = (e) => { if (e.key === "Enter") handleChatSend(); };
+  }
+
+  const clearChatBtn = document.getElementById("clearChatBtn");
+  if (clearChatBtn) {
+    clearChatBtn.onclick = () => {
+      const wrap = document.getElementById("chatMessages");
+      if (wrap) {
+        wrap.innerHTML = `
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 space-y-2">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[11px] font-bold uppercase tracking-wider text-slate-800">Mevzuat Analiz Asistanı</span>
+              <span class="text-[11px] text-emerald-700 font-semibold">Kanıta Dayalı Mod</span>
+            </div>
+            <p class="leading-relaxed">
+              Sohbet temizlendi. Sorunuzu <strong>Mevzuat Yorumu</strong>, <strong>Kanunlar Arası Bağlantı</strong> ve <strong>Yönlendirme</strong> başlıklarıyla yanıtlarım.
+            </p>
+          </div>`;
+      }
+    };
+  }
+
+  const mistakeFilter = document.getElementById("mistakeFilter");
+  if (mistakeFilter) mistakeFilter.onchange = renderMistakes;
+
+  const clearMistakesBtn = document.getElementById("clearMistakesBtn");
+  if (clearMistakesBtn) {
+    clearMistakesBtn.onclick = () => {
+      mistakes = [];
+      saveAllState();
+      renderMistakes();
+    };
+  }
+
+  const resetStatsBtn = document.getElementById("resetStatsBtn");
+  if (resetStatsBtn) {
+    resetStatsBtn.onclick = () => {
+      stats = { correct: 0, total: 0, byTopic: {} };
+      saveAllState();
+      updateBadges();
+      renderTopicStats();
+    };
+  }
+
+  const exportBackupBtn = document.getElementById("exportBackupBtn");
+  if (exportBackupBtn) {
+    exportBackupBtn.onclick = () => {
+      const payload = {
+        exportedAt: new Date().toISOString(),
+        stats,
+        mistakes,
+        lawText: localStorage.getItem(STORAGE_KEYS.lawText) || "",
+        lawUrl: localStorage.getItem(STORAGE_KEYS.lawUrl) || ""
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "vergi-asistani-yedek.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+  }
+
+  const importBackupInput = document.getElementById("importBackupInput");
+  if (importBackupInput) {
+    importBackupInput.onchange = (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const data = JSON.parse(String(reader.result || "{}"));
+          if (data.stats) stats = data.stats;
+          if (Array.isArray(data.mistakes)) mistakes = data.mistakes;
+          if (typeof data.lawText === "string") {
+            localStorage.setItem(STORAGE_KEYS.lawText, data.lawText);
+            const lawTa = document.getElementById("lawTextInput");
+            if (lawTa) lawTa.value = data.lawText;
+          }
+          if (typeof data.lawUrl === "string") {
+            localStorage.setItem(STORAGE_KEYS.lawUrl, data.lawUrl);
+            const urlEl = document.getElementById("lawUrlInput");
+            if (urlEl) urlEl.value = data.lawUrl;
+          }
+          saveAllState();
+          updateBadges();
+          renderTopicStats();
+          renderMistakes();
+          syncCategoryUi();
+          populateGibTopicSelect(document.getElementById("topicInput")?.value.trim() || "", "");
+          alert("Yedek başarıyla geri yüklendi.");
+        } catch {
+          alert("Geçersiz JSON yedek dosyası.");
+        }
+      };
+      reader.readAsText(file);
+    };
+  }
+}
+
+function initApp() {
+  try {
+    loadStoredState();
+    bindDirectListeners();
+
+    const apiInput = document.getElementById("apiKeyInput");
+    if (apiInput) apiInput.value = localStorage.getItem(STORAGE_KEYS.apiKey) || "";
+
+    const savedModel = localStorage.getItem(STORAGE_KEYS.model);
+    const modelSel = document.getElementById("modelSelect");
+    if (savedModel && modelSel && [...modelSel.options].some((o) => o.value === savedModel)) {
+      modelSel.value = savedModel;
+    }
+
+    const lawTa = document.getElementById("lawTextInput");
+    if (lawTa) lawTa.value = localStorage.getItem(STORAGE_KEYS.lawText) || "";
+
+    const lawUrlInput = document.getElementById("lawUrlInput");
+    if (lawUrlInput) lawUrlInput.value = localStorage.getItem(STORAGE_KEYS.lawUrl) || "";
+
+    syncCategoryUi();
+    const initialTopic = pickRandomGibTopic("");
+    populateGibTopicSelect(initialTopic, "");
+    syncSelectionModeBadge();
+
+    updateNetworkStatus();
+    updateBadges();
+    renderTopicStats();
+    renderMistakes();
+    renderQuestion(currentQuestion);
+  } catch (err) {
+    console.error("initApp hatası:", err);
+  }
+
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("sw.js").then((reg) => {
+      if (reg.waiting) showUpdateBanner(reg.waiting);
+      reg.addEventListener("updatefound", () => {
+        const nw = reg.installing;
+        if (!nw) return;
+        nw.addEventListener("statechange", () => {
+          if (nw.state === "installed" && navigator.serviceWorker.controller) {
+            showUpdateBanner(nw);
+          }
+        });
+      });
+    }).catch(() => {});
+
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (!refreshing) {
+        refreshing = true;
+        window.location.reload();
+      }
+    });
+  }
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initApp);
+} else {
+  initApp();
+}
+
+function showUpdateBanner(worker) {
+  const banner = document.getElementById("updateBanner");
+  if (!banner) return;
+  banner.classList.remove("hidden");
+  const reloadBtn = document.getElementById("reloadUpdateBtn");
+  if (reloadBtn) {
+    reloadBtn.onclick = () => {
+      worker.postMessage({ type: "SKIP_WAITING" });
+    };
+  }
+}
