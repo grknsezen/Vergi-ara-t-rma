@@ -24,7 +24,7 @@
 <body class="bg-slate-100 text-slate-900 min-h-screen antialiased">
   <div id="updateBanner" class="hidden bg-emerald-600 text-white px-4 py-2.5 text-xs flex items-center justify-between gap-2 sticky top-0 z-30">
     <span>Yeni sürüm hazır. Güncellemek için dokunun.</span>
-    <button id="reloadUpdateBtn" class="bg-white text-emerald-700 font-semibold px-3 py-1 rounded-lg">Yenile</button>
+    <button id="reloadUpdateBtn" type="button" class="bg-white text-emerald-700 font-semibold px-3 py-1 rounded-lg">Yenile</button>
   </div>
 
   <header class="bg-slate-950 text-white safe-top sticky top-0 z-20 border-b border-slate-800/90">
@@ -59,40 +59,43 @@
           </span>
         </div>
 
-        <!-- Mevzuat Türü Bölümleri: Kanunlar, Tebliğler, Özelgeler, Sirkülerler, Yönetmelikler -->
         <div class="space-y-1.5">
           <div class="flex items-center justify-between">
             <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Mevzuat Bölümleri</span>
             <span id="categoryCountBadge" class="text-[11px] font-medium text-slate-400"></span>
           </div>
           <div id="lawCategoryTabs" class="grid grid-cols-5 gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200/80">
-            <button type="button" data-category="kanunlar" class="law-cat-btn rounded-lg py-2 px-1 text-[11px] font-bold bg-slate-900 text-white shadow-xs transition truncate">
+            <button id="cat-kanunlar" type="button" onclick="selectCategoryFromUi('kanunlar')" data-category="kanunlar"
+              class="law-cat-btn cursor-pointer rounded-lg py-2 px-1 text-[11px] font-bold bg-slate-900 text-white shadow-xs transition truncate">
               Kanunlar
             </button>
-            <button type="button" data-category="tebligler" class="law-cat-btn rounded-lg py-2 px-1 text-[11px] font-semibold text-slate-600 hover:text-slate-900 transition truncate">
+            <button id="cat-tebligler" type="button" onclick="selectCategoryFromUi('tebligler')" data-category="tebligler"
+              class="law-cat-btn cursor-pointer rounded-lg py-2 px-1 text-[11px] font-semibold text-slate-600 hover:text-slate-900 transition truncate">
               Tebliğler
             </button>
-            <button type="button" data-category="ozelgeler" class="law-cat-btn rounded-lg py-2 px-1 text-[11px] font-semibold text-slate-600 hover:text-slate-900 transition truncate">
+            <button id="cat-ozelgeler" type="button" onclick="selectCategoryFromUi('ozelgeler')" data-category="ozelgeler"
+              class="law-cat-btn cursor-pointer rounded-lg py-2 px-1 text-[11px] font-semibold text-slate-600 hover:text-slate-900 transition truncate">
               Özelgeler
             </button>
-            <button type="button" data-category="sirkulerler" class="law-cat-btn rounded-lg py-2 px-1 text-[11px] font-semibold text-slate-600 hover:text-slate-900 transition truncate">
+            <button id="cat-sirkulerler" type="button" onclick="selectCategoryFromUi('sirkulerler')" data-category="sirkulerler"
+              class="law-cat-btn cursor-pointer rounded-lg py-2 px-1 text-[11px] font-semibold text-slate-600 hover:text-slate-900 transition truncate">
               Sirkülerler
             </button>
-            <button type="button" data-category="yonetmelikler" class="law-cat-btn rounded-lg py-2 px-1 text-[11px] font-semibold text-slate-600 hover:text-slate-900 transition truncate">
+            <button id="cat-yonetmelikler" type="button" onclick="selectCategoryFromUi('yonetmelikler')" data-category="yonetmelikler"
+              class="law-cat-btn cursor-pointer rounded-lg py-2 px-1 text-[11px] font-semibold text-slate-600 hover:text-slate-900 transition truncate">
               Yönetmelikler
             </button>
           </div>
         </div>
 
-        <!-- Belirgin Mevzuat Seç ve Rastgele Seç Kontrol Alanı -->
         <div class="grid grid-cols-2 gap-2.5">
-          <button id="toggleLawPickerBtn" type="button"
-            class="group flex items-center justify-center gap-2 rounded-xl border-2 border-slate-900 bg-slate-900 hover:bg-slate-800 active:scale-[0.99] text-white font-semibold px-3.5 py-3 text-sm shadow-sm transition">
+          <button id="toggleLawPickerBtn" type="button" onclick="toggleLawPickerPanel()"
+            class="group cursor-pointer flex items-center justify-center gap-2 rounded-xl border-2 border-slate-900 bg-slate-900 hover:bg-slate-800 active:scale-[0.99] text-white font-semibold px-3.5 py-3 text-sm shadow-sm transition">
             <span class="text-base leading-none">📚</span>
             <span>Mevzuat Seç</span>
           </button>
-          <button id="randomGibTopicBtn" type="button"
-            class="group flex items-center justify-center gap-2 rounded-xl border-2 border-indigo-600 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white font-semibold px-3.5 py-3 text-sm shadow-sm transition">
+          <button id="randomGibTopicBtn" type="button" onclick="handleRandomGibTopicClick()"
+            class="group cursor-pointer flex items-center justify-center gap-2 rounded-xl border-2 border-indigo-600 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white font-semibold px-3.5 py-3 text-sm shadow-sm transition">
             <span class="text-base leading-none">🎲</span>
             <span>Rastgele Seç</span>
           </button>
@@ -102,10 +105,12 @@
           <div class="flex items-center justify-between gap-2">
             <span id="pickerPanelTitle" class="text-xs font-bold uppercase tracking-wide text-slate-700">GİB Kanunlar Listesi</span>
             <div class="flex items-center gap-1.5">
-              <button id="syncPoolToCategoryBtn" type="button" class="text-[11px] font-semibold text-indigo-700 hover:text-indigo-900 px-2 py-0.5 rounded bg-indigo-50 border border-indigo-200">
+              <button id="syncPoolToCategoryBtn" type="button" onclick="syncPoolToActiveCategory()"
+                class="cursor-pointer text-[11px] font-semibold text-indigo-700 hover:text-indigo-900 px-2 py-0.5 rounded bg-indigo-50 border border-indigo-200">
                 Havuzdaki Veriyi Çek
               </button>
-              <button id="closeLawPickerBtn" type="button" class="text-xs font-semibold text-slate-500 hover:text-slate-900 px-2 py-0.5 rounded bg-white border border-slate-200">
+              <button id="closeLawPickerBtn" type="button" onclick="closeLawPickerPanel()"
+                class="cursor-pointer text-xs font-semibold text-slate-500 hover:text-slate-900 px-2 py-0.5 rounded bg-white border border-slate-200">
                 Kapat
               </button>
             </div>
@@ -141,7 +146,7 @@
           </label>
         </div>
 
-        <button id="generateBtn" class="w-full bg-emerald-700 hover:bg-emerald-800 active:scale-[0.99] text-white font-semibold py-3.5 rounded-xl text-sm shadow-sm transition">
+        <button id="generateBtn" type="button" class="w-full cursor-pointer bg-emerald-700 hover:bg-emerald-800 active:scale-[0.99] text-white font-semibold py-3.5 rounded-xl text-sm shadow-sm transition">
           Günün Konusunu ve Sorusunu Üret
         </button>
       </div>
@@ -164,7 +169,7 @@
       <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/90 space-y-2">
         <div class="flex items-center justify-between">
           <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider">Mevzuat Performans Özeti</h3>
-          <button id="resetStatsBtn" class="text-xs font-medium text-rose-600 hover:underline">Sıfırla</button>
+          <button id="resetStatsBtn" type="button" class="text-xs font-medium text-rose-600 hover:underline">Sıfırla</button>
         </div>
         <div id="topicStatsList" class="text-sm text-slate-600">Henüz soru çözülmedi. Soru çözdükçe mevzuat bazlı doğru/yanlış dağılımı burada görünecek.</div>
       </div>
@@ -178,15 +183,15 @@
             <span id="timerDisplay" class="hidden text-xs font-bold bg-rose-100 text-rose-800 px-2.5 py-1 rounded-full">00:00</span>
           </div>
           <div class="flex items-center gap-2">
-            <button id="wrongQuizBtn" class="text-xs bg-amber-100 text-amber-900 font-semibold px-3 py-1.5 rounded-lg">Hatalardan Tekrar</button>
-            <button id="newQuestionBtn" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold px-3 py-1.5 rounded-lg">Yeni Soru Üret</button>
+            <button id="wrongQuizBtn" type="button" class="text-xs bg-amber-100 text-amber-900 font-semibold px-3 py-1.5 rounded-lg">Hatalardan Tekrar</button>
+            <button id="newQuestionBtn" type="button" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold px-3 py-1.5 rounded-lg">Yeni Soru Üret</button>
           </div>
         </div>
         <p id="questionText" class="text-base font-medium text-slate-900 leading-relaxed">
           Yeni soru üretmek için "Yeni Soru Üret" butonuna basın veya Konu sekmesinden bir mevzuat seçin.
         </p>
         <div id="optionsContainer" class="space-y-2.5"></div>
-        <button id="checkAnswerBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl text-sm transition">
+        <button id="checkAnswerBtn" type="button" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl text-sm transition">
           Cevabı Kontrol Et
         </button>
         <div id="feedbackBox" class="hidden rounded-xl p-4 text-sm space-y-2 border"></div>
@@ -206,7 +211,7 @@
               Dayanaksız bilgi veya uydurma oran/rakam üretmez; belirsiz ya da güncel veri gerektiren hususları açıkça belirtir.
             </p>
           </div>
-          <button id="clearChatBtn" class="text-xs font-semibold text-slate-500 hover:text-slate-900 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 shrink-0">
+          <button id="clearChatBtn" type="button" class="text-xs font-semibold text-slate-500 hover:text-slate-900 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 shrink-0">
             Temizle
           </button>
         </div>
@@ -244,7 +249,7 @@
         <div class="flex gap-2 pt-1">
           <input id="chatInput" type="text" placeholder="Vaka, kanun bağlantısı veya mevzuat yorumu sorun..."
             class="flex-1 rounded-xl border border-slate-300 bg-slate-50/70 focus:bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900" />
-          <button id="sendChatBtn" class="bg-slate-950 hover:bg-slate-800 text-white px-4 py-2.5 rounded-xl text-sm font-semibold shrink-0 transition">
+          <button id="sendChatBtn" type="button" class="bg-slate-950 hover:bg-slate-800 text-white px-4 py-2.5 rounded-xl text-sm font-semibold shrink-0 transition">
             Gönder
           </button>
         </div>
@@ -259,7 +264,7 @@
             <select id="mistakeFilter" class="text-xs rounded-lg border border-slate-300 px-2.5 py-1.5 bg-white">
               <option value="ALL">Tüm Mevzuatlar</option>
             </select>
-            <button id="clearMistakesBtn" class="text-xs text-rose-600 hover:underline">Tümünü Sil</button>
+            <button id="clearMistakesBtn" type="button" class="text-xs text-rose-600 hover:underline">Tümünü Sil</button>
           </div>
         </div>
         <div id="mistakesList" class="space-y-3 text-sm text-slate-600">
@@ -284,7 +289,7 @@
             <option value="gemini-4-hydrogen">gemini-4-hydrogen (Yüksek Muhakeme)</option>
           </select>
         </div>
-        <button id="saveSettingsBtn" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-xl text-sm">
+        <button id="saveSettingsBtn" type="button" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-xl text-sm">
           Ayarları Telefona Kaydet
         </button>
         <p id="settingsStatus" class="text-xs text-emerald-700 font-medium hidden">Kaydedildi.</p>
@@ -320,7 +325,7 @@
 
         <textarea id="lawTextInput" rows="6" placeholder="İlgili mevzuat metni, başlık listesi veya PDF/linkten çekilen veriler..."
           class="w-full rounded-xl border border-slate-300 p-3 text-sm"></textarea>
-        <button id="saveLawBtn" class="w-full bg-slate-900 text-white font-semibold py-2.5 rounded-xl text-sm">
+        <button id="saveLawBtn" type="button" class="w-full bg-slate-900 text-white font-semibold py-2.5 rounded-xl text-sm">
           Mevzuat Metnini Kaydet
         </button>
       </div>
@@ -329,7 +334,7 @@
         <h2 class="text-sm font-bold text-slate-800">Yedekleme ve Geri Yükleme</h2>
         <p class="text-xs text-slate-500">İstatistik, hata defteri ve mevzuat metninizi JSON olarak yedekleyebilir veya geri yükleyebilirsiniz.</p>
         <div class="grid grid-cols-2 gap-2">
-          <button id="exportBackupBtn" class="bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold py-2.5 rounded-xl text-xs">JSON Yedek İndir</button>
+          <button id="exportBackupBtn" type="button" class="bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold py-2.5 rounded-xl text-xs">JSON Yedek İndir</button>
           <label class="bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold py-2.5 rounded-xl text-xs text-center cursor-pointer">
             JSON Geri Yükle
             <input id="importBackupInput" type="file" accept="application/json,.json" class="hidden" />
@@ -341,19 +346,19 @@
 
   <nav class="fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur border-t border-slate-200 safe-bottom z-20">
     <div class="max-w-3xl mx-auto grid grid-cols-5 py-2 text-center">
-      <button id="nav-konu" onclick="switchTab('konu')" class="flex flex-col items-center text-[11px] font-bold text-slate-900">
+      <button id="nav-konu" type="button" onclick="switchTab('konu')" class="flex flex-col items-center text-[11px] font-bold text-slate-900">
         <span class="text-base leading-none mb-1">📘</span>Konu
       </button>
-      <button id="nav-soru" onclick="switchTab('soru')" class="flex flex-col items-center text-[11px] font-medium text-slate-400">
+      <button id="nav-soru" type="button" onclick="switchTab('soru')" class="flex flex-col items-center text-[11px] font-medium text-slate-400">
         <span class="text-base leading-none mb-1">✍️</span>Soru
       </button>
-      <button id="nav-sohbet" onclick="switchTab('sohbet')" class="flex flex-col items-center text-[11px] font-medium text-slate-400">
+      <button id="nav-sohbet" type="button" onclick="switchTab('sohbet')" class="flex flex-col items-center text-[11px] font-medium text-slate-400">
         <span class="text-base leading-none mb-1">💬</span>Soru-Cevap
       </button>
-      <button id="nav-hatalar" onclick="switchTab('hatalar')" class="flex flex-col items-center text-[11px] font-medium text-slate-400">
+      <button id="nav-hatalar" type="button" onclick="switchTab('hatalar')" class="flex flex-col items-center text-[11px] font-medium text-slate-400">
         <span class="text-base leading-none mb-1">📕</span>Hata Defteri
       </button>
-      <button id="nav-ayarlar" onclick="switchTab('ayarlar')" class="flex flex-col items-center text-[11px] font-medium text-slate-400">
+      <button id="nav-ayarlar" type="button" onclick="switchTab('ayarlar')" class="flex flex-col items-center text-[11px] font-medium text-slate-400">
         <span class="text-base leading-none mb-1">⚙️</span>Ayarlar
       </button>
     </div>
