@@ -1,9 +1,10 @@
-const ALL_TABS = ["konu", "soru", "sohbet", "hatalar", "ayarlar"];
+const ALL_TABS = ["konu", "soru", "smmm", "sohbet", "hatalar", "ayarlar"];
 const STORAGE_KEYS = {
   apiKey: "vergi_pwa_api_key",
   model: "vergi_pwa_model",
   lawText: "vergi_pwa_law_text",
   lawUrl: "vergi_pwa_law_url",
+  smmmPool: "vergi_pwa_smmm_pool",
   stats: "vergi_pwa_stats",
   mistakes: "vergi_pwa_mistakes"
 };
@@ -78,14 +79,14 @@ function safeGetStorage(key, fallback = "") {
 function safeSetStorage(key, value) {
   const strVal = String(value ?? "");
   window.__memStore[key] = strVal;
-  if (key === STORAGE_KEYS.lawText) {
+  if (key === STORAGE_KEYS.lawText || key === STORAGE_KEYS.smmmPool) {
     idbSet(key, strVal);
   }
   try {
     window.localStorage.setItem(key, strVal);
     return { ok: true, persisted: true };
   } catch {
-    return { ok: true, persisted: key === STORAGE_KEYS.lawText };
+    return { ok: true, persisted: key === STORAGE_KEYS.lawText || key === STORAGE_KEYS.smmmPool };
   }
 }
 
@@ -169,6 +170,20 @@ let selectedOptionIndex = null;
 let timerInterval = null;
 let remainingSeconds = 0;
 
+let currentSmmmQuestion = {
+  subject: "Vergi Mevzuatı ve Uygulaması",
+  question: "SMMM Yeterlilik test sorusu üretmek için yukarıdan ders seçip 'SMMM Yeterlilik Test Sorusu Üret' butonuna basın.",
+  options: [
+    "A) Seçenek 1",
+    "B) Seçenek 2",
+    "C) Seçenek 3",
+    "D) Seçenek 4"
+  ],
+  answerIndex: 0,
+  solution: "Çözüm adımları ve mevzuat/muhasebe dayanağı burada yer alır."
+};
+let selectedSmmmOptionIndex = null;
+
 function switchTab(tab) {
   if (typeof window.__coreSwitchTab === "function") {
     window.__coreSwitchTab(tab);
@@ -181,8 +196,8 @@ function switchTab(tab) {
     const nav = document.getElementById("nav-" + t);
     if (nav) {
       nav.className = t === target
-        ? "flex flex-col items-center justify-center py-1 text-[11px] font-bold text-slate-900"
-        : "flex flex-col items-center justify-center py-1 text-[11px] font-medium text-slate-500";
+        ? "flex flex-col items-center justify-center py-1 text-[10px] font-bold text-slate-900"
+        : "flex flex-col items-center justify-center py-1 text-[10px] font-medium text-slate-500";
     }
   });
 }
@@ -191,7 +206,23 @@ window.switchTab = switchTab;
 document.addEventListener("vergi:tabchanged", (e) => {
   const tab = e.detail?.tab;
   if (tab === "hatalar") renderMistakes();
+  if (tab === "smmm") syncSmmmPoolBadge();
 });
+
+function syncSmmmPoolBadge() {
+  const badge = document.getElementById("smmmPoolBadge");
+  const pool = safeGetStorage(STORAGE_KEYS.smmmPool, "").trim();
+  if (!badge) return;
+  if (pool.length > 0) {
+    badge.textContent = `Havuz: ${(pool.length / 1000).toFixed(1)}K kr`;
+    badge.style.background = "#ecfdf5";
+    badge.style.color = "#065f46";
+  } else {
+    badge.textContent = "Havuz: Boş";
+    badge.style.background = "#eef2ff";
+    badge.style.color = "#3730a3";
+  }
+}
 
 async function loadStoredState() {
   try {
@@ -214,6 +245,14 @@ async function loadStoredState() {
     syncCategoryUi();
     populateGibTopicSelect(document.getElementById("topicInput")?.value.trim() || "", "");
   }
+
+  const idbSmmm = await idbGet(STORAGE_KEYS.smmmPool);
+  if (typeof idbSmmm === "string" && idbSmmm.length > 0) {
+    window.__memStore[STORAGE_KEYS.smmmPool] = idbSmmm;
+    const smmmTa = document.getElementById("smmmPoolTextInput");
+    if (smmmTa && !smmmTa.value) smmmTa.value = idbSmmm;
+  }
+  syncSmmmPoolBadge();
 }
 
 if (window.pdfjsLib && window.pdfjsLib.GlobalWorkerOptions) {
@@ -414,6 +453,15 @@ function setLawStatus(msg, isError = false) {
   el.classList.remove("hidden");
 }
 
+function setSmmmPoolStatus(msg, isError = false) {
+  const el = document.getElementById("smmmPoolStatus");
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = isError ? "#e11d48" : "#3730a3";
+  el.style.fontWeight = "600";
+  el.classList.remove("hidden");
+}
+
 function appendLawText(incoming, sourceLabel) {
   const cleaned = String(incoming || "")
     .replace(/\s+\n/g, "\n")
@@ -442,6 +490,32 @@ function appendLawText(incoming, sourceLabel) {
     document.getElementById("lawSearchInput")?.value || ""
   );
   setLawStatus(`"${sourceLabel}" aktarıldı${trimmedNote} — Toplam: ${merged.length.toLocaleString("tr-TR")} karakter.`);
+}
+
+function appendSmmmPoolText(incoming, sourceLabel) {
+  const cleaned = String(incoming || "")
+    .replace(/\s+\n/g, "\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+  if (!cleaned) throw new Error("PDF dosyasında okunabilir metin bulunamadı.");
+
+  const ta = document.getElementById("smmmPoolTextInput");
+  if (!ta) return;
+  const header = `--- SMMM Örnek Kaynak: ${sourceLabel} ---\n`;
+  let merged = ta.value.trim()
+    ? `${ta.value.trim()}\n\n${header}${cleaned}`
+    : `${header}${cleaned}`;
+
+  let trimmedNote = "";
+  if (merged.length > MAX_LAW_CHARS) {
+    merged = merged.slice(0, MAX_LAW_CHARS);
+    trimmedNote = ` (${MAX_LAW_CHARS.toLocaleString("tr-TR")} karakter sınırı uygulandı)`;
+  }
+
+  ta.value = merged;
+  safeSetStorage(STORAGE_KEYS.smmmPool, merged);
+  syncSmmmPoolBadge();
+  setSmmmPoolStatus(`"${sourceLabel}" SMMM havuzuna eklendi${trimmedNote} — Toplam: ${merged.length.toLocaleString("tr-TR")} karakter.`);
 }
 
 function htmlToPlainText(htmlString) {
@@ -499,16 +573,20 @@ async function fetchTextFromUrl(rawUrl) {
   }
 }
 
-async function extractTextFromPdfFile(file) {
+async function extractTextFromPdfFile(file, target = "law") {
   if (!file) return;
+  const isSmmm = target === "smmm";
+  const statusFn = isSmmm ? setSmmmPoolStatus : setLawStatus;
+  const appendFn = isSmmm ? appendSmmmPoolText : appendLawText;
+  const fileNameEl = document.getElementById(isSmmm ? "smmmPdfFileName" : "pdfFileName");
+
   if (!window.pdfjsLib) {
-    setLawStatus("PDF okuyucu kütüphanesi yüklenemedi. İnternet bağlantınızı kontrol edin.", true);
+    statusFn("PDF okuyucu kütüphanesi yüklenemedi. İnternet bağlantınızı kontrol edin.", true);
     return;
   }
 
-  const fileNameEl = document.getElementById("pdfFileName");
   if (fileNameEl) fileNameEl.textContent = `${file.name} okunuyor...`;
-  setLawStatus(`${file.name} sayfalarından metin çıkarılıyor...`);
+  statusFn(`${file.name} sayfalarından metin çıkarılıyor...`);
 
   try {
     const arrayBuffer = await file.arrayBuffer();
@@ -524,20 +602,20 @@ async function extractTextFromPdfFile(file) {
     }
 
     if (fileNameEl) fileNameEl.textContent = `${file.name} (${pdf.numPages} sayfa)`;
-    appendLawText(pages.join("\n\n"), file.name);
+    appendFn(pages.join("\n\n"), file.name);
   } catch (err) {
     if (fileNameEl) fileNameEl.textContent = "PDF okunamadı";
-    setLawStatus("PDF okuma hatası: " + (err?.message || "Dosya şifreli veya taranmış görsel olabilir."), true);
+    statusFn("PDF okuma hatası: " + (err?.message || "Dosya şifreli veya taranmış görsel olabilir."), true);
   }
 }
 
-async function extractMultiplePdfFiles(fileList) {
+async function extractMultiplePdfFiles(fileList, target = "law") {
   const files = Array.from(fileList || []);
   if (!files.length) return;
   for (const file of files) {
-    await extractTextFromPdfFile(file);
+    await extractTextFromPdfFile(file, target);
   }
-  const fileNameEl = document.getElementById("pdfFileName");
+  const fileNameEl = document.getElementById(target === "smmm" ? "smmmPdfFileName" : "pdfFileName");
   if (fileNameEl && files.length > 1) {
     fileNameEl.textContent = `${files.length} PDF dosyası işlendi`;
   }
@@ -642,7 +720,7 @@ function renderQuestion(q) {
   q.options.forEach((opt, idx) => {
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.style.cssText = "width:100%;text-align:left;border:1px solid #cbd5e1;background:#fff;border-radius:12px;padding:12px 14px;font-size:13px;cursor:pointer;";
+    btn.style.cssText = "width:100%;text-align:left;border:1px solid #cbd5e1;background:#fff;border-radius:12px;padding:12px 14px;font-size:14px;cursor:pointer;";
     btn.textContent = opt;
     btn.onclick = () => {
       selectedOptionIndex = idx;
@@ -656,6 +734,37 @@ function renderQuestion(q) {
   });
 
   startTimerIfConfigured();
+}
+
+function renderSmmmQuestion(q) {
+  currentSmmmQuestion = q;
+  selectedSmmmOptionIndex = null;
+  const qTextEl = document.getElementById("smmmQuestionText");
+  if (qTextEl) qTextEl.textContent = q.question;
+  const fb = document.getElementById("smmmFeedbackBox");
+  if (fb) {
+    fb.classList.add("hidden");
+    fb.innerHTML = "";
+  }
+
+  const container = document.getElementById("smmmOptionsContainer");
+  if (!container) return;
+  container.innerHTML = "";
+  q.options.forEach((opt, idx) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.style.cssText = "width:100%;text-align:left;border:1px solid #cbd5e1;background:#fff;border-radius:12px;padding:12px 14px;font-size:14px;cursor:pointer;";
+    btn.textContent = opt;
+    btn.onclick = () => {
+      selectedSmmmOptionIndex = idx;
+      [...container.children].forEach((c, i) => {
+        c.style.border = i === idx ? "2px solid #4f46e5" : "1px solid #cbd5e1";
+        c.style.background = i === idx ? "#eef2ff" : "#fff";
+        c.style.fontWeight = i === idx ? "600" : "400";
+      });
+    };
+    container.appendChild(btn);
+  });
 }
 
 function startTimerIfConfigured() {
@@ -710,7 +819,7 @@ async function callGemini(promptText, expectJson = false, customPrefix = "") {
   const model = safeGetStorage(STORAGE_KEYS.model, "gemini-3.8-flash");
   if (!apiKey) throw new Error("API anahtarı kayıtlı değil. Ayarlar sekmesinden ekleyin.");
 
-  const prefix = customPrefix || buildStrictTaxAdvisorInstruction();
+  const prefix = customPrefix !== "" ? customPrefix : buildStrictTaxAdvisorInstruction();
   const body = {
     contents: [{ role: "user", parts: [{ text: prefix + promptText }] }]
   };
@@ -824,13 +933,115 @@ Yalnızca şu şemada tek bir JSON nesnesi döndür (iç metinlerde çift tırna
   }
 }
 
+async function generateSmmmTestQuestion() {
+  const subject = document.getElementById("smmmSubjectSelect")?.value || "Vergi Mevzuatı ve Uygulaması";
+  const focus = (document.getElementById("smmmFocusInput")?.value || "").trim();
+  const style = document.getElementById("smmmStyleSelect")?.value || "Çıkmış Soru Tarzı";
+  const smmmPool = safeGetStorage(STORAGE_KEYS.smmmPool, "").trim();
+  const smmmSlice = smmmPool.length > 60000 ? smmmPool.slice(0, 60000) : smmmPool;
+
+  const btn = document.getElementById("generateSmmmBtn");
+  const prevText = btn ? btn.textContent : "";
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "SMMM Test Sorusu Üretiliyor...";
+  }
+
+  try {
+    const customPrefix = smmmSlice
+      ? `Sen TESMER SMMM Yeterlilik sınavlarına yönelik soru hazırlayan uzman bir akademisyen ve mali müşavir eğitmenisin. Aşağıdaki SMMM Örnek Soru Havuzu metnindeki soru dilini, kalıbını ve zorluk seviyesini temel alarak özgün çoktan seçmeli test soruları üret.\n\nSMMM ÖRNEK SORU HAVUZU:\n${smmmSlice}\n\n`
+      : `Sen TESMER SMMM Yeterlilik sınavlarına yönelik soru hazırlayan uzman bir akademisyen ve mali müşavir eğitmenisin. Güncel TMS/TFRS, Tekdüzen Muhasebe Sistemi ve Türk vergi/ticaret mevzuatına uygun özgün çoktan seçmeli test soruları üret.\n\n`;
+
+    const prompt = `Ders: "${subject}" | Alt Konu Odak: "${focus || "Genel Yeterlilik Kapsamı"}" | Soru Tarzı: "${style}".
+Bu ders ve tarza uygun 5 şıklı (A, B, C, D, E) SMMM Yeterlilik test sorusu ve adım adım açıklamalı çözümü üret. Uydurma madde/oran kullanma; hesaplama varsa tüm ara adımları net göster.
+Yalnızca şu şemada tek bir JSON nesnesi döndür (iç metinlerde çift tırnak yerine tek tırnak kullan):
+{
+  "question": "...",
+  "options": ["A) ...", "B) ...", "C) ...", "D) ...", "E) ..."],
+  "answerIndex": 0,
+  "solution": "..."
+}`;
+
+    const raw = await callGemini(prompt, true, customPrefix);
+    const parsed = parseJsonLoose(raw);
+    const opts = Array.isArray(parsed.options) && parsed.options.length >= 2
+      ? parsed.options.slice(0, 5)
+      : ["A) Seçenek A", "B) Seçenek B", "C) Seçenek C", "D) Seçenek D", "E) Seçenek E"];
+
+    const badgeEl = document.getElementById("smmmQuestionBadge");
+    const tagEl = document.getElementById("smmmSourceTag");
+    if (badgeEl) badgeEl.textContent = subject;
+    if (tagEl) tagEl.textContent = smmmSlice ? "Örnek Havuz Referanslı" : style;
+
+    renderSmmmQuestion({
+      subject,
+      question: parsed.question || `${subject} test sorusu`,
+      options: opts,
+      answerIndex: Math.min(Math.max(Number(parsed.answerIndex) || 0, 0), opts.length - 1),
+      solution: parsed.solution || ""
+    });
+  } catch (err) {
+    alert("Hata: " + err.message);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = prevText;
+    }
+  }
+}
+
+function checkSmmmAnswer() {
+  if (selectedSmmmOptionIndex === null) {
+    alert("Lütfen önce bir şık seçin.");
+    return;
+  }
+
+  const isCorrect = selectedSmmmOptionIndex === currentSmmmQuestion.answerIndex;
+  const topicKey = `SMMM — ${currentSmmmQuestion.subject}`;
+  stats.total += 1;
+  if (!stats.byTopic[topicKey]) {
+    stats.byTopic[topicKey] = { correct: 0, total: 0 };
+  }
+  stats.byTopic[topicKey].total += 1;
+
+  const box = document.getElementById("smmmFeedbackBox");
+  if (box) box.classList.remove("hidden");
+
+  if (isCorrect) {
+    stats.correct += 1;
+    stats.byTopic[topicKey].correct += 1;
+    if (box) {
+      box.style.cssText = "border-radius:14px;padding:15px;font-size:14px;line-height:1.55;background:#ecfdf5;border:1px solid #a7f3d0;color:#064e3b;";
+      box.innerHTML = `<p style="margin:0 0 6px;font-weight:700;">Doğru Yanıt!</p><p style="margin:0;white-space:pre-line;">${escapeHtml(currentSmmmQuestion.solution)}</p>`;
+    }
+  } else {
+    if (box) {
+      box.style.cssText = "border-radius:14px;padding:15px;font-size:14px;line-height:1.55;background:#fff1f2;border:1px solid #fecdd3;color:#881337;";
+      box.innerHTML = `<p style="margin:0 0 6px;font-weight:700;">Yanlış Yanıt — Doğru Seçenek: ${escapeHtml(currentSmmmQuestion.options[currentSmmmQuestion.answerIndex] || "")}</p><p style="margin:0;white-space:pre-line;">${escapeHtml(currentSmmmQuestion.solution)}</p>`;
+    }
+    mistakes.unshift({
+      topic: topicKey,
+      question: currentSmmmQuestion.question,
+      options: currentSmmmQuestion.options,
+      answerIndex: currentSmmmQuestion.answerIndex,
+      correctOption: currentSmmmQuestion.options[currentSmmmQuestion.answerIndex] || "",
+      explanation: currentSmmmQuestion.solution,
+      note: ""
+    });
+  }
+
+  saveAllState();
+  updateBadges();
+  renderMistakes();
+}
+
 function startWrongQuiz() {
   if (!mistakes.length) {
     alert("Hata defterinde tekrar edilecek soru bulunmuyor.");
     return;
   }
   const picked = mistakes[Math.floor(Math.random() * mistakes.length)];
-  const opts = picked.options && picked.options.length === 4
+  const opts = picked.options && picked.options.length >= 4
     ? picked.options
     : ["A) Doğru değerlendirme", "B) İstisna kapsamında değildir", "C) Tamamı matraha eklenir", "D) Zamanaşımına uğramıştır"];
   renderQuestion({
@@ -864,12 +1075,12 @@ function checkAnswer() {
     stats.correct += 1;
     stats.byTopic[currentQuestion.topic].correct += 1;
     if (box) {
-      box.style.cssText = "border-radius:12px;padding:14px;font-size:13px;background:#ecfdf5;border:1px solid #a7f3d0;color:#064e3b;";
+      box.style.cssText = "border-radius:14px;padding:15px;font-size:14px;background:#ecfdf5;border:1px solid #a7f3d0;color:#064e3b;";
       box.innerHTML = `<p style="margin:0 0 6px;font-weight:700;">Doğru Yanıt!</p><p style="margin:0;">${escapeHtml(currentQuestion.explanation)}</p>`;
     }
   } else {
     if (box) {
-      box.style.cssText = "border-radius:12px;padding:14px;font-size:13px;background:#fff1f2;border:1px solid #fecdd3;color:#881337;";
+      box.style.cssText = "border-radius:14px;padding:15px;font-size:14px;background:#fff1f2;border:1px solid #fecdd3;color:#881337;";
       box.innerHTML = `<p style="margin:0 0 6px;font-weight:700;">Yanlış Yanıt — Doğru Seçenek: ${escapeHtml(currentQuestion.options[currentQuestion.answerIndex] || "")}</p><p style="margin:0;">${escapeHtml(currentQuestion.explanation)}</p>`;
     }
     mistakes.unshift({
@@ -1041,9 +1252,7 @@ function bindDirectListeners() {
   }
 
   const saveSettingsBtn = document.getElementById("saveSettingsBtn");
-  if (saveSettingsBtn) {
-    saveSettingsBtn.onclick = handleSaveSettings;
-  }
+  if (saveSettingsBtn) saveSettingsBtn.onclick = handleSaveSettings;
 
   const apiKeyInput = document.getElementById("apiKeyInput");
   if (apiKeyInput) {
@@ -1055,6 +1264,43 @@ function bindDirectListeners() {
     };
   }
 
+  // SMMM Havuzu Dinleyicileri
+  const smmmPdfInput = document.getElementById("smmmPdfFileInput");
+  if (smmmPdfInput) {
+    smmmPdfInput.onchange = async (e) => {
+      await extractMultiplePdfFiles(e.target.files, "smmm");
+      e.target.value = "";
+    };
+  }
+
+  const saveSmmmPoolBtn = document.getElementById("saveSmmmPoolBtn");
+  if (saveSmmmPoolBtn) {
+    saveSmmmPoolBtn.onclick = () => {
+      const txt = document.getElementById("smmmPoolTextInput")?.value.trim() || "";
+      safeSetStorage(STORAGE_KEYS.smmmPool, txt);
+      syncSmmmPoolBadge();
+      setSmmmPoolStatus(`SMMM örnek soru havuzu kaydedildi (${txt.length.toLocaleString("tr-TR")} karakter).`);
+    };
+  }
+
+  const clearSmmmPoolBtn = document.getElementById("clearSmmmPoolBtn");
+  if (clearSmmmPoolBtn) {
+    clearSmmmPoolBtn.onclick = () => {
+      const ta = document.getElementById("smmmPoolTextInput");
+      if (ta) ta.value = "";
+      safeSetStorage(STORAGE_KEYS.smmmPool, "");
+      syncSmmmPoolBadge();
+      setSmmmPoolStatus("SMMM örnek soru havuzu temizlendi.");
+    };
+  }
+
+  const generateSmmmBtn = document.getElementById("generateSmmmBtn");
+  if (generateSmmmBtn) generateSmmmBtn.onclick = generateSmmmTestQuestion;
+
+  const checkSmmmAnswerBtn = document.getElementById("checkSmmmAnswerBtn");
+  if (checkSmmmAnswerBtn) checkSmmmAnswerBtn.onclick = checkSmmmAnswer;
+
+  // Mevzuat Havuzu Dinleyicileri
   const saveLawBtn = document.getElementById("saveLawBtn");
   if (saveLawBtn) {
     saveLawBtn.onclick = () => {
@@ -1089,7 +1335,7 @@ function bindDirectListeners() {
   const pdfFileInput = document.getElementById("pdfFileInput");
   if (pdfFileInput) {
     pdfFileInput.onchange = async (e) => {
-      await extractMultiplePdfFiles(e.target.files);
+      await extractMultiplePdfFiles(e.target.files, "law");
       e.target.value = "";
     };
   }
@@ -1144,7 +1390,8 @@ function bindDirectListeners() {
         stats,
         mistakes,
         lawText: safeGetStorage(STORAGE_KEYS.lawText, ""),
-        lawUrl: safeGetStorage(STORAGE_KEYS.lawUrl, "")
+        lawUrl: safeGetStorage(STORAGE_KEYS.lawUrl, ""),
+        smmmPool: safeGetStorage(STORAGE_KEYS.smmmPool, "")
       };
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
@@ -1177,6 +1424,12 @@ function bindDirectListeners() {
             const urlEl = document.getElementById("lawUrlInput");
             if (urlEl) urlEl.value = data.lawUrl;
           }
+          if (typeof data.smmmPool === "string") {
+            safeSetStorage(STORAGE_KEYS.smmmPool, data.smmmPool);
+            const smmmTa = document.getElementById("smmmPoolTextInput");
+            if (smmmTa) smmmTa.value = data.smmmPool;
+            syncSmmmPoolBadge();
+          }
           saveAllState();
           updateBadges();
           renderMistakes();
@@ -1208,6 +1461,9 @@ async function initApp() {
     const lawTa = document.getElementById("lawTextInput");
     if (lawTa) lawTa.value = safeGetStorage(STORAGE_KEYS.lawText, "");
 
+    const smmmTa = document.getElementById("smmmPoolTextInput");
+    if (smmmTa) smmmTa.value = safeGetStorage(STORAGE_KEYS.smmmPool, "");
+
     const lawUrlInput = document.getElementById("lawUrlInput");
     if (lawUrlInput) lawUrlInput.value = safeGetStorage(STORAGE_KEYS.lawUrl, "");
 
@@ -1220,6 +1476,7 @@ async function initApp() {
     updateBadges();
     renderMistakes();
     renderQuestion(currentQuestion);
+    renderSmmmQuestion(currentSmmmQuestion);
   } catch (err) {
     console.error("initApp hatası:", err);
   }
