@@ -332,6 +332,24 @@
       box-shadow: 0 2px 8px rgba(79, 70, 229, 0.22);
     }
 
+    .btn-amber {
+      width: 100%;
+      min-height: 46px;
+      background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+      color: #ffffff;
+      border: 0;
+      border-radius: 14px;
+      padding: 12px 16px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 4px 12px rgba(217, 119, 6, 0.24);
+    }
+
     .btn-emerald {
       width: 100%;
       min-height: 48px;
@@ -381,7 +399,7 @@
       max-width: 680px;
       margin: 0 auto;
       display: grid !important;
-      grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+      grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
       padding: 0 2px;
     }
 
@@ -405,7 +423,7 @@
     .bottom-nav-grid button span:last-child {
       display: block;
       max-width: 100%;
-      font-size: 9.5px;
+      font-size: 9px;
       line-height: 1.15;
       white-space: nowrap;
       overflow: hidden;
@@ -419,7 +437,7 @@
   </style>
   <script>
     (function () {
-      const TABS = ["konu", "soru", "smmm", "sohbet", "hatalar", "ayarlar"];
+      const TABS = ["konu", "soru", "smmm", "ymm", "sohbet", "hatalar", "ayarlar"];
 
       function applyTabState(tab) {
         const target = TABS.includes(tab) ? tab : "konu";
@@ -441,7 +459,7 @@
       window.switchTab = applyTabState;
 
       document.addEventListener("click", function (ev) {
-        const btn = ev.target.closest("#nav-konu, #nav-soru, #nav-smmm, #nav-sohbet, #nav-hatalar, #nav-ayarlar, [data-tab]");
+        const btn = ev.target.closest("#nav-konu, #nav-soru, #nav-smmm, #nav-ymm, #nav-sohbet, #nav-hatalar, #nav-ayarlar, [data-tab]");
         if (!btn) return;
         const tab = btn.dataset.tab || (btn.id ? btn.id.replace("nav-", "") : "");
         if (TABS.includes(tab)) {
@@ -651,7 +669,83 @@
       </div>
     </section>
 
-    <!-- 4. SORU-CEVAP (SOHBET) SEKMESİ -->
+    <!-- 4. YMM YAZILI SINAV SEKMESİ -->
+    <section id="tab-ymm" class="hidden">
+      <div class="card-box" style="border:1.5px solid #fde68a;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <div>
+            <span class="eyebrow" style="color:#b45309;">TÜRMOB / YMM Yazılı Sınav</span>
+            <h2 class="section-heading">YMM Yazılı Sınav ve Vaka Üretimi</h2>
+          </div>
+          <span id="ymmPoolBadge" style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:9999px;background:#fef3c7;color:#92400e;">
+            YMM Havuz: Boş
+          </span>
+        </div>
+
+        <div>
+          <label for="ymmSubjectSelect" style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">YMM Sınav Dersi</label>
+          <select id="ymmSubjectSelect">
+            <option value="Gelir Üzerinden Alınan Vergiler" selected>Gelir Üzerinden Alınan Vergiler</option>
+            <option value="Kurumlar Vergisi">Kurumlar Vergisi</option>
+            <option value="Vergi Tekniği">Vergi Tekniği</option>
+            <option value="Revizyon">Revizyon</option>
+            <option value="Sermaye Piyasası Mevzuatı">Sermaye Piyasası Mevzuatı</option>
+            <option value="İleri Düzeyde Finansal Muhasebe">İleri Düzeyde Finansal Muhasebe</option>
+            <option value="Yönetim Muhasebesi">Yönetim Muhasebesi</option>
+            <option value="Dış Ticaret ve Kambiyo Mevzuatı">Dış Ticaret ve Kambiyo Mevzuatı</option>
+            <option value="Denetim, Raporlama ve Meslek Hukuku">Denetim, Raporlama ve Meslek Hukuku</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="ymmFocusInput" style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">Konu / Madde / Vaka Odağı (İsteğe Bağlı)</label>
+          <input id="ymmFocusInput" type="text" placeholder="Örn: İştirak kazançları, örtülü sermaye, transfer fiyatlandırması, tam tasdik..." />
+        </div>
+
+        <div class="two-col">
+          <select id="ymmFormatSelect">
+            <option value="Yazılı Vaka & Analiz" selected>Format: Yazılı Vaka</option>
+            <option value="Sayısal & Beyan/Muhasebe">Format: Sayısal & Kayıt</option>
+            <option value="Mevzuat Yorumu & İnceleme">Format: Yorum & İnceleme</option>
+          </select>
+          <div style="display:flex;align-items:center;justify-content:space-between;border:1px solid #cbd5e1;border-radius:13px;padding:4px 12px;background:#f8fafc;font-size:13px;">
+            <span style="font-weight:600;color:#334155;">PDF Soru Adedi</span>
+            <input id="ymmPdfCountInput" type="number" min="1" max="20" value="4" style="width:62px;min-height:34px;text-align:right;font-weight:700;padding:4px 6px;border-radius:9px;background:#ffffff;" />
+          </div>
+        </div>
+
+        <button id="generateYmmBtn" type="button" class="btn-amber" style="width:100%;">Yazılı Vaka Sorusu Üret (Ekranda Çalış)</button>
+
+        <div style="border-top:1px solid #f1f5f9;padding-top:14px;">
+          <button id="generateYmmPdfBtn" type="button" class="btn-emerald" style="width:100%;">
+            📥 YMM Yazılı Sınav PDF Seti Üret ve İndir
+          </button>
+          <p id="ymmPdfProgress" class="hidden" style="margin:8px 0 0;font-size:12px;font-weight:600;color:#92400e;line-height:1.45;"></p>
+        </div>
+      </div>
+
+      <div id="ymmQuestionCard" class="card-box">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+          <span id="ymmQuestionBadge" style="font-size:12px;font-weight:700;background:#fef3c7;color:#92400e;border:1px solid #fde68a;padding:4px 12px;border-radius:9999px;">YMM Yazılı Soru</span>
+          <span id="ymmSourceTag" style="font-size:11px;font-weight:600;color:#64748b;">Yazılı Sınav Formatı</span>
+        </div>
+
+        <p id="ymmQuestionText" style="margin:0;font-size:15px;font-weight:500;color:#0f172a;line-height:1.6;white-space:pre-line;">
+          YMM sınav dersini seçip yazılı vaka sorusu üretebilir veya PDF sınav seti indirebilirsiniz.
+        </p>
+
+        <div>
+          <label for="ymmDraftAnswerInput" style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">Sınav Yanıt Taslağınız (Kendi Notunuz / Hesaplamalarınız)</label>
+          <textarea id="ymmDraftAnswerInput" rows="5" placeholder="Kanun maddeleri, şartlar ve sayısal hesaplama adımlarınızı buraya yazabilirsiniz..."></textarea>
+        </div>
+
+        <button id="showYmmSolutionBtn" type="button" class="btn-dark" style="width:100%;">Model Çözümü ve Mevzuat Dayanağını Göster</button>
+
+        <div id="ymmSolutionBox" class="hidden" style="border-radius:14px;padding:15px;font-size:14px;line-height:1.6;background:#fffbeb;border:1px solid #fde68a;color:#451a03;"></div>
+      </div>
+    </section>
+
+    <!-- 5. SORU-CEVAP (SOHBET) SEKMESİ -->
     <section id="tab-sohbet" class="hidden">
       <div class="card-box">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;border-bottom:1px solid #f1f5f9;padding-bottom:12px;">
@@ -684,7 +778,7 @@
       </div>
     </section>
 
-    <!-- 5. HATA DEFTERİ SEKMESİ -->
+    <!-- 6. HATA DEFTERİ SEKMESİ -->
     <section id="tab-hatalar" class="hidden">
       <div class="card-box">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
@@ -700,7 +794,7 @@
       </div>
     </section>
 
-    <!-- 6. AYARLAR SEKMESİ -->
+    <!-- 7. AYARLAR SEKMESİ -->
     <section id="tab-ayarlar" class="hidden">
       <div class="card-box">
         <h2 class="section-heading" style="margin:0;">API ve Model Ayarları</h2>
@@ -719,6 +813,33 @@
         </div>
         <button id="saveSettingsBtn" type="button" class="btn-emerald-sm">Ayarları Telefona Kaydet</button>
         <p id="settingsStatus" class="hidden" style="margin:0;font-size:13px;font-weight:600;color:#047857;">Kaydedildi.</p>
+      </div>
+
+      <!-- AYRI YMM YAZILI SINAV ÖRNEK SORU HAVUZU -->
+      <div class="card-box" style="border:1.5px solid #fde68a;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <h2 class="section-heading" style="margin:0;color:#92400e;">YMM Yazılı Sınav Örnek Soru Havuzu</h2>
+          <span style="font-size:11px;font-weight:700;background:#fef3c7;color:#92400e;padding:3px 9px;border-radius:9999px;">YMM Alanı</span>
+        </div>
+        <p style="margin:0;font-size:13px;line-height:1.5;color:#475569;">
+          YMM yazılı sınav çıkmış sorularını veya vaka örneklerini (çoklu PDF veya metin) buraya yükleyin. YMM yazılı vaka ve PDF üretimi bu örnek formatı izler.
+        </p>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px dashed #fbbf24;background:#fffbeb;border-radius:14px;padding:12px;">
+          <span id="ymmPdfFileName" style="font-size:13px;color:#92400e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">YMM PDF seçilmedi</span>
+          <label style="background:#d97706;color:#ffffff;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;">
+            YMM PDF Yükle
+            <input id="ymmPdfFileInput" type="file" accept="application/pdf,.pdf" multiple class="hidden" />
+          </label>
+        </div>
+
+        <p id="ymmPoolStatus" class="hidden" style="margin:0;font-size:13px;"></p>
+
+        <textarea id="ymmPoolTextInput" rows="5" placeholder="YMM yazılı sınav örnek soruları, vakalar veya PDF'ten aktarılan metinler..."></textarea>
+        <div class="two-col">
+          <button id="saveYmmPoolBtn" type="button" style="min-height:44px;border:0;background:#b45309;color:#fff;border-radius:13px;padding:10px 14px;font-size:14px;font-weight:600;cursor:pointer;">YMM Havuzunu Kaydet</button>
+          <button id="clearYmmPoolBtn" type="button" style="min-height:44px;border:1px solid #cbd5e1;background:#fff;color:#e11d48;border-radius:13px;padding:10px 14px;font-size:14px;font-weight:600;cursor:pointer;">Temizle</button>
+        </div>
       </div>
 
       <!-- AYRI SMMM YETERLİLİK PDF / ÖRNEK SORU HAVUZU -->
@@ -791,22 +912,25 @@
   <nav id="bottomNav">
     <div class="bottom-nav-grid">
       <button id="nav-konu" type="button" data-tab="konu" onclick="window.__coreSwitchTab('konu')" class="flex flex-col items-center justify-center py-1 text-[10px] font-bold text-slate-900">
-        <span style="font-size:17px;line-height:1;">📘</span><span>Konu</span>
+        <span style="font-size:16px;line-height:1;">📘</span><span>Konu</span>
       </button>
       <button id="nav-soru" type="button" data-tab="soru" onclick="window.__coreSwitchTab('soru')" class="flex flex-col items-center justify-center py-1 text-[10px] font-medium text-slate-500">
-        <span style="font-size:17px;line-height:1;">✍️</span><span>Soru</span>
+        <span style="font-size:16px;line-height:1;">✍️</span><span>Soru</span>
       </button>
       <button id="nav-smmm" type="button" data-tab="smmm" onclick="window.__coreSwitchTab('smmm')" class="flex flex-col items-center justify-center py-1 text-[10px] font-medium text-slate-500">
-        <span style="font-size:17px;line-height:1;">🎓</span><span>SMMM Test</span>
+        <span style="font-size:16px;line-height:1;">🎓</span><span>SMMM</span>
+      </button>
+      <button id="nav-ymm" type="button" data-tab="ymm" onclick="window.__coreSwitchTab('ymm')" class="flex flex-col items-center justify-center py-1 text-[10px] font-medium text-slate-500">
+        <span style="font-size:16px;line-height:1;">🏛️</span><span>YMM</span>
       </button>
       <button id="nav-sohbet" type="button" data-tab="sohbet" onclick="window.__coreSwitchTab('sohbet')" class="flex flex-col items-center justify-center py-1 text-[10px] font-medium text-slate-500">
-        <span style="font-size:17px;line-height:1;">💬</span><span>Soru-Cevap</span>
+        <span style="font-size:16px;line-height:1;">💬</span><span>Soru-Cevap</span>
       </button>
       <button id="nav-hatalar" type="button" data-tab="hatalar" onclick="window.__coreSwitchTab('hatalar')" class="flex flex-col items-center justify-center py-1 text-[10px] font-medium text-slate-500">
-        <span style="font-size:17px;line-height:1;">📕</span><span>Hata Defteri</span>
+        <span style="font-size:16px;line-height:1;">📕</span><span>Hatalar</span>
       </button>
       <button id="nav-ayarlar" type="button" data-tab="ayarlar" onclick="window.__coreSwitchTab('ayarlar')" class="flex flex-col items-center justify-center py-1 text-[10px] font-medium text-slate-500">
-        <span style="font-size:17px;line-height:1;">⚙️</span><span>Ayarlar</span>
+        <span style="font-size:16px;line-height:1;">⚙️</span><span>Ayarlar</span>
       </button>
     </div>
   </nav>
