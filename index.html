@@ -42,9 +42,18 @@
   <main class="max-w-3xl mx-auto px-4 py-4 space-y-4">
     <section id="tab-konu" class="space-y-4">
       <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 space-y-3">
-        <label class="block text-xs font-semibold text-slate-500 uppercase">Çalışılacak Vergi Konusu</label>
-        <input id="topicInput" type="text" value="Kurumlar Vergisi - İştirak Kazançları İstisnası (KVK m. 5/1-a)"
+        <div class="flex items-center justify-between gap-2">
+          <label class="block text-xs font-semibold text-slate-500 uppercase">Çalışılacak Vergi Konusu</label>
+          <button id="randomGibTopicBtn" type="button" class="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold px-2.5 py-1 rounded-lg">
+            GİB Mevzuatından Rastgele Seç
+          </button>
+        </div>
+        <input id="topicInput" type="text" placeholder="Konu girin veya GİB mevzuatından rastgele seçin..."
           class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" />
+        <label class="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+          <input id="autoRandomOnGenerate" type="checkbox" checked class="rounded border-slate-300" />
+          <span>"Günün Konusunu ve Sorusunu Üret" basıldığında GİB mevzuatından otomatik rastgele kanun/konu seç</span>
+        </label>
         <div class="grid grid-cols-2 gap-2">
           <select id="difficultySelect" class="rounded-xl border border-slate-300 px-3 py-2.5 text-sm bg-white">
             <option value="Temel">Seviye: Temel</option>
@@ -63,14 +72,14 @@
 
       <div id="lessonCard" class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-3">
         <span class="inline-block text-xs font-semibold bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full">Günün Konu Özeti</span>
-        <h2 id="lessonTitle" class="text-lg font-bold text-slate-900">İştirak Kazançları İstisnası (KVK m. 5/1-a)</h2>
+        <h2 id="lessonTitle" class="text-lg font-bold text-slate-900">GİB Mevzuatı Çalışma Kartı</h2>
         <p id="lessonSummary" class="text-sm text-slate-700 leading-relaxed">
-          Tam mükellef kurumların, başka bir tam mükellef kuruma iştiraklerinden elde ettikleri kâr payları kurumlar vergisinden istisnadır.
+          GİB mevzuat havuzundan seçilen kanun ve konu başlığına göre özet, kritik ayrım ve vaka sorusu üretmek için butona basın.
         </p>
         <div id="lessonCritical" class="bg-amber-50 border-l-4 border-amber-400 p-3 rounded-r-xl text-sm text-amber-950">
-          <strong>Kritik Ayrım:</strong> Fon ve yatırım ortaklıklarının katılım payları/hisselerinden elde edilen kâr paylarında istisna şartları kanundaki özel hükümlere tabidir.
+          <strong>Kritik Ayrım:</strong> Kanuni istisna, matrah, beyan, sorumluluk ve zamanaşımı ayrım noktaları burada özetlenir.
         </div>
-        <p id="lessonBasis" class="text-xs text-slate-500 pt-1 border-t border-slate-100">Dayanak: 5520 sayılı KVK Madde 5/1-a</p>
+        <p id="lessonBasis" class="text-xs text-slate-500 pt-1 border-t border-slate-100">Dayanak: gib.gov.tr Mevzuat</p>
       </div>
 
       <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 space-y-2">
@@ -95,7 +104,7 @@
           </div>
         </div>
         <p id="questionText" class="text-base font-medium text-slate-900 leading-relaxed">
-          Tam mükellef (X) A.Ş., tam mükellef (Y) A.Ş.'nin sermayesine iştirak etmekte ve (Y) A.Ş.'den nakit kâr payı almaktadır. Bu kazancın kurumlar vergisi karşısındaki durumu nedir?
+          Yeni soru üretmek için "Yeni Soru Üret" butonuna basın veya Konu sekmesinden GİB mevzuatından rastgele bir konu seçin.
         </p>
         <div id="optionsContainer" class="space-y-2.5"></div>
         <button id="checkAnswerBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl text-sm transition">
@@ -174,7 +183,7 @@
         </div>
 
         <div class="flex gap-2">
-          <input id="lawUrlInput" type="url" placeholder="Mevzuat veya tebliğ bağlantısı (https://...)"
+          <input id="lawUrlInput" type="url" placeholder="Mevzuat veya tebliğ bağlantısı (https://www.gib.gov.tr/...)"
             class="flex-1 rounded-xl border border-slate-300 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-slate-800" />
           <button id="fetchUrlBtn" type="button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-3 py-2 rounded-xl text-xs shrink-0">
             Linkten Çek
