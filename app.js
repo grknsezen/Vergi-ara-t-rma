@@ -381,18 +381,33 @@ function startTimerIfConfigured() {
   timerInterval = setInterval(tick, 1000);
 }
 
-async function callGemini(promptText, expectJson = false) {
+function buildStrictTaxAdvisorInstruction() {
+  const lawText = (localStorage.getItem(STORAGE_KEYS.lawText) || "").trim();
+  const activeTopic = (document.getElementById("topicInput")?.value || "").trim();
+  const todayStr = new Date().toLocaleDateString("tr-TR");
+
+  const honestyGuardrail = [
+    "KESİN DOĞRULUK VE UYDURMAMA KURALI:",
+    "- Asla kanun maddesi, tebliğ numarası, özelge, yargı kararı, oran, tutar veya süre uydurma; emin olmadığın hiçbir bilgiyi kesinmiş gibi sunma.",
+    "- Mevzuat Havuzu'nda kaynak metin verilmişse öncelikle o metindeki hükümlere sadık kal; metinde yer almayan veya belirsiz kalan noktalarda 'Mevzuat Havuzu'nda yer almıyor / teyit edilmelidir' diye açıkça belirt.",
+    "- Güncel/dönemsel tutar, had, oran veya sonradan değişmiş olabilecek düzenlemeler konusunda tam kesinlik yoksa veya güncel Resmî Gazete/GİB teyidi gerekiyorsa tahmin yürütme; ilgili kanun/madde mantığını açıklayıp güncel teyit gerektirdiğini net yaz.",
+    `- Bugünün tarihi: ${todayStr}. Aktif çalışma kanunu: ${activeTopic || "Belirtilmedi"}.`
+  ].join("\n");
+
+  if (lawText) {
+    return `Sen Türk vergi mevzuatı alanında çalışan kıdemli bir danışman ve çalışma rehberisin.\n${honestyGuardrail}\n\nÖNCELİKLİ MEVZUAT KAYNAĞI:\n${lawText}\n\n`;
+  }
+  return `Sen Türk vergi mevzuatı alanında çalışan kıdemli bir danışman ve çalışma rehberisin.\n${honestyGuardrail}\n\n`;
+}
+
+async function callGemini(promptText, expectJson = false, customPrefix = "") {
   const apiKey = (localStorage.getItem(STORAGE_KEYS.apiKey) || "").trim();
   const model = localStorage.getItem(STORAGE_KEYS.model) || "gemini-3.8-flash";
-  const lawText = (localStorage.getItem(STORAGE_KEYS.lawText) || "").trim();
   if (!apiKey) throw new Error("API anahtarı kayıtlı değil. Ayarlar sekmesinden ekleyin.");
 
-  const systemRule = lawText
-    ? `Türk vergi mevzuatı uzmanı olarak yanıt ver. Şu mevzuat metnini öncelikli kaynak al:\n${lawText}\n\n`
-    : "Türk vergi mevzuatı uzmanı olarak net, dayanaklı ve sınav/uygulama odaklı yanıt ver.\n\n";
-
+  const prefix = customPrefix || buildStrictTaxAdvisorInstruction();
   const body = {
-    contents: [{ role: "user", parts: [{ text: systemRule + promptText }] }]
+    contents: [{ role: "user", parts: [{ text: prefix + promptText }] }]
   };
   if (expectJson) {
     body.generationConfig = { responseMimeType: "application/json" };
@@ -453,7 +468,7 @@ async function generateLessonAndQuestion(onlyQuestion = false) {
 
   try {
     const prompt = `Kaynak bağlam: gib.gov.tr mevzuatı | Seçilen Kanun: "${topic}" | Zorluk: "${difficulty}".
-Bu kanun kapsamından önemli bir konu veya vaka seçerek konu özeti, kritik ayrım ve 4 şıklı çoktan seçmeli soru üret.
+Bu kanun kapsamından önemli bir konu veya vaka seçerek konu özeti, kritik ayrım ve 4 şıklı çoktan seçmeli soru üret. Uydurma kanun maddesi veya uydurma oran kullanma.
 Yalnızca şu şemada tek bir JSON nesnesi döndür (iç metinlerde çift tırnak yerine tek tırnak kullan):
 {
   "lessonTitle": "...",
@@ -557,31 +572,103 @@ function checkAnswer() {
   renderMistakes();
 }
 
-function appendChatMessage(role, text) {
+function appendUserChatMessage(text) {
   const wrap = document.getElementById("chatMessages");
   const div = document.createElement("div");
-  div.className = role === "user"
-    ? "bg-slate-900 text-white rounded-xl p-3 text-sm ml-8"
-    : "bg-slate-100 text-slate-800 rounded-xl p-3 text-sm mr-8 whitespace-pre-line";
+  div.className = "rounded-2xl bg-slate-950 text-white px-4 py-3 text-sm ml-8 shadow-sm";
   div.textContent = text;
   wrap.appendChild(div);
   wrap.scrollTop = wrap.scrollHeight;
 }
 
-async function handleChatSend() {
+function createAssistantChatCard() {
+  const wrap = document.getElementById("chatMessages");
+  const card = document.createElement("div");
+  card.className = "rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-800 mr-4 space-y-3 shadow-xs";
+  card.innerHTML = `
+    <div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
+      <span class="text-[11px] font-bold uppercase tracking-wider text-indigo-700">Mevzuat Değerlendirmesi</span>
+      <span class="text-[11px] text-slate-400">Analiz</span>
+    </div>
+    <p class="text-slate-600 text-xs">Mevzuat bağlantıları ve yorum hazırlanıyor...</p>
+  `;
+  wrap.appendChild(card);
+  wrap.scrollTop = wrap.scrollHeight;
+  return card;
+}
+
+function renderStructuredAdvisorCard(card, data) {
+  const bulletsHtml = (items) => {
+    const arr = Array.isArray(items) && items.length ? items : ["Bu başlık için ayrıca teyit edilmesi gereken özel bir bağlantı belirtilmemiştir."];
+    return `<ul class="list-disc pl-4 space-y-1 text-xs text-slate-700 leading-relaxed">${arr.map((i) => `<li>${escapeHtml(i)}</li>`).join("")}</ul>`;
+  };
+
+  const cautionBlock = data.caution
+    ? `<div class="rounded-xl border border-amber-200 bg-amber-50/90 p-3 text-xs text-amber-950 leading-relaxed">
+         <strong class="font-bold">Teyit / Sınır Notu:</strong> ${escapeHtml(data.caution)}
+       </div>`
+    : "";
+
+  card.innerHTML = `
+    <div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
+      <span class="text-[11px] font-bold uppercase tracking-wider text-indigo-700">Mevzuat Değerlendirmesi</span>
+      <span class="text-[11px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">Kaynak Kontrollü</span>
+    </div>
+    <div class="space-y-1">
+      <h4 class="text-xs font-bold uppercase tracking-wide text-slate-900">1. Mevzuat Yorumu</h4>
+      <p class="text-xs text-slate-700 leading-relaxed whitespace-pre-line">${escapeHtml(data.comment || "")}</p>
+    </div>
+    <div class="space-y-1 pt-1 border-t border-slate-100">
+      <h4 class="text-xs font-bold uppercase tracking-wide text-slate-900">2. Kanunlar Arası Bağlantılar</h4>
+      ${bulletsHtml(data.crossLawLinks)}
+    </div>
+    <div class="space-y-1 pt-1 border-t border-slate-100">
+      <h4 class="text-xs font-bold uppercase tracking-wide text-slate-900">3. Sizi Yönlendiren Adımlar</h4>
+      ${bulletsHtml(data.guidance)}
+    </div>
+    ${cautionBlock}
+  `;
+}
+
+async function handleChatSend(overrideQuestion = "") {
   const input = document.getElementById("chatInput");
-  const q = input.value.trim();
+  const q = String(overrideQuestion || input.value || "").trim();
   if (!q) return;
-  input.value = "";
-  appendChatMessage("user", q);
-  appendChatMessage("assistant", "Yanıt hazırlanıyor...");
-  const loadingBubble = document.getElementById("chatMessages").lastChild;
+  if (!overrideQuestion) input.value = "";
+
+  appendUserChatMessage(q);
+  const card = createAssistantChatCard();
+  const wrap = document.getElementById("chatMessages");
+  wrap.scrollTop = wrap.scrollHeight;
+
+  const advisorPrompt = `Kullanıcı sorusu / vakası: "${q}"
+
+Görevlerin:
+1. "comment": Mevzuat yorumu yap. Kesin hükümleri net açıkla; uydurma kanun maddesi, uydurma oran/tutar veya kesin olmayan yargı üretme.
+2. "crossLawLinks": İlgili kanunlar arasındaki somut bağlantıları madde/kavram düzeyinde listele (örneğin KVK, GVK, KDV, VUK, 6183 sayılı Kanun, Damga Vergisi veya Harçlar arasındaki istisna/indirim/matrah/sorumluluk/zamanaşımı ilişkileri; yalnızca gerçek ve emin olunan bağlantıları yaz).
+3. "guidance": Kullanıcıyı bir sonraki adımda neyi kontrol etmesi, hangi ayrımı netleştirmesi veya hangi soruyu/kaynağı incelemesi gerektiği konusunda somut ve yönlendirici maddelerle yönlendir.
+4. "caution": Eğer soruda güncel/dönemsel had-oran-tebliğ teyidi gerekiyorsa, Mevzuat Havuzu'nda kaynak eksikse veya belirsizlik varsa bunu açıkça yaz; her şey netse boş bırak "".
+
+Yalnızca şu JSON şemasında yanıt ver (iç metinlerde çift tırnak yerine tek tırnak kullan):
+{
+  "comment": "...",
+  "crossLawLinks": ["...", "..."],
+  "guidance": ["...", "..."],
+  "caution": "..."
+}`;
 
   try {
-    const answer = await callGemini(q, false);
-    loadingBubble.textContent = answer;
+    const raw = await callGemini(advisorPrompt, true);
+    const parsed = parseJsonLoose(raw);
+    renderStructuredAdvisorCard(card, parsed);
   } catch (err) {
-    loadingBubble.textContent = "Hata: " + err.message;
+    card.innerHTML = `
+      <div class="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-900">
+        <strong>Hata:</strong> ${escapeHtml(err.message)}
+      </div>
+    `;
+  } finally {
+    wrap.scrollTop = wrap.scrollHeight;
   }
 }
 
@@ -668,14 +755,30 @@ document.querySelectorAll(".preset-btn").forEach((btn) => {
   };
 });
 
+document.querySelectorAll(".chat-quick-btn").forEach((btn) => {
+  btn.onclick = () => {
+    const prompt = btn.dataset.prompt || "";
+    if (prompt) handleChatSend(prompt);
+  };
+});
+
 document.getElementById("generateBtn").onclick = () => generateLessonAndQuestion(false);
 document.getElementById("newQuestionBtn").onclick = () => generateLessonAndQuestion(true);
 document.getElementById("wrongQuizBtn").onclick = startWrongQuiz;
 document.getElementById("checkAnswerBtn").onclick = checkAnswer;
-document.getElementById("sendChatBtn").onclick = handleChatSend;
+document.getElementById("sendChatBtn").onclick = () => handleChatSend();
 document.getElementById("chatInput").onkeydown = (e) => { if (e.key === "Enter") handleChatSend(); };
 document.getElementById("clearChatBtn").onclick = () => {
-  document.getElementById("chatMessages").innerHTML = `<div class="bg-slate-100 rounded-xl p-3 text-sm text-slate-700">Sohbet temizlendi. Yeni sorunuzu yazabilirsiniz.</div>`;
+  document.getElementById("chatMessages").innerHTML = `
+    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 space-y-2">
+      <div class="flex items-center justify-between gap-2">
+        <span class="text-[11px] font-bold uppercase tracking-wider text-slate-800">Mevzuat Analiz Asistanı</span>
+        <span class="text-[11px] text-emerald-700 font-semibold">Kanıta Dayalı Mod</span>
+      </div>
+      <p class="leading-relaxed">
+        Sohbet temizlendi. Sorunuzu <strong>Mevzuat Yorumu</strong>, <strong>Kanunlar Arası Bağlantı</strong> ve <strong>Yönlendirme</strong> başlıklarıyla yanıtlarım.
+      </p>
+    </div>`;
 };
 document.getElementById("mistakeFilter").onchange = renderMistakes;
 document.getElementById("clearMistakesBtn").onclick = () => {
