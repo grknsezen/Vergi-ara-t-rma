@@ -11,8 +11,18 @@ const STORAGE_KEYS = {
 const MAX_LAW_CHARS = 200000;
 const IDB_NAME = "VergiAsistaniDB";
 const IDB_STORE = "kv";
+const FALLBACK_MODELS = [
+  "gemini-3.8-flash",
+  "gemini-3.5-flash-lite",
+  "gemini-4-neon",
+  "gemini-4-hydrogen"
+];
 
 window.__memStore = window.__memStore || {};
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function openIdb() {
   return new Promise((resolve, reject) => {
@@ -825,8 +835,13 @@ function buildStrictTaxAdvisorInstruction() {
 
 async function callGemini(promptText, expectJson = false, customPrefix = "") {
   const apiKey = safeGetStorage(STORAGE_KEYS.apiKey, "").trim();
-  const model = safeGetStorage(STORAGE_KEYS.model, "gemini-3.8-flash");
+  const preferredModel = safeGetStorage(STORAGE_KEYS.model, "gemini-3.8-flash").trim() || "gemini-3.8-flash";
   if (!apiKey) throw new Error("API anahtarı kayıtlı değil. Ayarlar sekmesinden ekleyin.");
+
+  const candidateModels = [
+    preferredModel,
+    ...FALLBACK_MODELS.filter((m) => m !== preferredModel)
+  ];
 
   const prefix = customPrefix !== "" ? customPrefix : buildStrictTaxAdvisorInstruction();
   const body = {
@@ -836,19 +851,62 @@ async function callGemini(promptText, expectJson = false, customPrefix = "") {
     body.generationConfig = { responseMimeType: "application/json" };
   }
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body)
-  });
+  let lastError = null;
 
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data?.error?.message || `HTTP ${res.status}`);
+  for (let mIdx = 0; mIdx < candidateModels.length; mIdx += 1) {
+    const model = candidateModels[mIdx];
+    const maxRetries = mIdx === 0 ? 3 : 2;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          const msg = data?.error?.message || `HTTP ${res.status}`;
+          const isTransient =
+            res.status === 429 ||
+            res.status === 500 ||
+            res.status === 502 ||
+            res.status === 503 ||
+            res.status === 504 ||
+            /high demand|overloaded|temporarily unavailable|try again/i.test(msg);
+
+          lastError = new Error(msg);
+          if (isTransient && attempt < maxRetries) {
+            await sleep(1500 * attempt);
+            continue;
+          }
+          if (isTransient) {
+            break;
+          }
+          throw lastError;
+        }
+
+        const parts = data?.candidates?.[0]?.content?.parts || [];
+        return parts.map((p) => p.text || "").join("\n").trim();
+      } catch (err) {
+        const msg = String(err?.message || "");
+        const isTransient = /high demand|overloaded|temporarily unavailable|network|failed to fetch|429|503/i.test(msg);
+        lastError = err;
+        if (isTransient && attempt < maxRetries) {
+          await sleep(1500 * attempt);
+          continue;
+        }
+        if (isTransient) {
+          break;
+        }
+        throw err;
+      }
+    }
   }
-  const parts = data?.candidates?.[0]?.content?.parts || [];
-  return parts.map((p) => p.text || "").join("\n").trim();
+
+  throw lastError || new Error("Model şu anda yoğun, lütfen tekrar deneyin.");
 }
 
 function parseJsonLoose(raw) {
@@ -1107,7 +1165,6 @@ Yalnızca şu JSON nesnesini döndür:
   }).filter((q) => q.question.length > 0);
 }
 
-// Türkçe karakterleri destekleyecek şekilde sayfa görüntüsü çizip gerçek .pdf dosyasına gömer
 function renderExamPagesToPdf(allQuestions, meta) {
   if (!window.jspdf || !window.jspdf.jsPDF) {
     throw new Error("PDF oluşturucu kütüphanesi yüklenemedi. İnternet bağlantınızı kontrol edin.");
@@ -1118,7 +1175,6 @@ function renderExamPagesToPdf(allQuestions, meta) {
   const pdfW = pdf.internal.pageSize.getWidth();
   const pdfH = pdf.internal.pageSize.getHeight();
 
-  // Yüksek çözünürlüklü A4 canvas (595.28 x 841.89 pt -> 2.5x ölçek)
   const scale = 2.5;
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(pdfW * scale);
@@ -1140,7 +1196,7 @@ function renderExamPagesToPdf(allQuestions, meta) {
     pdf.addImage(imgData, "JPEG", 0, 0, pdfW, pdfH);
   };
 
-  const startNewPage = (headerTitle, isFirstPage) => {
+  const startNewPage = (headerTitle) => {
     if (hasDrawnOnPage) {
       flushPage(pageNum === 1);
       pageNum += 1;
@@ -1148,7 +1204,6 @@ function renderExamPagesToPdf(allQuestions, meta) {
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Üst sınav başlığı şeridi
     ctx.fillStyle = "#0f172a";
     ctx.fillRect(marginX, 24 * scale, contentW, 28 * scale);
     ctx.fillStyle = "#ffffff";
@@ -1182,7 +1237,7 @@ function renderExamPagesToPdf(allQuestions, meta) {
   };
 
   const mainTitle = `SMMM YETERLİLİK TEST SETİ — ${meta.subject.toLocaleUpperCase("tr-TR")}`;
-  startNewPage(mainTitle, true);
+  startNewPage(mainTitle);
 
   ctx.fillStyle = "#334155";
   ctx.font = `${10.5 * scale}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
@@ -1208,7 +1263,7 @@ function renderExamPagesToPdf(allQuestions, meta) {
     const blockHeight = (qLines.length * 16 + totalOptLines * 15 + 18) * scale;
 
     if (cursorY + blockHeight > bottomLimit) {
-      startNewPage(mainTitle, false);
+      startNewPage(mainTitle);
     }
 
     ctx.fillStyle = "#0f172a";
@@ -1231,8 +1286,7 @@ function renderExamPagesToPdf(allQuestions, meta) {
     cursorY += 12 * scale;
   });
 
-  // Cevap Anahtarı ve Çözümler Bölümü
-  startNewPage("CEVAP ANAHTARI VE AÇIKLAMALI ÇÖZÜMLER", false);
+  startNewPage("CEVAP ANAHTARI VE AÇIKLAMALI ÇÖZÜMLER");
 
   const keyFont = `bold ${11 * scale}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
   const solFont = `${10.5 * scale}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
@@ -1243,7 +1297,7 @@ function renderExamPagesToPdf(allQuestions, meta) {
     const needed = (16 + solLines.length * 14 + 12) * scale;
 
     if (cursorY + needed > bottomLimit) {
-      startNewPage("CEVAP ANAHTARI VE AÇIKLAMALI ÇÖZÜMLER", false);
+      startNewPage("CEVAP ANAHTARI VE AÇIKLAMALI ÇÖZÜMLER");
     }
 
     ctx.fillStyle = "#047857";
