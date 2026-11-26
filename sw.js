@@ -1,4 +1,4 @@
-const CACHE_NAME = "vergi-asistani-v32";
+const CACHE_NAME = "vergi-asistani-v33";
 const ASSETS = ["./", "./index.html", "./app.js", "./manifest.json"];
 
 self.addEventListener("install", (event) => {
