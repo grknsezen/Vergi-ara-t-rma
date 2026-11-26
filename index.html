@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#0f172a" />
+  <meta name="theme-color" content="#0b1120" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Vergi Asistanı" />
@@ -12,107 +12,139 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <style>
-    body { -webkit-tap-highlight-color: transparent; padding-bottom: 92px; }
+    body {
+      -webkit-tap-highlight-color: transparent;
+      padding-bottom: 96px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
     .safe-top { padding-top: env(safe-area-inset-top, 12px); }
     .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 10px); }
   </style>
 </head>
-<body class="bg-slate-100 text-slate-900 min-h-screen">
+<body class="bg-slate-100 text-slate-900 min-h-screen antialiased">
   <div id="updateBanner" class="hidden bg-emerald-600 text-white px-4 py-2.5 text-xs flex items-center justify-between gap-2 sticky top-0 z-30">
     <span>Yeni sürüm hazır. Güncellemek için dokunun.</span>
     <button id="reloadUpdateBtn" class="bg-white text-emerald-700 font-semibold px-3 py-1 rounded-lg">Yenile</button>
   </div>
 
-  <header class="bg-slate-900 text-white safe-top sticky top-0 z-20 shadow">
+  <header class="bg-slate-950 text-white safe-top sticky top-0 z-20 border-b border-slate-800/90">
     <div class="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
       <div class="min-w-0">
-        <h1 class="text-base font-bold truncate">Vergi Araştırma Asistanı</h1>
-        <p id="modeBadge" class="text-[11px] text-amber-400 truncate">Demo Modu (Ayarlardan API Anahtarı Ekleyin)</p>
+        <div class="flex items-center gap-2">
+          <span class="inline-block w-2 h-2 rounded-full bg-amber-400 shrink-0"></span>
+          <h1 class="text-base font-bold tracking-tight truncate">Vergi Araştırma Asistanı</h1>
+        </div>
+        <p id="modeBadge" class="text-[11px] text-amber-400 truncate mt-0.5">Demo Modu (Ayarlardan API Anahtarı Ekleyin)</p>
       </div>
       <div class="flex items-center gap-2 shrink-0">
-        <span id="netBadge" class="text-[11px] px-2 py-1 rounded-full border flex items-center gap-1.5 bg-emerald-950/70 text-emerald-300 border-emerald-700/60">
+        <span id="netBadge" class="text-[11px] px-2.5 py-1 rounded-full border flex items-center gap-1.5 bg-emerald-950/70 text-emerald-300 border-emerald-700/60">
           <span id="netDot" class="w-2 h-2 rounded-full bg-emerald-400"></span>
           <span id="netText">Çevrimiçi</span>
         </span>
-        <span id="scoreBadge" class="text-xs bg-slate-800 px-2.5 py-1 rounded-full border border-slate-700">Doğru: 0 / 0</span>
+        <span id="scoreBadge" class="text-xs font-semibold bg-slate-900 text-slate-200 px-2.5 py-1 rounded-full border border-slate-800">0 / 0</span>
       </div>
     </div>
   </header>
 
   <main class="max-w-3xl mx-auto px-4 py-4 space-y-4">
     <section id="tab-konu" class="space-y-4">
-      <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 space-y-3">
-        <div class="flex items-center justify-between gap-2 flex-wrap">
-          <label class="block text-xs font-semibold text-slate-500 uppercase">Çalışılacak Kanun / Mevzuat</label>
-          <div class="flex items-center gap-1.5">
-            <button id="toggleLawPickerBtn" type="button" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold px-2.5 py-1 rounded-lg">
-              Mevzuat Seç
-            </button>
-            <button id="randomGibTopicBtn" type="button" class="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold px-2.5 py-1 rounded-lg">
-              Rastgele Seç
-            </button>
+      <div class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200/90 space-y-4">
+        <div class="flex items-center justify-between gap-2">
+          <div>
+            <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Mevzuat Kontrol Merkezi</span>
+            <h2 class="text-sm font-bold text-slate-900">Çalışılacak Kanun ve Seçim Modu</h2>
           </div>
+          <span id="activeSelectionBadge" class="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200/80 shrink-0">
+            Rastgele Mod
+          </span>
         </div>
 
-        <div id="lawPickerPanel" class="hidden rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
+        <!-- Belirgin Mevzuat Seç ve Rastgele Seç Kontrol Alanı -->
+        <div class="grid grid-cols-2 gap-2.5">
+          <button id="toggleLawPickerBtn" type="button"
+            class="group flex items-center justify-center gap-2 rounded-xl border-2 border-slate-900 bg-slate-900 hover:bg-slate-800 active:scale-[0.99] text-white font-semibold px-3.5 py-3 text-sm shadow-sm transition">
+            <span class="text-base leading-none">📚</span>
+            <span>Mevzuat Seç</span>
+          </button>
+          <button id="randomGibTopicBtn" type="button"
+            class="group flex items-center justify-center gap-2 rounded-xl border-2 border-indigo-600 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white font-semibold px-3.5 py-3 text-sm shadow-sm transition">
+            <span class="text-base leading-none">🎲</span>
+            <span>Rastgele Seç</span>
+          </button>
+        </div>
+
+        <div id="lawPickerPanel" class="hidden rounded-2xl border border-slate-200 bg-slate-50 p-3.5 space-y-2.5 shadow-inner">
           <div class="flex items-center justify-between">
-            <span class="text-xs font-semibold text-slate-700">GİB Mevzuatı Kanunları</span>
-            <button id="closeLawPickerBtn" type="button" class="text-xs text-slate-500 hover:text-slate-800">Kapat</button>
+            <span class="text-xs font-bold uppercase tracking-wide text-slate-700">GİB Mevzuatı Kanun Listesi</span>
+            <button id="closeLawPickerBtn" type="button" class="text-xs font-semibold text-slate-500 hover:text-slate-900 px-2 py-0.5 rounded bg-white border border-slate-200">
+              Kapat
+            </button>
           </div>
-          <input id="lawSearchInput" type="text" placeholder="Kanun no veya adı ile filtrele (örn: 5520, KDV, Harçlar)..."
-            class="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-slate-800" />
-          <select id="gibTopicSelect" size="7" class="w-full rounded-xl border border-slate-300 bg-white p-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-800"></select>
-          <p class="text-[11px] text-slate-500">Bir kanun seçtiğinizde kutuya yazılır ve otomatik rastgele seçim kapatılır; isterseniz tekrar açabilirsiniz.</p>
+          <input id="lawSearchInput" type="text" placeholder="Kanun numarası veya adına göre ara (ör: 193, 213, 3065, 5520, Harçlar)..."
+            class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900" />
+          <select id="gibTopicSelect" size="7" class="w-full rounded-xl border border-slate-300 bg-white p-2 text-xs text-slate-800 leading-relaxed focus:outline-none focus:ring-2 focus:ring-slate-900"></select>
+          <p class="text-[11px] text-slate-500">
+            Listeden bir kanun seçtiğinizde alan güncellenir ve otomatik rastgele seçim kapatılır. Yeniden rastgele seçim yapmak için <strong>Rastgele Seç</strong> butonuna basın.
+          </p>
         </div>
 
-        <input id="topicInput" type="text" placeholder="Kanun girin, listeden seçin veya rastgele seçin..."
-          class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" />
-        <label class="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
-          <input id="autoRandomOnGenerate" type="checkbox" checked class="rounded border-slate-300" />
-          <span>"Günün Konusunu ve Sorusunu Üret" basıldığında GİB kanunları arasından otomatik rastgele kanun seç</span>
+        <div class="space-y-1.5">
+          <label for="topicInput" class="block text-xs font-semibold text-slate-600">Seçili Kanun Başlığı</label>
+          <input id="topicInput" type="text" placeholder="Kanun girin, Mevzuat Seç ile listeleyin veya Rastgele Seç kullanın..."
+            class="w-full rounded-xl border border-slate-300 bg-slate-50/60 focus:bg-white px-3.5 py-2.5 text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900" />
+        </div>
+
+        <label class="flex items-center gap-2.5 rounded-xl bg-slate-50 border border-slate-200/80 px-3 py-2.5 text-xs text-slate-700 cursor-pointer">
+          <input id="autoRandomOnGenerate" type="checkbox" checked class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600" />
+          <span>Üret butonuna basıldığında GİB kanunları arasından otomatik rastgele yeni kanun seç</span>
         </label>
-        <div class="grid grid-cols-2 gap-2">
-          <select id="difficultySelect" class="rounded-xl border border-slate-300 px-3 py-2.5 text-sm bg-white">
+
+        <div class="grid grid-cols-2 gap-2.5">
+          <select id="difficultySelect" class="rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-medium bg-white text-slate-800">
             <option value="Temel">Seviye: Temel</option>
             <option value="Vaka" selected>Seviye: Vaka</option>
             <option value="Sınav Düzeyi">Seviye: Sınav Düzeyi</option>
           </select>
-          <label class="flex items-center justify-between rounded-xl border border-slate-300 px-3 py-2.5 text-sm bg-slate-50">
-            <span>Süre (dk)</span>
-            <input id="timerMinutes" type="number" min="0" max="120" value="0" class="w-14 text-right font-semibold bg-white border border-slate-300 rounded px-1.5 py-0.5" />
+          <label class="flex items-center justify-between rounded-xl border border-slate-300 px-3 py-2.5 text-sm bg-slate-50 text-slate-700">
+            <span class="font-medium">Süre (dk)</span>
+            <input id="timerMinutes" type="number" min="0" max="120" value="0" class="w-14 text-right font-bold text-slate-900 bg-white border border-slate-300 rounded-md px-1.5 py-0.5" />
           </label>
         </div>
-        <button id="generateBtn" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold py-3 rounded-xl text-sm transition">
+
+        <button id="generateBtn" class="w-full bg-emerald-700 hover:bg-emerald-800 active:scale-[0.99] text-white font-semibold py-3.5 rounded-xl text-sm shadow-sm transition">
           Günün Konusunu ve Sorusunu Üret
         </button>
       </div>
 
-      <div id="lessonCard" class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-3">
-        <span class="inline-block text-xs font-semibold bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full">Günün Konu Özeti</span>
+      <div id="lessonCard" class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/90 space-y-3">
+        <div class="flex items-center justify-between gap-2">
+          <span class="inline-block text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 px-2.5 py-1 rounded-full">Günün Konu Özeti</span>
+          <span class="text-[11px] font-medium text-slate-400">Mevzuat Kartı</span>
+        </div>
         <h2 id="lessonTitle" class="text-lg font-bold text-slate-900">GİB Mevzuatı Çalışma Kartı</h2>
         <p id="lessonSummary" class="text-sm text-slate-700 leading-relaxed">
           GİB mevzuatındaki kanunlardan seçilen veya sizin belirlediğiniz kanuna göre konu özeti, kritik ayrım ve vaka sorusu üretmek için butona basın.
         </p>
-        <div id="lessonCritical" class="bg-amber-50 border-l-4 border-amber-400 p-3 rounded-r-xl text-sm text-amber-950">
+        <div id="lessonCritical" class="bg-amber-50/90 border border-amber-200/90 border-l-4 border-l-amber-500 p-3.5 rounded-r-xl text-sm text-amber-950">
           <strong>Kritik Ayrım:</strong> Kanuni istisna, matrah, beyan, sorumluluk ve zamanaşımı ayrım noktaları burada özetlenir.
         </div>
-        <p id="lessonBasis" class="text-xs text-slate-500 pt-1 border-t border-slate-100">Dayanak: gib.gov.tr Mevzuat</p>
+        <p id="lessonBasis" class="text-xs text-slate-500 pt-2 border-t border-slate-100">Dayanak: gib.gov.tr Mevzuat</p>
       </div>
 
-      <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 space-y-2">
+      <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/90 space-y-2">
         <div class="flex items-center justify-between">
-          <h3 class="text-xs font-bold text-slate-500 uppercase">Kanun Performans Özeti</h3>
-          <button id="resetStatsBtn" class="text-xs text-rose-600 hover:underline">Sıfırla</button>
+          <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider">Kanun Performans Özeti</h3>
+          <button id="resetStatsBtn" class="text-xs font-medium text-rose-600 hover:underline">Sıfırla</button>
         </div>
         <div id="topicStatsList" class="text-sm text-slate-600">Henüz soru çözülmedi. Soru çözdükçe kanun bazlı doğru/yanlış dağılımı burada görünecek.</div>
       </div>
     </section>
 
     <section id="tab-soru" class="hidden space-y-4">
-      <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-4">
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/90 space-y-4">
         <div class="flex items-center justify-between gap-2 flex-wrap">
           <div class="flex items-center gap-2">
-            <span id="questionBadge" class="text-xs font-semibold bg-indigo-100 text-indigo-800 px-2.5 py-1 rounded-full">Günün Vaka Sorusu</span>
+            <span id="questionBadge" class="text-xs font-semibold bg-indigo-50 text-indigo-800 border border-indigo-200 px-2.5 py-1 rounded-full">Günün Vaka Sorusu</span>
             <span id="timerDisplay" class="hidden text-xs font-bold bg-rose-100 text-rose-800 px-2.5 py-1 rounded-full">00:00</span>
           </div>
           <div class="flex items-center gap-2">
@@ -132,7 +164,7 @@
     </section>
 
     <section id="tab-sohbet" class="hidden space-y-4">
-      <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 space-y-3">
+      <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/90 space-y-3">
         <div class="flex items-center justify-between">
           <h2 class="text-sm font-bold text-slate-800">Vergi Mevzuatı Soru-Cevap</h2>
           <button id="clearChatBtn" class="text-xs text-slate-500 hover:text-slate-800">Sohbeti Temizle</button>
@@ -144,14 +176,14 @@
         </div>
         <div class="flex gap-2">
           <input id="chatInput" type="text" placeholder="Örn: KVK 5/1-e taşınmaz istisnası şartları nelerdir?"
-            class="flex-1 rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" />
+            class="flex-1 rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" />
           <button id="sendChatBtn" class="bg-slate-900 text-white px-4 py-2.5 rounded-xl text-sm font-semibold">Gönder</button>
         </div>
       </div>
     </section>
 
     <section id="tab-hatalar" class="hidden space-y-4">
-      <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 space-y-3">
+      <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/90 space-y-3">
         <div class="flex items-center justify-between gap-2 flex-wrap">
           <h2 class="text-sm font-bold text-slate-800">Hata Defteri</h2>
           <div class="flex items-center gap-2">
@@ -168,7 +200,7 @@
     </section>
 
     <section id="tab-ayarlar" class="hidden space-y-4">
-      <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 space-y-3">
+      <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/90 space-y-3">
         <h2 class="text-sm font-bold text-slate-800">API ve Model Ayarları</h2>
         <div>
           <label class="block text-xs font-semibold text-slate-500 mb-1">Gemini API Anahtarı</label>
@@ -189,7 +221,7 @@
         <p id="settingsStatus" class="text-xs text-emerald-700 font-medium hidden">Kaydedildi.</p>
       </div>
 
-      <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 space-y-3">
+      <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/90 space-y-3">
         <h2 class="text-sm font-bold text-slate-800">Mevzuat Havuzu (İsteğe Bağlı Kaynak)</h2>
         <p class="text-xs text-slate-500">Yapıştırdığınız, linkten çektiğiniz veya PDF'den okuduğunuz mevzuat metni soru ve konu üretiminde öncelikli kaynak alınır.</p>
 
@@ -201,7 +233,7 @@
 
         <div class="flex gap-2">
           <input id="lawUrlInput" type="url" placeholder="Mevzuat veya tebliğ bağlantısı (https://www.gib.gov.tr/...)"
-            class="flex-1 rounded-xl border border-slate-300 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-slate-800" />
+            class="flex-1 rounded-xl border border-slate-300 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-slate-900" />
           <button id="fetchUrlBtn" type="button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-3 py-2 rounded-xl text-xs shrink-0">
             Linkten Çek
           </button>
@@ -224,7 +256,7 @@
         </button>
       </div>
 
-      <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 space-y-3">
+      <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/90 space-y-3">
         <h2 class="text-sm font-bold text-slate-800">Yedekleme ve Geri Yükleme</h2>
         <p class="text-xs text-slate-500">İstatistik, hata defteri ve mevzuat metninizi JSON olarak yedekleyebilir veya geri yükleyebilirsiniz.</p>
         <div class="grid grid-cols-2 gap-2">
@@ -238,7 +270,7 @@
     </section>
   </main>
 
-  <nav class="fixed bottom-0 inset-x-0 bg-white border-t border-slate-200 safe-bottom z-20">
+  <nav class="fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur border-t border-slate-200 safe-bottom z-20">
     <div class="max-w-3xl mx-auto grid grid-cols-5 py-2 text-center">
       <button id="nav-konu" onclick="switchTab('konu')" class="flex flex-col items-center text-[11px] font-bold text-slate-900">
         <span class="text-base leading-none mb-1">📘</span>Konu
