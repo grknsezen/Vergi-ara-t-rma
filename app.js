@@ -15,6 +15,7 @@ const STORAGE_KEYS = {
 
 const DEFAULT_GEMINI_MODEL = "gemini-3.8-flash";
 const YMM_SLICE_LIMIT = 35000;
+const GENERAL_SLICE_LIMIT = 35000;
 const LEG_SLICE_LIMIT = 20000;
 
 let currentMcqList = [];
@@ -105,7 +106,7 @@ function buildLegislationContext() {
   const communiques = safeGetStorage(STORAGE_KEYS.communiquesText, "").trim().slice(0, LEG_SLICE_LIMIT);
   const links = getResourceLinks();
 
-  let parts = [];
+  const parts = [];
   if (laws) {
     parts.push(`[KANUNLAR BÖLÜMÜ]\n${laws}`);
   }
@@ -269,34 +270,42 @@ function updatePoolStatusUI() {
   if (badge) {
     badge.textContent =
       `YMM Havuz: ${ymmText.length.toLocaleString("tr-TR")} kr | ` +
+      `SMMM/Genel Havuz: ${genText.length.toLocaleString("tr-TR")} kr | ` +
       `Link: ${links.length} | ` +
       `Kanun: ${lawsText.trim() ? "Var" : "Yok"} | ` +
       `Tebliğ: ${commText.trim() ? "Var" : "Yok"}`;
   }
 }
 
-// 1. ÇOKTAN SEÇMELİ TEST
+// 1. SMMM YETERLİLİK VERGİ MEVZUATI TESTİ
 async function generateMcqBatch(topic, difficulty, count, generalSlice) {
   const legContext = buildLegislationContext();
-  const sys = `Sen Türkiye vergi mevzuatı ve muhasebe alanında uzman bir sınav komisyonu üyesisin.
-Özgün, net ve kanuni dayanaklı çoktan seçmeli sorular üret.
+  const sys = `Sen TÜRMOB Serbest Muhasebeci Mali Müşavirlik (SMMM) Yeterlilik Sınavı 'Vergi Mevzuatı ve Uygulaması' komisyonu üyesisin.
+TÜRMOB SMMM Vergi Mevzuatı ve Uygulaması sınav tarzında sorular üret:
+- 193 sayılı GVK (ticari kazanç, mahsup/yurt dışı vergi, huzur hakkı/gayrimenkul/menkul/değer artışı kazancı, geçici vergi),
+- 5520 sayılı KVK (tasfiye beyannamesi süresi, örtülü sermaye, finansman gider kısıtlaması, dar mükellefiyet, yurt içi asgari kurumlar vergisi),
+- 3065 sayılı KDV Kanunu (ödenecek KDV, 2 No.lu sorumlu KDV, ihraç kayıtlı teslimde tecil edilebilir / tecil edilecek KDV, verginin konusu),
+- 213 sayılı VUK (emsal bedel esasları, zamanaşımı, izaha davet oranı),
+- 6183 sayılı AATUHK (ödeme emrine dava süresi, tahsil zamanaşımını kesen haller), 197 sayılı MTV, 4760 sayılı ÖTV (ilk iktisap) ve 1319 sayılı Emlak VK (bina vergisi mükellefiyetinin başlangıcı)
+alanlarından dengeli, somut ve hesaplamalı sorular kurgula.
+Sayısal sorularda tüm verileri ve vergi/KDV oranlarını sorunun içinde açıkça ver ve kendi içinde tutarlı hesapla.
 
-ÇALIŞMA HAVUZU:
-${generalSlice || "Genel Türk Vergi ve Muhasebe Mevzuatı"}
+SMMM / ÇALIŞMA HAVUZU:
+${generalSlice || "TÜRMOB SMMM Vergi Mevzuatı ve Uygulaması Müfredatı"}
 
 ${legContext}`;
 
-  const prompt = `Konu: "${topic}" | Zorluk: "${difficulty}".
-Tam olarak ${count} adet 5 şıklı (A, B, C, D, E) çoktan seçmeli soru üret.
-JSON alanlarının içindeki metinlerde çift tırnak (") yerine tek tırnak (') kullan.
+  const prompt = `Odak / Konu: "${topic}" | Düzey: "${difficulty}".
+Tam olarak ${count} adet 5 şıklı (A, B, C, D, E) SMMM Yeterlilik Vergi Mevzuatı çoktan seçmeli soru üret.
+JSON alanlarının içindeki metinlerde çift tırnak (") yerine tek tırnak (') kullan ve paragraf/satır sonlarını \\n ile kodla.
 Sadece şu JSON şemasını döndür:
 {
   "questions": [
     {
-      "question": "Soru metni...",
+      "question": "Somut olay ve veriler içeren soru metni...",
       "options": { "A": "...", "B": "...", "C": "...", "D": "...", "E": "..." },
       "answer": "A",
-      "explanation": "Kanuni dayanak ve açıklama..."
+      "explanation": "İlgili kanun maddesi, adım adım hesaplama ve açıklama..."
     }
   ]
 }`;
@@ -382,7 +391,11 @@ function exportMcqToPdf(questions, topic, difficulty) {
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(13);
-  doc.text(toPdfSafeTurkish(`CALISMA TESTI - ${topic}`), margin, y);
+  doc.text(toPdfSafeTurkish(`SMMM VERGI MEVZUATI TESTI - ${topic}`), margin, y);
+  y += 6;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9.5);
+  doc.text(toPdfSafeTurkish(`Duzey: ${difficulty} | Soru Sayisi: ${questions.length}`), margin, y);
   y += 8;
 
   questions.forEach((q, idx) => {
@@ -423,7 +436,7 @@ function exportMcqToPdf(questions, topic, difficulty) {
     y += expLines.length * 4.5 + 3;
   });
 
-  doc.save(`Test_${toPdfSafeTurkish(topic).replace(/\s+/g, "_")}.pdf`);
+  doc.save(`SMMM_Vergi_Mevzuati_${toPdfSafeTurkish(topic).replace(/\s+/g, "_")}.pdf`);
 }
 
 // 2. YMM İKİ AŞAMALI VAKA ÜRETİMİ
@@ -644,13 +657,13 @@ async function fetchLinksIntoPool() {
     }
   }
 
-  const currentYmm = safeGetStorage(STORAGE_KEYS.ymmPool, "");
-  safeSetStorage(STORAGE_KEYS.ymmPool, (currentYmm + poolAppend).trim());
+  const currentGen = safeGetStorage(STORAGE_KEYS.generalPool, "");
+  safeSetStorage(STORAGE_KEYS.generalPool, (currentGen + poolAppend).trim());
   updatePoolStatusUI();
 
   status.className = "status-text";
   status.textContent = extractedAny
-    ? "Erişilebilen bağlantı metinleri YMM havuzuna eklendi."
+    ? "Erişilebilen bağlantı metinleri SMMM/Genel havuzuna eklendi."
     : "Bağlantılar havuz notu olarak kaydedildi (hedef site doğrudan tarayıcı çekimine izin vermemiş olabilir).";
 }
 
@@ -691,18 +704,22 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   document.getElementById("generateMcqBtn")?.addEventListener("click", async () => {
-    const topic = (document.getElementById("mcqTopicInput")?.value || "").trim() || "Genel Vergi Mevzuatı";
-    const difficulty = document.getElementById("mcqDifficultySelect")?.value || "Orta";
-    const count = Math.min(Math.max(parseInt(document.getElementById("mcqCountInput")?.value || "5", 10) || 5, 1), 20);
-    const generalSlice = safeGetStorage(STORAGE_KEYS.generalPool, "").slice(0, 35000);
+    const topic =
+      (document.getElementById("mcqTopicInput")?.value || "").trim() ||
+      "Vergi Mevzuatı ve Uygulaması (SMMM Yeterlilik)";
+    const difficulty =
+      document.getElementById("mcqDifficultySelect")?.value ||
+      "SMMM Yeterlilik (Standart Sınav Düzeyi)";
+    const count = Math.min(Math.max(parseInt(document.getElementById("mcqCountInput")?.value || "10", 10) || 10, 1), 20);
+    const generalSlice = safeGetStorage(STORAGE_KEYS.generalPool, "").slice(0, GENERAL_SLICE_LIMIT);
     const status = document.getElementById("mcqStatusText");
 
     try {
       status.className = "status-text";
-      status.textContent = "Test soruları üretiliyor...";
+      status.textContent = "SMMM Vergi Mevzuatı test soruları üretiliyor...";
       currentMcqList = await generateMcqBatch(topic, difficulty, count, generalSlice);
       renderMcqToScreen(currentMcqList, topic);
-      status.textContent = `${currentMcqList.length} soru hazırlandı.`;
+      status.textContent = `${currentMcqList.length} SMMM sorusu hazırlandı.`;
     } catch (err) {
       status.className = "status-text error";
       status.textContent = "Hata: " + err.message;
@@ -710,18 +727,22 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   document.getElementById("generateMcqPdfBtn")?.addEventListener("click", async () => {
-    const topic = (document.getElementById("mcqTopicInput")?.value || "").trim() || "Genel Vergi Mevzuatı";
-    const difficulty = document.getElementById("mcqDifficultySelect")?.value || "Orta";
-    const count = Math.min(Math.max(parseInt(document.getElementById("mcqCountInput")?.value || "5", 10) || 5, 1), 20);
-    const generalSlice = safeGetStorage(STORAGE_KEYS.generalPool, "").slice(0, 35000);
+    const topic =
+      (document.getElementById("mcqTopicInput")?.value || "").trim() ||
+      "Vergi Mevzuatı ve Uygulaması (SMMM Yeterlilik)";
+    const difficulty =
+      document.getElementById("mcqDifficultySelect")?.value ||
+      "SMMM Yeterlilik (Standart Sınav Düzeyi)";
+    const count = Math.min(Math.max(parseInt(document.getElementById("mcqCountInput")?.value || "10", 10) || 10, 1), 20);
+    const generalSlice = safeGetStorage(STORAGE_KEYS.generalPool, "").slice(0, GENERAL_SLICE_LIMIT);
     const status = document.getElementById("mcqStatusText");
 
     try {
       status.className = "status-text";
-      status.textContent = "Test PDF'i hazırlanıyor...";
+      status.textContent = "SMMM test PDF'i hazırlanıyor...";
       const list = await generateMcqBatch(topic, difficulty, count, generalSlice);
       exportMcqToPdf(list, topic, difficulty);
-      status.textContent = "Test ve cevap anahtarı PDF olarak indirildi.";
+      status.textContent = "SMMM test ve cevap anahtarı PDF olarak indirildi.";
     } catch (err) {
       status.className = "status-text error";
       status.textContent = "Hata: " + err.message;
@@ -788,7 +809,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!files.length) return;
     const status = document.getElementById("uploadStatusText");
     status.className = "status-text";
-    status.textContent = "Genel ders PDF'leri okunuyor...";
+    status.textContent = "SMMM / Genel ders PDF'leri okunuyor...";
 
     try {
       let combined = safeGetStorage(STORAGE_KEYS.generalPool, "");
@@ -798,7 +819,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       safeSetStorage(STORAGE_KEYS.generalPool, combined.trim());
       updatePoolStatusUI();
-      status.textContent = `${files.length} adet genel PDF havuza eklendi.`;
+      status.textContent = `${files.length} adet SMMM/genel PDF havuza eklendi.`;
     } catch (err) {
       status.className = "status-text error";
       status.textContent = "PDF Okuma Hatası: " + err.message;
