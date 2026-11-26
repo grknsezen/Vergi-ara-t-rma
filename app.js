@@ -854,12 +854,65 @@ function parseJsonLoose(raw) {
     throw new Error("Model geçerli JSON döndürmedi. Tekrar deneyin.");
   }
 
-  cleaned = cleaned.slice(start, end + 1).replace(/,\s*([}\]])/g, "$1");
+  cleaned = cleaned.slice(start, end + 1);
+
+  let fixed = "";
+  let inString = false;
+  let escaped = false;
+
+  for (let i = 0; i < cleaned.length; i += 1) {
+    const ch = cleaned[i];
+    const code = ch.charCodeAt(0);
+
+    if (escaped) {
+      fixed += ch;
+      escaped = false;
+      continue;
+    }
+
+    if (ch === "\\") {
+      fixed += ch;
+      escaped = true;
+      continue;
+    }
+
+    if (ch === '"') {
+      if (!inString) {
+        inString = true;
+        fixed += ch;
+      } else {
+        let nextIdx = i + 1;
+        while (nextIdx < cleaned.length && /\s/.test(cleaned[nextIdx])) {
+          nextIdx += 1;
+        }
+        const nextChar = cleaned[nextIdx] || "";
+        if (nextChar === ":" || nextChar === "," || nextChar === "]" || nextChar === "}") {
+          inString = false;
+          fixed += ch;
+        } else {
+          fixed += '\\"';
+        }
+      }
+      continue;
+    }
+
+    if (inString && (code < 32 || ch === "\n" || ch === "\r" || ch === "\t")) {
+      if (ch === "\n") fixed += "\\n";
+      else if (ch === "\r") fixed += "";
+      else if (ch === "\t") fixed += " ";
+      else fixed += " ";
+      continue;
+    }
+
+    fixed += ch;
+  }
+
+  fixed = fixed.replace(/,\s*([}\]])/g, "$1");
+
   try {
-    return JSON.parse(cleaned);
-  } catch {
-    const sanitized = cleaned.replace(/[\u0000-\u001F]+/g, " ");
-    return JSON.parse(sanitized);
+    return JSON.parse(fixed);
+  } catch (err) {
+    throw new Error("JSON ayrıştırma başarısız: " + err.message);
   }
 }
 
@@ -885,7 +938,8 @@ async function generateLessonAndQuestion(onlyQuestion = false) {
   try {
     const prompt = `Kaynak bağlam: gib.gov.tr mevzuatı | Mevzuat Bölümü: "${catLabel}" | Seçili Başlık: "${topic}" | Zorluk: "${difficulty}".
 Bu mevzuat kapsamından konu özeti, kritik ayrım ve 4 şıklı çoktan seçmeli soru üret. Uydurma numara, madde veya oran kullanma; Mevzuat Havuzu metni varsa ona dayan.
-Yalnızca şu şemada tek bir JSON nesnesi döndür (iç metinlerde çift tırnak yerine tek tırnak kullan):
+JSON alanlarının içindeki metinlerde asla çift tırnak (") kullanma; gerekirse tek tırnak (') kullan.
+Yalnızca şu şemada tek bir JSON nesnesi döndür:
 {
   "lessonTitle": "...",
   "lessonSummary": "...",
@@ -954,7 +1008,8 @@ async function generateSmmmTestQuestion() {
 
     const prompt = `Ders: "${subject}" | Alt Konu Odak: "${focus || "Genel Yeterlilik Kapsamı"}" | Soru Tarzı: "${style}".
 Bu ders ve tarza uygun 5 şıklı (A, B, C, D, E) SMMM Yeterlilik test sorusu ve adım adım açıklamalı çözümü üret. Uydurma madde/oran kullanma; hesaplama varsa tüm ara adımları net göster.
-Yalnızca şu şemada tek bir JSON nesnesi döndür (iç metinlerde çift tırnak yerine tek tırnak kullan):
+JSON alanlarının içindeki metinlerde asla çift tırnak (") kullanma; gerekirse tek tırnak (') kullan.
+Yalnızca şu şemada tek bir JSON nesnesi döndür:
 {
   "question": "...",
   "options": ["A) ...", "B) ...", "C) ...", "D) ...", "E) ..."],
@@ -1169,7 +1224,8 @@ Görevlerin:
 3. "guidance": Kullanıcıyı bir sonraki adımda neyi kontrol etmesi, hangi ayrımı netleştirmesi veya hangi kaynağı incelemesi gerektiği konusunda somut ve yönlendirici maddelerle yönlendir.
 4. "caution": Eğer soruda güncel/dönemsel had-oran-tebliğ teyidi gerekiyorsa, Mevzuat Havuzu'nda kaynak eksikse veya belirsizlik varsa bunu açıkça yaz; her şey netse boş bırak "".
 
-Yalnızca şu JSON şemasında yanıt ver (iç metinlerde çift tırnak yerine tek tırnak kullan):
+JSON alanlarının içindeki metinlerde asla çift tırnak (") kullanma; gerekirse tek tırnak (') kullan.
+Yalnızca şu JSON şemasında yanıt ver:
 {
   "comment": "...",
   "crossLawLinks": ["...", "..."],
@@ -1264,7 +1320,6 @@ function bindDirectListeners() {
     };
   }
 
-  // SMMM Havuzu Dinleyicileri
   const smmmPdfInput = document.getElementById("smmmPdfFileInput");
   if (smmmPdfInput) {
     smmmPdfInput.onchange = async (e) => {
@@ -1300,7 +1355,6 @@ function bindDirectListeners() {
   const checkSmmmAnswerBtn = document.getElementById("checkSmmmAnswerBtn");
   if (checkSmmmAnswerBtn) checkSmmmAnswerBtn.onclick = checkSmmmAnswer;
 
-  // Mevzuat Havuzu Dinleyicileri
   const saveLawBtn = document.getElementById("saveLawBtn");
   if (saveLawBtn) {
     saveLawBtn.onclick = () => {
