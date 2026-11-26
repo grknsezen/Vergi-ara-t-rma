@@ -2,938 +2,220 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#0f172a" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Vergi Asistanı" />
-  <link rel="manifest" href="manifest.json" />
-  <title>Vergi Araştırma Asistanı</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <title>Akıllı Sınav Çalışma Asistanı</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="styles.css" />
+  <!-- PDF.js & jsPDF CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <style>
-    :root {
-      --bg-app: #f2f2f7;
-      --bg-card: #ffffff;
-      --text-primary: #0f172a;
-      --text-secondary: #475569;
-      --text-muted: #64748b;
-      --border-soft: rgba(15, 23, 42, 0.08);
-      --nav-height: 56px;
-      --safari-bar-offset: 28px;
-    }
-
-    @media all and (display-mode: standalone) {
-      :root {
-        --safari-bar-offset: 0px;
-      }
-    }
-
-    *, *::before, *::after {
-      box-sizing: border-box;
-    }
-
-    html, body {
-      margin: 0;
-      padding: 0;
-      background-color: var(--bg-app);
-      color: var(--text-primary);
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, sans-serif;
-      -webkit-font-smoothing: antialiased;
-      -webkit-tap-highlight-color: transparent;
-      overscroll-behavior-y: none;
-    }
-
-    body {
-      padding-bottom: calc(var(--nav-height) + var(--safari-bar-offset) + env(safe-area-inset-bottom, 12px) + 24px);
-    }
-
-    .hidden {
-      display: none !important;
-    }
-
-    header.app-header {
-      position: sticky;
-      top: 0;
-      z-index: 40;
-      background: rgba(15, 23, 42, 0.94);
-      backdrop-filter: blur(18px);
-      -webkit-backdrop-filter: blur(18px);
-      color: #ffffff;
-      padding-top: env(safe-area-inset-top, 10px);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    }
-
-    .header-inner {
-      max-width: 680px;
-      margin: 0 auto;
-      padding: 12px 18px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-    }
-
-    .header-left {
-      min-width: 0;
-      flex: 1;
-    }
-
-    .header-title-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .header-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 9999px;
-      background: #fbbf24;
-      flex-shrink: 0;
-    }
-
-    .header-title {
-      margin: 0;
-      font-size: 17px;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .header-sub {
-      margin: 2px 0 0;
-      font-size: 11px;
-      font-weight: 500;
-      color: #fbbf24;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .header-right {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      flex-shrink: 0;
-    }
-
-    .net-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      font-size: 11px;
-      font-weight: 600;
-      padding: 5px 10px;
-      border-radius: 9999px;
-      background: rgba(6, 78, 59, 0.65);
-      color: #6ee7b7;
-      border: 1px solid rgba(16, 185, 129, 0.35);
-    }
-
-    .net-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 9999px;
-      background: #34d399;
-      display: inline-block;
-    }
-
-    .score-pill {
-      font-size: 12px;
-      font-weight: 700;
-      padding: 5px 11px;
-      border-radius: 9999px;
-      background: rgba(255, 255, 255, 0.1);
-      color: #f8fafc;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-    }
-
-    main.app-main {
-      max-width: 680px;
-      margin: 0 auto;
-      padding: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    section[id^="tab-"] > * + * {
-      margin-top: 16px;
-    }
-
-    .card-box {
-      background: var(--bg-card);
-      border-radius: 20px;
-      padding: 20px;
-      border: 1px solid var(--border-soft);
-      box-shadow: 0 4px 20px rgba(15, 23, 42, 0.04);
-    }
-
-    .card-box > * + * {
-      margin-top: 14px;
-    }
-
-    .eyebrow {
-      display: block;
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: #94a3b8;
-    }
-
-    .section-heading {
-      margin: 2px 0 0;
-      font-size: 16px;
-      font-weight: 700;
-      letter-spacing: -0.015em;
-      color: var(--text-primary);
-    }
-
-    #lawCategoryTabs {
-      display: grid !important;
-      grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-      gap: 4px !important;
-      background: #e2e8f0;
-      padding: 4px;
-      border-radius: 14px;
-    }
-
-    .law-cat-btn {
-      width: 100%;
-      min-height: 36px;
-      border: 0;
-      background: transparent;
-      color: #475569;
-      font-size: 13px;
-      font-weight: 600;
-      padding: 7px 6px;
-      border-radius: 10px;
-      cursor: pointer;
-      transition: all 0.18s ease;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .law-cat-btn.bg-slate-900 {
-      background: #ffffff !important;
-      color: #0f172a !important;
-      font-weight: 700 !important;
-      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.09);
-    }
-
-    #gibTopicList {
-      max-height: 260px;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      background: #ffffff;
-      border: 1px solid #e2e8f0;
-      border-radius: 14px;
-      padding: 8px;
-    }
-
-    .law-pick-item {
-      width: 100%;
-      min-height: 42px;
-      text-align: left;
-      background: #f8fafc;
-      color: #0f172a;
-      border: 1px solid transparent;
-      border-radius: 11px;
-      padding: 10px 12px;
-      font-size: 13px;
-      font-weight: 500;
-      line-height: 1.4;
-      cursor: pointer;
-      transition: background 0.15s ease;
-    }
-
-    .law-pick-item:active,
-    .law-pick-item:hover,
-    .law-pick-item.is-selected {
-      background: #eef2ff;
-      border-color: #6366f1;
-      color: #312e81;
-      font-weight: 700;
-    }
-
-    input[type="text"],
-    input[type="password"],
-    input[type="url"],
-    input[type="number"],
-    select,
-    textarea {
-      width: 100%;
-      min-height: 44px;
-      border: 1px solid #cbd5e1;
-      border-radius: 13px;
-      padding: 11px 14px;
-      font-size: 16px;
-      color: #0f172a;
-      background: #f8fafc;
-      transition: border-color 0.15s ease, background 0.15s ease;
-    }
-
-    input:focus,
-    select:focus,
-    textarea:focus {
-      outline: none;
-      background: #ffffff;
-      border-color: #4f46e5;
-      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
-    }
-
-    .two-col {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
-    }
-
-    .btn-dark {
-      width: 100%;
-      min-height: 46px;
-      background: #0f172a;
-      color: #ffffff;
-      border: 0;
-      border-radius: 14px;
-      padding: 12px 16px;
-      font-size: 15px;
-      font-weight: 600;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.14);
-    }
-
-    .btn-indigo {
-      min-height: 46px;
-      background: #4f46e5;
-      color: #ffffff;
-      border: 0;
-      border-radius: 14px;
-      padding: 12px 16px;
-      font-size: 15px;
-      font-weight: 600;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      box-shadow: 0 2px 8px rgba(79, 70, 229, 0.22);
-    }
-
-    .btn-amber {
-      width: 100%;
-      min-height: 46px;
-      background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
-      color: #ffffff;
-      border: 0;
-      border-radius: 14px;
-      padding: 12px 16px;
-      font-size: 15px;
-      font-weight: 700;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      box-shadow: 0 4px 12px rgba(217, 119, 6, 0.24);
-    }
-
-    .btn-emerald {
-      width: 100%;
-      min-height: 48px;
-      background: linear-gradient(135deg, #059669 0%, #047857 100%);
-      color: #ffffff;
-      border: 0;
-      border-radius: 14px;
-      padding: 14px 16px;
-      font-size: 15px;
-      font-weight: 700;
-      cursor: pointer;
-      box-shadow: 0 4px 12px rgba(5, 150, 105, 0.24);
-    }
-
-    .btn-emerald-sm {
-      width: 100%;
-      min-height: 44px;
-      background: #059669;
-      color: #ffffff;
-      border: 0;
-      border-radius: 13px;
-      padding: 11px 14px;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-
-    #bottomNav {
-      position: fixed !important;
-      left: 0 !important;
-      right: 0 !important;
-      bottom: 0 !important;
-      display: block !important;
-      visibility: visible !important;
-      opacity: 1 !important;
-      z-index: 9999 !important;
-      background: rgba(255, 255, 255, 0.94) !important;
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border-top: 1px solid rgba(15, 23, 42, 0.1) !important;
-      padding-top: 4px;
-      padding-bottom: calc(env(safe-area-inset-bottom, 12px) + var(--safari-bar-offset)) !important;
-      box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.06);
-    }
-
-    .bottom-nav-grid {
-      max-width: 680px;
-      margin: 0 auto;
-      display: grid !important;
-      grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
-      padding: 0 2px;
-    }
-
-    .bottom-nav-grid button {
-      min-width: 0;
-      min-height: 46px;
-      overflow: hidden;
-      border: 0;
-      background: transparent;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 2px;
-      padding: 3px 1px;
-      font-size: 10px;
-      cursor: pointer;
-      color: #64748b;
-    }
-
-    .bottom-nav-grid button span:last-child {
-      display: block;
-      max-width: 100%;
-      font-size: 9px;
-      line-height: 1.15;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .bottom-nav-grid button.text-slate-900 {
-      color: #0f172a !important;
-      font-weight: 700 !important;
-    }
-  </style>
-  <script>
-    (function () {
-      const TABS = ["konu", "soru", "smmm", "ymm", "sohbet", "hatalar", "ayarlar"];
-
-      function applyTabState(tab) {
-        const target = TABS.includes(tab) ? tab : "konu";
-        TABS.forEach((t) => {
-          const sec = document.getElementById("tab-" + t);
-          if (sec) sec.classList.toggle("hidden", t !== target);
-          const nav = document.getElementById("nav-" + t);
-          if (nav) {
-            nav.className = t === target
-              ? "flex flex-col items-center justify-center py-1 text-[10px] font-bold text-slate-900"
-              : "flex flex-col items-center justify-center py-1 text-[10px] font-medium text-slate-500";
-          }
-        });
-        window.scrollTo({ top: 0, behavior: "instant" in window ? "instant" : "auto" });
-        document.dispatchEvent(new CustomEvent("vergi:tabchanged", { detail: { tab: target } }));
-      }
-
-      window.__coreSwitchTab = applyTabState;
-      window.switchTab = applyTabState;
-
-      document.addEventListener("click", function (ev) {
-        const btn = ev.target.closest("#nav-konu, #nav-soru, #nav-smmm, #nav-ymm, #nav-sohbet, #nav-hatalar, #nav-ayarlar, [data-tab]");
-        if (!btn) return;
-        const tab = btn.dataset.tab || (btn.id ? btn.id.replace("nav-", "") : "");
-        if (TABS.includes(tab)) {
-          ev.preventDefault();
-          applyTabState(tab);
-        }
-      }, true);
-
-      function ensureBottomNavVisible() {
-        const nav = document.getElementById("bottomNav");
-        if (!nav) return;
-        nav.style.position = "fixed";
-        nav.style.left = "0";
-        nav.style.right = "0";
-        nav.style.bottom = "0";
-        nav.style.display = "block";
-        nav.style.visibility = "visible";
-        nav.style.opacity = "1";
-        nav.style.zIndex = "9999";
-      }
-
-      document.addEventListener("DOMContentLoaded", ensureBottomNavVisible);
-      window.addEventListener("load", ensureBottomNavVisible);
-      setInterval(ensureBottomNavVisible, 1500);
-    })();
-  </script>
 </head>
 <body>
-  <div id="updateBanner" class="hidden bg-emerald-600 text-white px-4 py-3 text-xs flex items-center justify-between gap-2 sticky top-0 z-50">
-    <span class="font-medium">Yeni sürüm hazır. Güncellemek için dokunun.</span>
-    <button id="reloadUpdateBtn" type="button" class="bg-white text-emerald-700 font-bold px-3.5 py-1.5 rounded-xl">Yenile</button>
-  </div>
-
-  <header class="app-header">
-    <div class="header-inner">
-      <div class="header-left">
-        <div class="header-title-row">
-          <span class="header-dot"></span>
-          <h1 class="header-title">Vergi Araştırma Asistanı</h1>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <span class="brand-badge">AI</span>
+        <div>
+          <h1>Akıllı Sınav Çalışma Asistanı</h1>
+          <p class="subtitle">Çoktan Seçmeli Test & TÜRMOB YMM Yazılı Vaka Üretici</p>
         </div>
-        <p id="modeBadge" class="header-sub">Demo Modu (Ayarlardan API Anahtarı Ekleyin)</p>
       </div>
-      <div class="header-right">
-        <span id="netBadge" class="net-pill">
-          <span id="netDot" class="net-dot"></span>
-          <span id="netText">Çevrimiçi</span>
-        </span>
-        <span id="scoreBadge" class="score-pill">0 / 0</span>
+      <div class="topbar-actions">
+        <button id="openSettingsBtn" class="btn btn-secondary">API & Havuz Ayarları</button>
       </div>
     </div>
   </header>
 
-  <main class="app-main">
-    <!-- 1. KONU SEKMESİ -->
-    <section id="tab-konu">
-      <div class="card-box">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-          <div>
-            <span class="eyebrow">Mevzuat Kontrol Merkezi</span>
-            <h2 class="section-heading">Mevzuat Seçimi</h2>
+  <main class="container">
+    <!-- Sekme Geçişleri -->
+    <nav class="tabs" role="tablist">
+      <button class="tab-btn active" data-tab="mcqTab">1. Test Sınavı (Çoktan Seçmeli)</button>
+      <button class="tab-btn" data-tab="ymmTab">2. YMM Yazılı Sınav (Vaka & Analiz)</button>
+      <button class="tab-btn" data-tab="poolTab">3. PDF & Havuz Yönetimi</button>
+    </nav>
+
+    <!-- SEKME 1: ÇOKTAN SEÇMELİ TEST -->
+    <section id="mcqTab" class="tab-panel active">
+      <div class="card">
+        <h2>Çoktan Seçmeli Test Üret</h2>
+        <div class="grid-3">
+          <div class="form-group">
+            <label for="mcqTopicInput">Konu / Ders Başlığı</label>
+            <input type="text" id="mcqTopicInput" placeholder="Örn: Kurumlar Vergisi İstisnaları, KDV Tevkifatı..." />
           </div>
-          <span id="categoryCountBadge" style="font-size:12px;color:#64748b;font-weight:600;background:#f1f5f9;padding:4px 10px;border-radius:9999px;"></span>
-        </div>
-
-        <div id="lawCategoryTabs">
-          <button id="cat-kanunlar" type="button" onclick="selectCategoryFromUi('kanunlar')" data-category="kanunlar" class="law-cat-btn bg-slate-900 text-white">Kanunlar</button>
-          <button id="cat-tebligler" type="button" onclick="selectCategoryFromUi('tebligler')" data-category="tebligler" class="law-cat-btn">Tebliğler</button>
-          <button id="cat-sirkulerler" type="button" onclick="selectCategoryFromUi('sirkulerler')" data-category="sirkulerler" class="law-cat-btn">Sirkülerler</button>
-        </div>
-
-        <button id="toggleLawPickerBtn" type="button" onclick="toggleLawPickerPanel()" class="btn-dark">
-          <span>📚</span><span>Mevzuat Seç</span>
-        </button>
-
-        <div id="lawPickerPanel" class="hidden" style="border:1px solid #e2e8f0;background:#f8fafc;border-radius:16px;padding:12px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;">
-            <span id="pickerPanelTitle" style="font-size:12px;font-weight:700;text-transform:uppercase;color:#334155;">GİB Kanunlar Listesi</span>
-            <button id="closeLawPickerBtn" type="button" onclick="closeLawPickerPanel()" style="font-size:12px;font-weight:600;color:#475569;background:#fff;border:1px solid #cbd5e1;border-radius:8px;padding:5px 10px;cursor:pointer;">Kapat</button>
-          </div>
-          <input id="lawSearchInput" type="text" placeholder="Bu bölümde ara..." style="margin-bottom:8px;background:#ffffff;" />
-          <div id="gibTopicList" role="listbox" aria-label="Mevzuat Listesi"></div>
-        </div>
-
-        <div>
-          <label for="topicInput" style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">Seçili Mevzuat</label>
-          <input id="topicInput" type="text" placeholder="Mevzuat Seç ile listeden seçin veya yazın..." />
-        </div>
-
-        <div class="two-col">
-          <select id="difficultySelect">
-            <option value="Temel">Seviye: Temel</option>
-            <option value="Vaka" selected>Seviye: Vaka</option>
-            <option value="Sınav Düzeyi">Seviye: Sınav Düzeyi</option>
-          </select>
-          <div style="display:flex;align-items:center;justify-content:space-between;border:1px solid #cbd5e1;border-radius:13px;padding:4px 12px;background:#f8fafc;font-size:14px;">
-            <span style="font-weight:500;color:#334155;">Süre (dk)</span>
-            <input id="timerMinutes" type="number" min="0" max="120" value="0" style="width:62px;min-height:34px;text-align:right;font-weight:700;padding:4px 6px;border-radius:9px;background:#ffffff;" />
-          </div>
-        </div>
-
-        <button id="generateBtn" type="button" class="btn-emerald">Konuyu ve Sorusunu Üret</button>
-      </div>
-
-      <div id="lessonCard" class="card-box">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-          <span style="font-size:12px;font-weight:700;background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;padding:4px 12px;border-radius:9999px;">Konu Özeti</span>
-          <span id="lessonCategoryLabel" style="font-size:12px;font-weight:600;color:#64748b;">Kanunlar</span>
-        </div>
-        <h2 id="lessonTitle" style="margin:0;font-size:19px;font-weight:700;letter-spacing:-0.015em;color:#0f172a;">Mevzuat Çalışma Kartı</h2>
-        <p id="lessonSummary" style="margin:0;font-size:15px;color:#334155;line-height:1.6;">
-          Seçtiğiniz mevzuata göre konu özeti, kritik ayrım ve vaka sorusu üretmek için butona basın.
-        </p>
-        <div id="lessonCritical" style="background:#fffbeb;border:1px solid #fde68a;border-left:4px solid #f59e0b;padding:13px 15px;border-radius:0 14px 14px 0;font-size:14px;line-height:1.5;color:#451a03;">
-          <strong>Kritik Ayrım:</strong> Temel hükümler, istisnalar ve uygulama ayrım noktaları burada özetlenir.
-        </div>
-        <p id="lessonBasis" style="margin:0;font-size:12px;font-weight:500;color:#64748b;padding-top:10px;border-top:1px solid #f1f5f9;">Dayanak: gib.gov.tr Mevzuat</p>
-      </div>
-    </section>
-
-    <!-- 2. SORU SEKMESİ -->
-    <section id="tab-soru" class="hidden">
-      <div class="card-box">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span id="questionBadge" style="font-size:12px;font-weight:700;background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;padding:4px 12px;border-radius:9999px;">Vaka Sorusu</span>
-            <span id="timerDisplay" class="hidden" style="font-size:12px;font-weight:700;background:#ffe4e6;color:#9f1239;padding:4px 12px;border-radius:9999px;">00:00</span>
-          </div>
-          <div style="display:flex;gap:8px;">
-            <button id="wrongQuizBtn" type="button" style="border:0;background:#fef3c7;color:#78350f;font-size:12px;font-weight:700;padding:8px 12px;border-radius:10px;cursor:pointer;">Hatalardan Tekrar</button>
-            <button id="newQuestionBtn" type="button" style="border:0;background:#f1f5f9;color:#1e293b;font-size:12px;font-weight:700;padding:8px 12px;border-radius:10px;cursor:pointer;">Yeni Soru Üret</button>
-          </div>
-        </div>
-        <p id="questionText" style="margin:0;font-size:16px;font-weight:500;color:#0f172a;line-height:1.55;">
-          Yeni soru üretmek için "Yeni Soru Üret" butonuna basın veya Konu sekmesinden bir mevzuat seçin.
-        </p>
-        <div id="optionsContainer" style="display:flex;flex-direction:column;gap:10px;"></div>
-        <button id="checkAnswerBtn" type="button" class="btn-indigo" style="width:100%;">Cevabı Kontrol Et</button>
-        <div id="feedbackBox" class="hidden" style="border-radius:14px;padding:15px;font-size:14px;line-height:1.5;"></div>
-      </div>
-    </section>
-
-    <!-- 3. SMMM YETERLİLİK TEST ÜRETİM SEKMESİ -->
-    <section id="tab-smmm" class="hidden">
-      <div class="card-box">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-          <div>
-            <span class="eyebrow" style="color:#4f46e5;">TESMER / Yeterlilik Modülü</span>
-            <h2 class="section-heading">SMMM Yeterlilik Test Üretimi</h2>
-          </div>
-          <span id="smmmPoolBadge" style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:9999px;background:#eef2ff;color:#3730a3;">
-            Havuz: Boş
-          </span>
-        </div>
-
-        <div>
-          <label for="smmmSubjectSelect" style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">Yeterlilik Dersi</label>
-          <select id="smmmSubjectSelect">
-            <option value="Finansal Muhasebe">Finansal Muhasebe</option>
-            <option value="Mali Tablolar Analizi">Mali Tablolar Analizi</option>
-            <option value="Maliyet Muhasebesi">Maliyet Muhasebesi</option>
-            <option value="Muhasebe Denetimi">Muhasebe Denetimi</option>
-            <option value="Vergi Mevzuatı ve Uygulaması" selected>Vergi Mevzuatı ve Uygulaması</option>
-            <option value="Hukuk (Ticaret, Borçlar, İş ve SGK)">Hukuk (Ticaret, Borçlar, İş ve SGK)</option>
-            <option value="Muhasebecilik ve Mali Müşavirlik Meslek Hukuku">Muhasebecilik ve Mali Müşavirlik Meslek Hukuku</option>
-            <option value="Sermaye Piyasası Mevzuatı">Sermaye Piyasası Mevzuatı</option>
-          </select>
-        </div>
-
-        <div>
-          <label for="smmmFocusInput" style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">Alt Konu / Odak (İsteğe Bağlı)</label>
-          <input id="smmmFocusInput" type="text" placeholder="Örn: Dönem sonu değerleme, oran analizi, safha maliyeti..." />
-        </div>
-
-        <div class="two-col">
-          <select id="smmmStyleSelect">
-            <option value="Çıkmış Soru Tarzı" selected>Tarz: Çıkmış Soru</option>
-            <option value="Sayısal / Hesaplama">Tarz: Sayısal / Kayıt</option>
-            <option value="Yorum ve Mevzuat">Tarz: Yorum / Mevzuat</option>
-          </select>
-          <div style="display:flex;align-items:center;justify-content:space-between;border:1px solid #cbd5e1;border-radius:13px;padding:4px 12px;background:#f8fafc;font-size:13px;">
-            <span style="font-weight:600;color:#334155;">Soru Adedi</span>
-            <input id="smmmPdfCountInput" type="number" min="5" max="60" value="20" style="width:62px;min-height:34px;text-align:right;font-weight:700;padding:4px 6px;border-radius:9px;background:#ffffff;" />
-          </div>
-        </div>
-
-        <button id="generateSmmmBtn" type="button" class="btn-indigo" style="width:100%;">Tek Soru Üret (Ekranda Çöz)</button>
-
-        <div style="border-top:1px solid #f1f5f9;padding-top:14px;">
-          <button id="generateSmmmPdfBtn" type="button" class="btn-emerald" style="width:100%;">
-            📥 Gerçek Sınav Sayısı Kadar PDF Test Üret ve İndir
-          </button>
-          <p id="smmmPdfProgress" class="hidden" style="margin:8px 0 0;font-size:12px;font-weight:600;color:#3730a3;line-height:1.45;"></p>
-        </div>
-      </div>
-
-      <div id="smmmQuestionCard" class="card-box">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
-          <span id="smmmQuestionBadge" style="font-size:12px;font-weight:700;background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;padding:4px 12px;border-radius:9999px;">SMMM Yeterlilik Sorusu</span>
-          <span id="smmmSourceTag" style="font-size:11px;font-weight:600;color:#64748b;">Ders Bazlı Üretim</span>
-        </div>
-        <p id="smmmQuestionText" style="margin:0;font-size:16px;font-weight:500;color:#0f172a;line-height:1.55;">
-          Ders seçip ekranda tek soru çözebilir veya yukarıdaki butonla gerçek sınav soru sayısı kadar PDF test seti indirebilirsiniz.
-        </p>
-        <div id="smmmOptionsContainer" style="display:flex;flex-direction:column;gap:10px;"></div>
-        <button id="checkSmmmAnswerBtn" type="button" class="btn-dark" style="width:100%;">Cevabı ve Çözümü Göster</button>
-        <div id="smmmFeedbackBox" class="hidden" style="border-radius:14px;padding:15px;font-size:14px;line-height:1.55;"></div>
-      </div>
-    </section>
-
-    <!-- 4. YMM YAZILI SINAV SEKMESİ -->
-    <section id="tab-ymm" class="hidden">
-      <div class="card-box" style="border:1.5px solid #fde68a;">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-          <div>
-            <span class="eyebrow" style="color:#b45309;">TÜRMOB / YMM Yazılı Sınav</span>
-            <h2 class="section-heading">YMM Yazılı Sınav ve Vaka Üretimi</h2>
-          </div>
-          <span id="ymmPoolBadge" style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:9999px;background:#fef3c7;color:#92400e;">
-            YMM Havuz: Boş
-          </span>
-        </div>
-
-        <div>
-          <label for="ymmSubjectSelect" style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">YMM Sınav Dersi</label>
-          <select id="ymmSubjectSelect">
-            <option value="Gelir Üzerinden Alınan Vergiler" selected>Gelir Üzerinden Alınan Vergiler</option>
-            <option value="Kurumlar Vergisi">Kurumlar Vergisi</option>
-            <option value="Vergi Tekniği">Vergi Tekniği</option>
-            <option value="Revizyon">Revizyon</option>
-            <option value="Sermaye Piyasası Mevzuatı">Sermaye Piyasası Mevzuatı</option>
-            <option value="İleri Düzeyde Finansal Muhasebe">İleri Düzeyde Finansal Muhasebe</option>
-            <option value="Yönetim Muhasebesi">Yönetim Muhasebesi</option>
-            <option value="Dış Ticaret ve Kambiyo Mevzuatı">Dış Ticaret ve Kambiyo Mevzuatı</option>
-            <option value="Denetim, Raporlama ve Meslek Hukuku">Denetim, Raporlama ve Meslek Hukuku</option>
-          </select>
-        </div>
-
-        <div>
-          <label for="ymmFocusInput" style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">Konu / Madde / Vaka Odağı (İsteğe Bağlı)</label>
-          <input id="ymmFocusInput" type="text" placeholder="Örn: İştirak kazançları, örtülü sermaye, transfer fiyatlandırması, tam tasdik..." />
-        </div>
-
-        <div class="two-col">
-          <select id="ymmFormatSelect">
-            <option value="Yazılı Vaka & Analiz" selected>Format: Yazılı Vaka</option>
-            <option value="Sayısal & Beyan/Muhasebe">Format: Sayısal & Kayıt</option>
-            <option value="Mevzuat Yorumu & İnceleme">Format: Yorum & İnceleme</option>
-          </select>
-          <div style="display:flex;align-items:center;justify-content:space-between;border:1px solid #cbd5e1;border-radius:13px;padding:4px 12px;background:#f8fafc;font-size:13px;">
-            <span style="font-weight:600;color:#334155;">PDF Soru Adedi</span>
-            <input id="ymmPdfCountInput" type="number" min="1" max="20" value="4" style="width:62px;min-height:34px;text-align:right;font-weight:700;padding:4px 6px;border-radius:9px;background:#ffffff;" />
-          </div>
-        </div>
-
-        <button id="generateYmmBtn" type="button" class="btn-amber" style="width:100%;">Yazılı Vaka Sorusu Üret (Ekranda Çalış)</button>
-
-        <div style="border-top:1px solid #f1f5f9;padding-top:14px;">
-          <button id="generateYmmPdfBtn" type="button" class="btn-emerald" style="width:100%;">
-            📥 YMM Yazılı Sınav PDF Seti Üret ve İndir
-          </button>
-          <p id="ymmPdfProgress" class="hidden" style="margin:8px 0 0;font-size:12px;font-weight:600;color:#92400e;line-height:1.45;"></p>
-        </div>
-      </div>
-
-      <div id="ymmQuestionCard" class="card-box">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
-          <span id="ymmQuestionBadge" style="font-size:12px;font-weight:700;background:#fef3c7;color:#92400e;border:1px solid #fde68a;padding:4px 12px;border-radius:9999px;">YMM Yazılı Soru</span>
-          <span id="ymmSourceTag" style="font-size:11px;font-weight:600;color:#64748b;">Yazılı Sınav Formatı</span>
-        </div>
-
-        <p id="ymmQuestionText" style="margin:0;font-size:15px;font-weight:500;color:#0f172a;line-height:1.6;white-space:pre-line;">
-          YMM sınav dersini seçip yazılı vaka sorusu üretebilir veya PDF sınav seti indirebilirsiniz.
-        </p>
-
-        <div>
-          <label for="ymmDraftAnswerInput" style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">Sınav Yanıt Taslağınız (Kendi Notunuz / Hesaplamalarınız)</label>
-          <textarea id="ymmDraftAnswerInput" rows="5" placeholder="Kanun maddeleri, şartlar ve sayısal hesaplama adımlarınızı buraya yazabilirsiniz..."></textarea>
-        </div>
-
-        <button id="showYmmSolutionBtn" type="button" class="btn-dark" style="width:100%;">Model Çözümü ve Mevzuat Dayanağını Göster</button>
-
-        <div id="ymmSolutionBox" class="hidden" style="border-radius:14px;padding:15px;font-size:14px;line-height:1.6;background:#fffbeb;border:1px solid #fde68a;color:#451a03;"></div>
-      </div>
-    </section>
-
-    <!-- 5. SORU-CEVAP (SOHBET) SEKMESİ -->
-    <section id="tab-sohbet" class="hidden">
-      <div class="card-box">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;border-bottom:1px solid #f1f5f9;padding-bottom:12px;">
-          <div>
-            <span class="eyebrow" style="color:#4338ca;">Mevzuat Danışma Masası</span>
-            <h2 class="section-heading">Yorum, Bağlantı ve Çalışma Yönlendirmesi</h2>
-          </div>
-          <button id="clearChatBtn" type="button" style="font-size:12px;font-weight:600;color:#475569;background:#f8fafc;border:1px solid #cbd5e1;border-radius:10px;padding:6px 12px;cursor:pointer;">Temizle</button>
-        </div>
-
-        <div style="display:flex;flex-wrap:wrap;gap:8px;">
-          <button type="button" data-prompt="KVK m. 5/1-e istisnası ile KDV m. 17/4-r ve VUK değerleme/amortisman hükümleri arasındaki bağlantıyı değerlendir; incelenmesi gereken kritik şartları ve çalışma adımlarını sırala."
-            class="chat-quick-btn" style="font-size:12px;font-weight:600;background:#f1f5f9;color:#1e293b;border:1px solid #e2e8f0;border-radius:11px;padding:8px 12px;cursor:pointer;">KVK–KDV–VUK Bağlantısı</button>
-          <button type="button" data-prompt="Bir vergi incelemesi veya uyuşmazlık vakasında VUK zamanaşımı, vergi ziyaı/uzlaşma ve ilgili maddi vergi kanunu (GVK/KVK/KDV) birlikte nasıl ele alınmalıdır? Beni adım adım yönlendir."
-            class="chat-quick-btn" style="font-size:12px;font-weight:600;background:#f1f5f9;color:#1e293b;border:1px solid #e2e8f0;border-radius:11px;padding:8px 12px;cursor:pointer;">İnceleme & Yönlendirme</button>
-          <button type="button" data-prompt="Seçili mevzuat veya Mevzuat Havuzu kapsamındaki en önemli uygulama ayrımlarını yorumla ve nasıl çalışmam gerektiğini öner."
-            class="chat-quick-btn" style="font-size:12px;font-weight:600;background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;border-radius:11px;padding:8px 12px;cursor:pointer;">Kritik Yorum & Çalışma Planı</button>
-        </div>
-
-        <div id="chatMessages" style="max-height:48vh;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:10px;">
-          <div style="border:1px solid #e2e8f0;background:#f8fafc;border-radius:16px;padding:14px;font-size:14px;line-height:1.55;color:#334155;">
-            Sorunuzu <strong>Mevzuat Yorumu</strong>, <strong>Kanunlar Arası Bağlantı</strong> ve <strong>Yönlendirme</strong> başlıklarıyla değerlendiririm. Mevzuat Havuzu metni varsa öncelikli olarak ona dayanır, belirsiz noktaları açıkça belirtirim.
-          </div>
-        </div>
-
-        <div style="display:flex;gap:8px;align-items:center;">
-          <input id="chatInput" type="text" placeholder="Vaka, kanun bağlantısı veya mevzuat yorumu sorun..." style="flex:1;" />
-          <button id="sendChatBtn" type="button" style="min-height:44px;background:#0f172a;color:#fff;border:0;border-radius:13px;padding:0 18px;font-size:14px;font-weight:600;cursor:pointer;flex-shrink:0;">Gönder</button>
-        </div>
-      </div>
-    </section>
-
-    <!-- 6. HATA DEFTERİ SEKMESİ -->
-    <section id="tab-hatalar" class="hidden">
-      <div class="card-box">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
-          <h2 class="section-heading" style="margin:0;">Hata Defteri</h2>
-          <div style="display:flex;align-items:center;gap:8px;">
-            <select id="mistakeFilter" style="width:auto;min-height:36px;padding:6px 10px;font-size:13px;">
-              <option value="ALL">Tüm Mevzuatlar</option>
+          <div class="form-group">
+            <label for="mcqDifficultySelect">Zorluk Düzeyi</label>
+            <select id="mcqDifficultySelect">
+              <option value="Orta">Orta</option>
+              <option value="Zor (YMM / Uzmanlık Düzeyi)" selected>Zor (YMM / Uzmanlık Düzeyi)</option>
+              <option value="Temel">Temel</option>
             </select>
-            <button id="clearMistakesBtn" type="button" style="border:0;background:transparent;color:#e11d48;font-size:13px;font-weight:600;cursor:pointer;">Tümünü Sil</button>
+          </div>
+          <div class="form-group">
+            <label for="mcqCountInput">Soru Sayısı (1 - 25)</label>
+            <input type="number" id="mcqCountInput" min="1" max="25" value="5" />
           </div>
         </div>
-        <div id="mistakesList" style="font-size:14px;color:#475569;">Henüz yanlış cevaplanan soru kaydı yok.</div>
+        <div class="btn-row">
+          <button id="generateMcqBtn" class="btn btn-primary">Ekranda Test Başlat</button>
+          <button id="generateMcqPdfBtn" class="btn btn-accent">Test + Cevap Anahtarı PDF İndir</button>
+        </div>
+        <p id="mcqStatusText" class="status-text"></p>
+      </div>
+
+      <div id="mcqQuizArea" class="card hidden">
+        <div class="quiz-header">
+          <h3 id="mcqQuizTitle">Sınav Soruları</h3>
+          <span id="mcqScoreBadge" class="badge"></span>
+        </div>
+        <div id="mcqQuestionsContainer"></div>
+        <div class="btn-row">
+          <button id="gradeMcqBtn" class="btn btn-primary">Testi Bitir ve Değerlendir</button>
+        </div>
       </div>
     </section>
 
-    <!-- 7. AYARLAR SEKMESİ -->
-    <section id="tab-ayarlar" class="hidden">
-      <div class="card-box">
-        <h2 class="section-heading" style="margin:0;">API ve Model Ayarları</h2>
-        <div>
-          <label style="display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px;">Gemini API Anahtarı</label>
-          <input id="apiKeyInput" type="password" placeholder="API anahtarınızı yapıştırın..." />
-        </div>
-        <div>
-          <label style="display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px;">Model Seçimi</label>
-          <select id="modelSelect">
-            <option value="gemini-3.8-flash" selected>gemini-3.8-flash (Hızlı ve Güncel)</option>
-            <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (Hafif / Yüksek Hız)</option>
-            <option value="gemini-4-neon">gemini-4-neon (Derin Mevzuat Analizi)</option>
-            <option value="gemini-4-hydrogen">gemini-4-hydrogen (Yüksek Muhakeme)</option>
-          </select>
-        </div>
-        <button id="saveSettingsBtn" type="button" class="btn-emerald-sm">Ayarları Telefona Kaydet</button>
-        <p id="settingsStatus" class="hidden" style="margin:0;font-size:13px;font-weight:600;color:#047857;">Kaydedildi.</p>
-      </div>
-
-      <!-- AYRI YMM YAZILI SINAV ÖRNEK SORU HAVUZU -->
-      <div class="card-box" style="border:1.5px solid #fde68a;">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-          <h2 class="section-heading" style="margin:0;color:#92400e;">YMM Yazılı Sınav Örnek Soru Havuzu</h2>
-          <span style="font-size:11px;font-weight:700;background:#fef3c7;color:#92400e;padding:3px 9px;border-radius:9999px;">YMM Alanı</span>
-        </div>
-        <p style="margin:0;font-size:13px;line-height:1.5;color:#475569;">
-          YMM yazılı sınav çıkmış sorularını veya vaka örneklerini (çoklu PDF veya metin) buraya yükleyin. YMM yazılı vaka ve PDF üretimi bu örnek formatı izler.
+    <!-- SEKME 2: YMM YAZILI SINAV (2026/2 ÇATI VAKA + A-E BENTLERİ TARZI) -->
+    <section id="ymmTab" class="tab-panel">
+      <div class="card">
+        <h2>TÜRMOB YMM Yazılı Sınav Üretici (Çatı Örnek & Çok Bentli Vaka)</h2>
+        <p class="hint">
+          Yüklediğiniz 2026/2. Dönem Vergi Tekniği sınav formatını esas alır: <strong>Çatı Örnek Mükellef</strong> +
+          <strong>Veriler / Mali Tablo & Parametreler</strong> + <strong>(a)-(e) Alt Bentleri (100 Puan)</strong> ve
+          <strong>Adım Adım Komisyon Cevabı</strong> üretir.
         </p>
 
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px dashed #fbbf24;background:#fffbeb;border-radius:14px;padding:12px;">
-          <span id="ymmPdfFileName" style="font-size:13px;color:#92400e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">YMM PDF seçilmedi</span>
-          <label style="background:#d97706;color:#ffffff;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;">
-            YMM PDF Yükle
-            <input id="ymmPdfFileInput" type="file" accept="application/pdf,.pdf" multiple class="hidden" />
-          </label>
+        <div class="grid-3">
+          <div class="form-group">
+            <label for="ymmSubjectSelect">YMM Sınav Dersi</label>
+            <select id="ymmSubjectSelect">
+              <option value="Vergi Tekniği" selected>Vergi Tekniği</option>
+              <option value="Gelir Üzerinden Alınan Vergiler">Gelir Üzerinden Alınan Vergiler (GVK - KVK)</option>
+              <option value="Harcama ve Servet Üzerinden Alınan Vergiler">Harcama ve Servet Üzerinden Alınan Vergiler (KDV - ÖTV - VUK)</option>
+              <option value="Revizyon">Revizyon</option>
+              <option value="Denetim, Raporlama ve Meslek Hukuku">Denetim, Raporlama ve Meslek Hukuku</option>
+              <option value="İleri Düzeyde Finansal Muhasebe">İleri Düzeyde Finansal Muhasebe</option>
+              <option value="Yönetim Muhasebesi">Yönetim Muhasebesi</option>
+              <option value="Dış Ticaret ve Kambiyo Mevzuatı">Dış Ticaret ve Kambiyo Mevzuatı</option>
+              <option value="Sermaye Piyasası Mevzuatı">Sermaye Piyasası Mevzuatı</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="ymmFocusInput">Özel Odak / Mevzuat Konusu (İsteğe Bağlı)</label>
+            <input type="text" id="ymmFocusInput" placeholder="Örn: VUK 379 Kanun Yolundan Vazgeçme, 6183 m.23, Yeniden Değerleme, Dar Mükellef Tevkifat..." />
+          </div>
+
+          <div class="form-group">
+            <label for="ymmPdfCountInput">Üretilecek Çatı Sınav Sayısı (1 - 5)</label>
+            <input type="number" id="ymmPdfCountInput" min="1" max="5" value="1" />
+          </div>
         </div>
 
-        <p id="ymmPoolStatus" class="hidden" style="margin:0;font-size:13px;"></p>
-
-        <textarea id="ymmPoolTextInput" rows="5" placeholder="YMM yazılı sınav örnek soruları, vakalar veya PDF'ten aktarılan metinler..."></textarea>
-        <div class="two-col">
-          <button id="saveYmmPoolBtn" type="button" style="min-height:44px;border:0;background:#b45309;color:#fff;border-radius:13px;padding:10px 14px;font-size:14px;font-weight:600;cursor:pointer;">YMM Havuzunu Kaydet</button>
-          <button id="clearYmmPoolBtn" type="button" style="min-height:44px;border:1px solid #cbd5e1;background:#fff;color:#e11d48;border-radius:13px;padding:10px 14px;font-size:14px;font-weight:600;cursor:pointer;">Temizle</button>
+        <div class="grid-2">
+          <div class="form-group">
+            <label for="ymmFormatSelect">Sınav Kurgusu</label>
+            <select id="ymmFormatSelect">
+              <option value="2026/2 TÜRMOB Tarzı Çatı Vaka (Tek Çatı Mükellef + Veriler + a-e Bentleri, 100 Puan)" selected>
+                2026/2 TÜRMOB Tarzı Çatı Vaka (Tek Çatı + Veriler + a-e Bentleri, 100 Puan)
+              </option>
+              <option value="Çoklu Somut Olay (3-4 Bağımsız Somut Olay + Kanuni Değerlendirme)">
+                Çoklu Somut Olay (3-4 Bağımsız Somut Olay + Kanuni Değerlendirme)
+              </option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Örnek Havuz Durumu</label>
+            <div id="ymmPoolBadge" class="info-box">Havuz kontrol ediliyor...</div>
+          </div>
         </div>
+
+        <div class="btn-row">
+          <button id="generateYmmSingleBtn" class="btn btn-primary">Ekranda 1 Çatı Sınav Üret</button>
+          <button id="generateYmmPdfBtn" class="btn btn-accent">YMM Sınav + Komisyon Cevabı PDF İndir</button>
+        </div>
+        <p id="ymmPdfStatus" class="status-text"></p>
       </div>
 
-      <!-- AYRI SMMM YETERLİLİK PDF / ÖRNEK SORU HAVUZU -->
-      <div class="card-box" style="border:1.5px solid #c7d2fe;">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-          <h2 class="section-heading" style="margin:0;color:#312e81;">SMMM Yeterlilik Örnek Soru Havuzu</h2>
-          <span style="font-size:11px;font-weight:700;background:#eef2ff;color:#4338ca;padding:3px 9px;border-radius:9999px;">Bağımsız Alan</span>
+      <!-- Ekranda Üretilen YMM Sınav Önizleme Alanı -->
+      <div id="ymmPreviewArea" class="card hidden">
+        <div class="quiz-header">
+          <h3 id="ymmPreviewTitle">Üretilen YMM Yazılı Sınavı</h3>
+          <button id="toggleYmmSolutionBtn" class="btn btn-secondary">Komisyon Cevabını Göster / Gizle</button>
         </div>
-        <p style="margin:0;font-size:13px;line-height:1.5;color:#475569;">
-          SMMM yeterlilik çıkmış veya örnek sorularını (çoklu PDF veya metin) buraya yükleyin. Üretilen PDF test seti bu PDF'in formatını ve soru tarzını takip eder.
+        <div id="ymmQuestionContent" class="ymm-paper"></div>
+        <div id="ymmSolutionWrapper" class="ymm-solution hidden">
+          <h4>SINAV KOMİSYONU CEVAPLARI</h4>
+          <div id="ymmSolutionContent" class="ymm-paper"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SEKME 3: PDF & HAVUZ YÖNETİMİ -->
+    <section id="poolTab" class="tab-panel">
+      <div class="card">
+        <h2>Geçmiş YMM Sınavları & Ders Notu PDF Havuzu</h2>
+        <p class="hint">
+          TÜRMOB YMM geçmiş sınav PDF'lerini (soru + komisyon cevap anahtarı dahil) buraya yükleyin. Sistem metni çıkarıp tarayıcı hafızasına kaydeder ve soru üretirken birebir bu üslubu örnek alır.
         </p>
 
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px dashed #a5b4fc;background:#eef2ff;border-radius:14px;padding:12px;">
-          <span id="smmmPdfFileName" style="font-size:13px;color:#3730a3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">SMMM PDF seçilmedi</span>
-          <label style="background:#4f46e5;color:#ffffff;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;">
-            SMMM PDF Yükle
-            <input id="smmmPdfFileInput" type="file" accept="application/pdf,.pdf" multiple class="hidden" />
-          </label>
+        <div class="grid-2">
+          <div class="form-group">
+            <label for="ymmPdfUpload">YMM Örnek Sınav PDF'i Yükle (Çoklu Seçim Yapılabilir)</label>
+            <input type="file" id="ymmPdfUpload" accept="application/pdf" multiple />
+          </div>
+          <div class="form-group">
+            <label for="generalPdfUpload">Genel Test / Ders Notu PDF'i Yükle</label>
+            <input type="file" id="generalPdfUpload" accept="application/pdf" multiple />
+          </div>
+        </div>
+        <p id="uploadStatusText" class="status-text"></p>
+
+        <div class="form-group">
+          <label for="ymmPoolTextarea">Kayıtlı YMM Sınav Havuzu Metni (Düzenlenebilir)</label>
+          <textarea id="ymmPoolTextarea" rows="8" placeholder="Yüklenen YMM sınav PDF metinleri burada görünür..."></textarea>
         </div>
 
-        <p id="smmmPoolStatus" class="hidden" style="margin:0;font-size:13px;"></p>
-
-        <textarea id="smmmPoolTextInput" rows="5" placeholder="SMMM yeterlilik örnek soruları, çözümleri veya PDF'ten aktarılan metinler..."></textarea>
-        <div class="two-col">
-          <button id="saveSmmmPoolBtn" type="button" style="min-height:44px;border:0;background:#312e81;color:#fff;border-radius:13px;padding:10px 14px;font-size:14px;font-weight:600;cursor:pointer;">SMMM Havuzunu Kaydet</button>
-          <button id="clearSmmmPoolBtn" type="button" style="min-height:44px;border:1px solid #cbd5e1;background:#fff;color:#e11d48;border-radius:13px;padding:10px 14px;font-size:14px;font-weight:600;cursor:pointer;">Temizle</button>
-        </div>
-      </div>
-
-      <!-- MEVZUAT HAVUZU -->
-      <div class="card-box">
-        <h2 class="section-heading" style="margin:0;">Mevzuat Havuzu (Çoklu PDF ve Geniş Kapasite)</h2>
-        <p style="margin:0;font-size:13px;line-height:1.5;color:#64748b;">Birden fazla PDF seçebilir, linkten veri çekebilir veya metin yapıştırabilirsiniz (200.000 karakter kapasitesi).</p>
-
-        <div style="display:flex;gap:8px;align-items:center;">
-          <input id="lawUrlInput" type="url" placeholder="Kanun, tebliğ veya sirküler bağlantısı..." style="flex:1;" />
-          <button id="fetchUrlBtn" type="button" style="min-height:44px;border:0;background:#4f46e5;color:#fff;border-radius:13px;padding:0 14px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;">Linkten Çek</button>
+        <div class="form-group">
+          <label for="generalPoolTextarea">Kayıtlı Genel Çalışma Havuzu Metni (Düzenlenebilir)</label>
+          <textarea id="generalPoolTextarea" rows="6" placeholder="Genel ders notu PDF metinleri burada görünür..."></textarea>
         </div>
 
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px dashed #cbd5e1;background:#f8fafc;border-radius:14px;padding:12px;">
-          <span id="pdfFileName" style="font-size:13px;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">PDF dosyası seçilmedi</span>
-          <label style="background:#fff;border:1px solid #cbd5e1;color:#1e293b;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;">
-            PDF Yükle
-            <input id="pdfFileInput" type="file" accept="application/pdf,.pdf" multiple class="hidden" />
-          </label>
-        </div>
-
-        <p id="lawSourceStatus" class="hidden" style="margin:0;font-size:13px;"></p>
-
-        <textarea id="lawTextInput" rows="6" placeholder="İlgili mevzuat metni, başlık listesi veya PDF/linkten çekilen veriler..."></textarea>
-        <div class="two-col">
-          <button id="saveLawBtn" type="button" style="min-height:44px;border:0;background:#0f172a;color:#fff;border-radius:13px;padding:10px 14px;font-size:14px;font-weight:600;cursor:pointer;">Havuzu Kaydet</button>
-          <button id="clearLawBtn" type="button" style="min-height:44px;border:1px solid #cbd5e1;background:#fff;color:#e11d48;border-radius:13px;padding:10px 14px;font-size:14px;font-weight:600;cursor:pointer;">Havuzu Temizle</button>
-        </div>
-      </div>
-
-      <div class="card-box">
-        <h2 class="section-heading" style="margin:0;">Yedekleme ve Geri Yükleme</h2>
-        <div class="two-col">
-          <button id="exportBackupBtn" type="button" style="min-height:44px;border:0;background:#f1f5f9;color:#1e293b;border-radius:13px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;">JSON Yedek İndir</button>
-          <label style="min-height:44px;display:flex;align-items:center;justify-content:center;background:#f1f5f9;color:#1e293b;border-radius:13px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;text-align:center;">
-            JSON Geri Yükle
-            <input id="importBackupInput" type="file" accept="application/json,.json" class="hidden" />
-          </label>
+        <div class="btn-row">
+          <button id="savePoolsBtn" class="btn btn-primary">Havuz Metinlerini Kaydet</button>
+          <button id="clearYmmPoolBtn" class="btn btn-danger">YMM Havuzunu Temizle</button>
+          <button id="clearGeneralPoolBtn" class="btn btn-danger">Genel Havuzu Temizle</button>
         </div>
       </div>
     </section>
   </main>
 
-  <nav id="bottomNav">
-    <div class="bottom-nav-grid">
-      <button id="nav-konu" type="button" data-tab="konu" onclick="window.__coreSwitchTab('konu')" class="flex flex-col items-center justify-center py-1 text-[10px] font-bold text-slate-900">
-        <span style="font-size:16px;line-height:1;">📘</span><span>Konu</span>
-      </button>
-      <button id="nav-soru" type="button" data-tab="soru" onclick="window.__coreSwitchTab('soru')" class="flex flex-col items-center justify-center py-1 text-[10px] font-medium text-slate-500">
-        <span style="font-size:16px;line-height:1;">✍️</span><span>Soru</span>
-      </button>
-      <button id="nav-smmm" type="button" data-tab="smmm" onclick="window.__coreSwitchTab('smmm')" class="flex flex-col items-center justify-center py-1 text-[10px] font-medium text-slate-500">
-        <span style="font-size:16px;line-height:1;">🎓</span><span>SMMM</span>
-      </button>
-      <button id="nav-ymm" type="button" data-tab="ymm" onclick="window.__coreSwitchTab('ymm')" class="flex flex-col items-center justify-center py-1 text-[10px] font-medium text-slate-500">
-        <span style="font-size:16px;line-height:1;">🏛️</span><span>YMM</span>
-      </button>
-      <button id="nav-sohbet" type="button" data-tab="sohbet" onclick="window.__coreSwitchTab('sohbet')" class="flex flex-col items-center justify-center py-1 text-[10px] font-medium text-slate-500">
-        <span style="font-size:16px;line-height:1;">💬</span><span>Soru-Cevap</span>
-      </button>
-      <button id="nav-hatalar" type="button" data-tab="hatalar" onclick="window.__coreSwitchTab('hatalar')" class="flex flex-col items-center justify-center py-1 text-[10px] font-medium text-slate-500">
-        <span style="font-size:16px;line-height:1;">📕</span><span>Hatalar</span>
-      </button>
-      <button id="nav-ayarlar" type="button" data-tab="ayarlar" onclick="window.__coreSwitchTab('ayarlar')" class="flex flex-col items-center justify-center py-1 text-[10px] font-medium text-slate-500">
-        <span style="font-size:16px;line-height:1;">⚙️</span><span>Ayarlar</span>
-      </button>
+  <!-- API AYARLARI MODALI -->
+  <div id="settingsModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Gemini API Ayarları</h3>
+        <button id="closeSettingsBtn" class="icon-btn">&times;</button>
+      </div>
+      <div class="form-group">
+        <label for="apiKeyInput">Google Gemini API Anahtarı</label>
+        <input type="password" id="apiKeyInput" placeholder="AIzaSy..." />
+      </div>
+      <div class="form-group">
+        <label for="modelSelect">Model Seçimi</label>
+        <select id="modelSelect">
+          <option value="gemini-2.5-pro" selected>gemini-2.5-pro (YMM Vaka & Hesaplama İçin Önerilen)</option>
+          <option value="gemini-2.5-flash">gemini-2.5-flash (Hızlı Test Üretimi)</option>
+        </select>
+      </div>
+      <div class="btn-row">
+        <button id="saveSettingsBtn" class="btn btn-primary">Kaydet</button>
+      </div>
     </div>
-  </nav>
+  </div>
 
   <script src="app.js"></script>
 </body>
