@@ -3,35 +3,70 @@ const STORAGE_KEYS = {
   apiKey: "vergi_pwa_api_key",
   model: "vergi_pwa_model",
   lawText: "vergi_pwa_law_text",
+  lawUrl: "vergi_pwa_law_url",
   stats: "vergi_pwa_stats",
   mistakes: "vergi_pwa_mistakes"
 };
 const MAX_LAW_CHARS = 25000;
 
-const GIB_MEVZUAT_POOL = [
-  "193 sayılı Gelir Vergisi Kanunu",
-  "213 sayılı Vergi Usul Kanunu",
-  "3065 sayılı Katma Değer Vergisi Kanunu",
-  "5520 sayılı Kurumlar Vergisi Kanunu",
-  "6183 sayılı Amme Alacaklarının Tahsil Usulü Hakkında Kanunu",
-  "488 sayılı Damga Vergisi Kanunu",
-  "492 sayılı Harçlar Kanunu",
-  "7338 sayılı Veraset ve İntikal Vergisi Kanunu",
-  "1319 sayılı Emlak Vergisi Kanunu",
-  "4760 sayılı Özel Tüketim Vergisi Kanunu",
-  "197 sayılı Motorlu Taşıtlar Vergisi Kanunu",
-  "6802 sayılı Gider Vergileri Kanunu",
-  "2464 sayılı Belediye Gelirleri Kanunu",
-  "7194 sayılı Dijital Hizmet Vergisi ile Bazı Kanunlarda ve 375 Sayılı Kanun Hükmünde Kararnamede Değişiklik Yapılması Hakkında Kanun",
-  "7521 sayılı Konaklama Vergisi ile İlgili Hükümleri İçeren Kanun Düzenlemeleri (Gider Vergileri Kanunu m. 34)",
-  "4691 sayılı Teknoloji Geliştirme Bölgeleri Kanunu",
-  "5746 sayılı Araştırma, Geliştirme ve Tasarım Faaliyetlerinin Desteklenmesi Hakkında Kanun",
-  "3218 sayılı Serbest Bölgeler Kanunu",
-  "4562 sayılı Organize Sanayi Bölgeleri Kanunu",
-  "4458 sayılı Gümrük Kanunu",
-  "1567 sayılı Türk Parasının Kıymetini Koruma Hakkında Kanun",
-  "2577 sayılı İdari Yargılama Usulü Kanunu"
-];
+const CATEGORY_LABELS = {
+  kanunlar: "Kanunlar",
+  tebligler: "Tebliğler",
+  ozelgeler: "Özelgeler",
+  sirkulerler: "Sirkülerler",
+  yonetmelikler: "Yönetmelikler"
+};
+
+const MEVZUAT_BY_CATEGORY = {
+  kanunlar: [
+    "193 sayılı Gelir Vergisi Kanunu",
+    "213 sayılı Vergi Usul Kanunu",
+    "3065 sayılı Katma Değer Vergisi Kanunu",
+    "5520 sayılı Kurumlar Vergisi Kanunu",
+    "6183 sayılı Amme Alacaklarının Tahsil Usulü Hakkında Kanunu",
+    "488 sayılı Damga Vergisi Kanunu",
+    "492 sayılı Harçlar Kanunu",
+    "7338 sayılı Veraset ve İntikal Vergisi Kanunu",
+    "1319 sayılı Emlak Vergisi Kanunu",
+    "4760 sayılı Özel Tüketim Vergisi Kanunu",
+    "197 sayılı Motorlu Taşıtlar Vergisi Kanunu",
+    "6802 sayılı Gider Vergileri Kanunu",
+    "2464 sayılı Belediye Gelirleri Kanunu",
+    "4691 sayılı Teknoloji Geliştirme Bölgeleri Kanunu",
+    "5746 sayılı Araştırma, Geliştirme ve Tasarım Faaliyetlerinin Desteklenmesi Hakkında Kanun",
+    "3218 sayılı Serbest Bölgeler Kanunu"
+  ],
+  tebligler: [
+    "KDV Genel Uygulama Tebliği",
+    "Kurumlar Vergisi Genel Tebliği (Seri No: 1)",
+    "Vergi Usul Kanunu Genel Tebliği (Sıra No: 509 - e-Belge Uygulamaları)",
+    "Transfer Fiyatlandırması Yoluyla Örtülü Kazanç Dağıtımı Hakkında Genel Tebliğ (Seri No: 1)",
+    "Gelir Vergisi Genel Tebliği (Seri No: 311 - Ücret İstisnası ve Uygulaması)",
+    "Tahsilat Genel Tebliği (Seri No: A/1)",
+    "Özel Tüketim Vergisi (I), (II), (III) ve (IV) Sayılı Liste Uygulama Genel Tebliğleri"
+  ],
+  ozelgeler: [
+    "GİB Özelgeleri - İştirak ve Taşınmaz Satış Kazancı İstisnası (KVK m. 5)",
+    "GİB Özelgeleri - KDV İndirimi, İadesi ve Sorumlu Sıfatıyla Tevkifat (KDV m. 9, 29, 32)",
+    "GİB Özelgeleri - Belge Düzeni, Değerleme, Amortisman ve Düzeltme (VUK)",
+    "GİB Özelgeleri - Serbest Meslek, Ücret ve Gayrimenkul Sermaye İradı (GVK)",
+    "GİB Özelgeleri - Kanuni Temsilci Sorumluluğu ve Haciz Uygulamaları (6183 sayılı Kanun)"
+  ],
+  sirkulerler: [
+    "Vergi Usul Kanunu Sirküleri - Elektronik Belge ve Beyan Uygulamaları",
+    "Kurumlar Vergisi Sirküleri - İstisnalar, Geçici Vergi ve Matrah Uygulamaları",
+    "Katma Değer Vergisi Sirküleri - Tevkifat, İndirim ve İade Usulleri",
+    "Gelir Vergisi Sirküleri - Tevkifat, İstisna ve Beyan Uygulamaları",
+    "Tahsilat Sirküleri - Tecil, Taksitlendirme ve Amme Alacağı Takibi"
+  ],
+  yonetmelikler: [
+    "Transfer Fiyatlandırması Yoluyla Örtülü Kazanç Dağıtımı Hakkında Yönetmelik",
+    "Vergi Usul Kanunu Uyarınca Defter ve Belgelerin Elektronik Ortamda Tutulması/Düzenlenmesi Yönetmeliği",
+    "Vergi Cezalarında Uzlaşma Yönetmeliği / Tarhiyat Öncesi Uzlaşma Yönetmeliği",
+    "Amme Alacaklarının Tahsil Usulü Hakkında Kanun Uygulama Yönetmeliği",
+    "Mal ve Hizmetlere Uygulanacak Katma Değer Vergisi Oranlarının Tespitine İlişkin Karar/Düzenlemeler"
+  ]
+};
 
 const PRESETS = {
   kvk51a: "5520 sayılı KVK Madde 5/1-a: Kurumların, başka bir kurumun sermayesine katılmasından elde ettikleri kazançlar (tam mükellef kurumlardan elde edilen kâr payları ile yatırım fonu/ortaklığı katılma payları/hisselerine ilişkin hükümler) vergiden istisnadır.",
@@ -39,10 +74,11 @@ const PRESETS = {
   vuk114: "213 sayılı VUK Madde 114: Vergi alacağının doğduğu takvim yılını takip eden yıldan başlayarak beş yıl içinde tarh ve mükellefe tebliğ edilmeyen vergiler zamanaşımına uğrar."
 };
 
+let activeCategory = "kanunlar";
 let stats = JSON.parse(localStorage.getItem(STORAGE_KEYS.stats) || '{"correct":0,"total":0,"byTopic":{}}');
 let mistakes = JSON.parse(localStorage.getItem(STORAGE_KEYS.mistakes) || "[]");
 let currentQuestion = {
-  topic: GIB_MEVZUAT_POOL[3],
+  topic: MEVZUAT_BY_CATEGORY.kanunlar[3],
   question: "Tam mükellef (X) A.Ş., tam mükellef (Y) A.Ş.'nin sermayesine iştirak etmekte ve (Y) A.Ş.'den nakit kâr payı almaktadır. Bu kazancın kurumlar vergisi karşısındaki durumu nedir?",
   options: [
     "A) Kurumlar vergisinden istisnadır.",
@@ -62,6 +98,66 @@ if (window.pdfjsLib && window.pdfjsLib.GlobalWorkerOptions) {
     "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 }
 
+function inferCategoryFromLine(line) {
+  const lower = String(line || "").toLocaleLowerCase("tr");
+  if (lower.includes("yönetmelik")) return "yonetmelikler";
+  if (lower.includes("sirküler")) return "sirkulerler";
+  if (lower.includes("özelge")) return "ozelgeler";
+  if (lower.includes("tebliğ")) return "tebligler";
+  if (lower.includes("kanun")) return "kanunlar";
+  return null;
+}
+
+function extractItemsFromPoolText(rawText) {
+  const buckets = {
+    kanunlar: [],
+    tebligler: [],
+    ozelgeler: [],
+    sirkulerler: [],
+    yonetmelikler: []
+  };
+
+  const lines = String(rawText || "")
+    .split(/\r?\n/)
+    .map((l) => l.replace(/^[\s\-*•\d.)]+/, "").trim())
+    .filter((l) => l.length >= 12 && l.length <= 220 && !l.startsWith("--- Kaynak:"));
+
+  for (const line of lines) {
+    const cat = inferCategoryFromLine(line);
+    if (cat && !buckets[cat].includes(line)) {
+      buckets[cat].push(line);
+    }
+  }
+
+  return buckets;
+}
+
+function getCategoryPool(category = activeCategory) {
+  const base = MEVZUAT_BY_CATEGORY[category] || MEVZUAT_BY_CATEGORY.kanunlar;
+  const lawText = localStorage.getItem(STORAGE_KEYS.lawText) || "";
+  const extra = extractItemsFromPoolText(lawText)[category] || [];
+  return [...new Set([...extra, ...base])];
+}
+
+function syncCategoryUi() {
+  document.querySelectorAll(".law-cat-btn").forEach((btn) => {
+    const isSelected = btn.dataset.category === activeCategory;
+    btn.className = isSelected
+      ? "law-cat-btn rounded-lg py-2 px-1 text-[11px] font-bold bg-slate-900 text-white shadow-xs transition truncate"
+      : "law-cat-btn rounded-lg py-2 px-1 text-[11px] font-semibold text-slate-600 hover:text-slate-900 transition truncate";
+  });
+
+  const label = CATEGORY_LABELS[activeCategory] || "Kanunlar";
+  const pool = getCategoryPool(activeCategory);
+  const titleEl = document.getElementById("pickerPanelTitle");
+  const countEl = document.getElementById("categoryCountBadge");
+  const catLabelEl = document.getElementById("lessonCategoryLabel");
+
+  if (titleEl) titleEl.textContent = `GİB ${label} Listesi`;
+  if (countEl) countEl.textContent = `${label} (${pool.length} kayıt)`;
+  if (catLabelEl) catLabelEl.textContent = label;
+}
+
 function syncSelectionModeBadge() {
   const badge = document.getElementById("activeSelectionBadge");
   const autoCb = document.getElementById("autoRandomOnGenerate");
@@ -70,7 +166,7 @@ function syncSelectionModeBadge() {
     badge.textContent = "Rastgele Mod";
     badge.className = "text-[11px] font-semibold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200/80 shrink-0";
   } else {
-    badge.textContent = "Manuel Kanun";
+    badge.textContent = "Manuel Seçim";
     badge.className = "text-[11px] font-semibold px-2.5 py-1 rounded-full bg-slate-900 text-white border border-slate-900 shrink-0";
   }
 }
@@ -78,14 +174,15 @@ function syncSelectionModeBadge() {
 function populateGibTopicSelect(selectedTopic = "", filterText = "") {
   const sel = document.getElementById("gibTopicSelect");
   if (!sel) return;
+  const pool = getCategoryPool(activeCategory);
   const q = String(filterText || "").trim().toLocaleLowerCase("tr");
   const list = q
-    ? GIB_MEVZUAT_POOL.filter((item) => item.toLocaleLowerCase("tr").includes(q))
-    : GIB_MEVZUAT_POOL;
+    ? pool.filter((item) => item.toLocaleLowerCase("tr").includes(q))
+    : pool;
 
   sel.innerHTML = list.length
     ? list.map((item) => `<option value="${escapeAttr(item)}">${escapeHtml(item)}</option>`).join("")
-    : `<option disabled value="">Eşleşen kanun bulunamadı</option>`;
+    : `<option disabled value="">Bu bölümde eşleşen kayıt bulunamadı</option>`;
 
   if (selectedTopic && list.includes(selectedTopic)) {
     sel.value = selectedTopic;
@@ -93,17 +190,30 @@ function populateGibTopicSelect(selectedTopic = "", filterText = "") {
 }
 
 function pickRandomGibTopic(currentValue = "") {
-  const candidates = GIB_MEVZUAT_POOL.filter((item) => item !== currentValue);
-  const pool = candidates.length ? candidates : GIB_MEVZUAT_POOL;
+  const poolAll = getCategoryPool(activeCategory);
+  const candidates = poolAll.filter((item) => item !== currentValue);
+  const pool = candidates.length ? candidates : poolAll;
   const chosen = pool[Math.floor(Math.random() * pool.length)];
+
   const input = document.getElementById("topicInput");
   if (input) input.value = chosen;
   const searchInput = document.getElementById("lawSearchInput");
   if (searchInput) searchInput.value = "";
+  syncCategoryUi();
   populateGibTopicSelect(chosen, "");
   const sel = document.getElementById("gibTopicSelect");
   if (sel) sel.value = chosen;
   return chosen;
+}
+
+async function selectCategory(category, autoPick = true) {
+  activeCategory = CATEGORY_LABELS[category] ? category : "kanunlar";
+  syncCategoryUi();
+  if (autoPick) {
+    pickRandomGibTopic("");
+  } else {
+    populateGibTopicSelect(document.getElementById("topicInput").value.trim(), "");
+  }
 }
 
 function saveAllState() {
@@ -141,7 +251,9 @@ function appendLawText(incoming, sourceLabel) {
 
   ta.value = merged;
   localStorage.setItem(STORAGE_KEYS.lawText, merged);
-  setLawStatus(`"${sourceLabel}" metni aktarıldı ve kaydedildi${trimmedNote}.`);
+  syncCategoryUi();
+  populateGibTopicSelect(document.getElementById("topicInput").value.trim(), document.getElementById("lawSearchInput").value);
+  setLawStatus(`"${sourceLabel}" verisi aktarıldı, kaydedildi ve mevzuat listelerine işlendi${trimmedNote}.`);
 }
 
 function htmlToPlainText(htmlString) {
@@ -158,6 +270,7 @@ async function fetchTextFromUrl(rawUrl) {
     throw new Error("Lütfen http:// veya https:// ile başlayan geçerli bir bağlantı girin.");
   }
 
+  localStorage.setItem(STORAGE_KEYS.lawUrl, url);
   const btn = document.getElementById("fetchUrlBtn");
   const prev = btn.textContent;
   btn.disabled = true;
@@ -261,7 +374,7 @@ function renderTopicStats() {
   const el = document.getElementById("topicStatsList");
   const entries = Object.entries(stats.byTopic || {});
   if (!entries.length) {
-    el.textContent = "Henüz soru çözülmedi. Soru çözdükçe kanun bazlı doğru/yanlış dağılımı burada görünecek.";
+    el.textContent = "Henüz soru çözülmedi. Soru çözdükçe mevzuat bazlı doğru/yanlış dağılımı burada görünecek.";
     return;
   }
   el.innerHTML = entries.map(([topic, d]) => {
@@ -278,7 +391,7 @@ function renderMistakes() {
   const filterEl = document.getElementById("mistakeFilter");
   const currentFilter = filterEl.value || "ALL";
   const topics = ["ALL", ...new Set(mistakes.map((m) => m.topic))];
-  filterEl.innerHTML = topics.map((t) => `<option value="${escapeAttr(t)}">${t === "ALL" ? "Tüm Kanunlar" : escapeHtml(t)}</option>`).join("");
+  filterEl.innerHTML = topics.map((t) => `<option value="${escapeAttr(t)}">${t === "ALL" ? "Tüm Mevzuatlar" : escapeHtml(t)}</option>`).join("");
   filterEl.value = topics.includes(currentFilter) ? currentFilter : "ALL";
 
   const filtered = mistakes.filter((m) => filterEl.value === "ALL" || m.topic === filterEl.value);
@@ -297,7 +410,7 @@ function renderMistakes() {
       <p class="font-medium text-slate-900">${escapeHtml(m.question)}</p>
       <p class="text-xs text-slate-600"><strong>Doğru Cevap:</strong> ${escapeHtml(m.correctOption || "")}</p>
       <p class="text-xs text-slate-700">${escapeHtml(m.explanation || "")}</p>
-      <textarea rows="2" placeholder="Kendi kısa notunuz veya kanun/tebliğ notu..."
+      <textarea rows="2" placeholder="Kendi kısa notunuz veya mevzuat/tebliğ notu..."
         onchange="updateMistakeNote(${realIndex}, this.value)"
         class="w-full rounded-lg border border-slate-300 bg-white p-2 text-xs text-slate-800">${escapeHtml(m.note || "")}</textarea>
     </div>`;
@@ -384,14 +497,15 @@ function startTimerIfConfigured() {
 function buildStrictTaxAdvisorInstruction() {
   const lawText = (localStorage.getItem(STORAGE_KEYS.lawText) || "").trim();
   const activeTopic = (document.getElementById("topicInput")?.value || "").trim();
+  const catLabel = CATEGORY_LABELS[activeCategory] || "Kanunlar";
   const todayStr = new Date().toLocaleDateString("tr-TR");
 
   const honestyGuardrail = [
     "KESİN DOĞRULUK VE UYDURMAMA KURALI:",
-    "- Asla kanun maddesi, tebliğ numarası, özelge, yargı kararı, oran, tutar veya süre uydurma; emin olmadığın hiçbir bilgiyi kesinmiş gibi sunma.",
+    "- Asla kanun/tebliğ/özelge/sirküler/yönetmelik numarası, madde, oran, tutar veya süre uydurma; emin olmadığın hiçbir bilgiyi kesinmiş gibi sunma.",
     "- Mevzuat Havuzu'nda kaynak metin verilmişse öncelikle o metindeki hükümlere sadık kal; metinde yer almayan veya belirsiz kalan noktalarda 'Mevzuat Havuzu'nda yer almıyor / teyit edilmelidir' diye açıkça belirt.",
-    "- Güncel/dönemsel tutar, had, oran veya sonradan değişmiş olabilecek düzenlemeler konusunda tam kesinlik yoksa veya güncel Resmî Gazete/GİB teyidi gerekiyorsa tahmin yürütme; ilgili kanun/madde mantığını açıklayıp güncel teyit gerektirdiğini net yaz.",
-    `- Bugünün tarihi: ${todayStr}. Aktif çalışma kanunu: ${activeTopic || "Belirtilmedi"}.`
+    "- Güncel/dönemsel tutar, had, oran veya sonradan değişmiş olabilecek düzenlemeler konusunda tam kesinlik yoksa veya güncel Resmî Gazete/GİB teyidi gerekiyorsa tahmin yürütme; ilgili mevzuat mantığını açıklayıp güncel teyit gerektirdiğini net yaz.",
+    `- Bugünün tarihi: ${todayStr}. Aktif mevzuat bölümü: ${catLabel} | Seçili başlık: ${activeTopic || "Belirtilmedi"}.`
   ].join("\n");
 
   if (lawText) {
@@ -452,6 +566,7 @@ function parseJsonLoose(raw) {
 async function generateLessonAndQuestion(onlyQuestion = false) {
   const topicInput = document.getElementById("topicInput");
   const autoRandom = document.getElementById("autoRandomOnGenerate")?.checked;
+  const catLabel = CATEGORY_LABELS[activeCategory] || "Kanunlar";
   let topic = topicInput.value.trim();
 
   if (autoRandom && !onlyQuestion) {
@@ -467,8 +582,8 @@ async function generateLessonAndQuestion(onlyQuestion = false) {
   btn.textContent = "Üretiliyor...";
 
   try {
-    const prompt = `Kaynak bağlam: gib.gov.tr mevzuatı | Seçilen Kanun: "${topic}" | Zorluk: "${difficulty}".
-Bu kanun kapsamından önemli bir konu veya vaka seçerek konu özeti, kritik ayrım ve 4 şıklı çoktan seçmeli soru üret. Uydurma kanun maddesi veya uydurma oran kullanma.
+    const prompt = `Kaynak bağlam: gib.gov.tr mevzuatı | Mevzuat Bölümü: "${catLabel}" | Seçili Başlık: "${topic}" | Zorluk: "${difficulty}".
+Bu bölüm ve başlık kapsamından önemli bir konu veya vaka seçerek konu özeti, kritik ayrım ve 4 şıklı çoktan seçmeli soru üret. Uydurma numara, madde veya oran kullanma; Mevzuat Havuzu metni varsa ona dayan.
 Yalnızca şu şemada tek bir JSON nesnesi döndür (iç metinlerde çift tırnak yerine tek tırnak kullan):
 {
   "lessonTitle": "...",
@@ -487,7 +602,7 @@ Yalnızca şu şemada tek bir JSON nesnesi döndür (iç metinlerde çift tırna
       document.getElementById("lessonTitle").textContent = parsed.lessonTitle || topic;
       document.getElementById("lessonSummary").textContent = parsed.lessonSummary || "";
       document.getElementById("lessonCritical").innerHTML = `<strong>Kritik Ayrım:</strong> ${escapeHtml(parsed.lessonCritical || "")}`;
-      document.getElementById("lessonBasis").textContent = `Dayanak: ${parsed.lessonBasis || topic}`;
+      document.getElementById("lessonBasis").textContent = `Dayanak (${catLabel}): ${parsed.lessonBasis || topic}`;
     }
 
     const opts = Array.isArray(parsed.options) && parsed.options.length >= 2
@@ -495,7 +610,7 @@ Yalnızca şu şemada tek bir JSON nesnesi döndür (iç metinlerde çift tırna
       : ["A) Seçenek 1", "B) Seçenek 2", "C) Seçenek 3", "D) Seçenek 4"];
 
     renderQuestion({
-      topic,
+      topic: `${catLabel} — ${topic}`,
       question: parsed.question || `${topic} kapsamındaki vaka sorusu`,
       options: opts,
       answerIndex: Math.min(Math.max(Number(parsed.answerIndex) || 0, 0), opts.length - 1),
@@ -644,9 +759,9 @@ async function handleChatSend(overrideQuestion = "") {
   const advisorPrompt = `Kullanıcı sorusu / vakası: "${q}"
 
 Görevlerin:
-1. "comment": Mevzuat yorumu yap. Kesin hükümleri net açıkla; uydurma kanun maddesi, uydurma oran/tutar veya kesin olmayan yargı üretme.
-2. "crossLawLinks": İlgili kanunlar arasındaki somut bağlantıları madde/kavram düzeyinde listele (örneğin KVK, GVK, KDV, VUK, 6183 sayılı Kanun, Damga Vergisi veya Harçlar arasındaki istisna/indirim/matrah/sorumluluk/zamanaşımı ilişkileri; yalnızca gerçek ve emin olunan bağlantıları yaz).
-3. "guidance": Kullanıcıyı bir sonraki adımda neyi kontrol etmesi, hangi ayrımı netleştirmesi veya hangi soruyu/kaynağı incelemesi gerektiği konusunda somut ve yönlendirici maddelerle yönlendir.
+1. "comment": Mevzuat yorumu yap. Kesin hükümleri net açıkla; uydurma numara, madde, oran/tutar veya kesin olmayan yargı üretme.
+2. "crossLawLinks": İlgili kanunlar, tebliğler, yönetmelikler veya tahsil/usul hükümleri arasındaki somut bağlantıları madde/kavram düzeyinde listele (yalnızca gerçek ve emin olunan bağlantıları yaz).
+3. "guidance": Kullanıcıyı bir sonraki adımda neyi kontrol etmesi, hangi ayrımı netleştirmesi veya hangi kaynağı incelemesi gerektiği konusunda somut ve yönlendirici maddelerle yönlendir.
 4. "caution": Eğer soruda güncel/dönemsel had-oran-tebliğ teyidi gerekiyorsa, Mevzuat Havuzu'nda kaynak eksikse veya belirsizlik varsa bunu açıkça yaz; her şey netse boş bırak "".
 
 Yalnızca şu JSON şemasında yanıt ver (iç metinlerde çift tırnak yerine tek tırnak kullan):
@@ -682,14 +797,34 @@ function escapeAttr(str) {
   return String(str).replace(/"/g, "&quot;");
 }
 
+document.querySelectorAll(".law-cat-btn").forEach((btn) => {
+  btn.onclick = () => {
+    const cat = btn.dataset.category || "kanunlar";
+    const autoCb = document.getElementById("autoRandomOnGenerate");
+    selectCategory(cat, Boolean(autoCb && autoCb.checked));
+  };
+});
+
 document.getElementById("toggleLawPickerBtn").onclick = () => {
   const panel = document.getElementById("lawPickerPanel");
   panel.classList.toggle("hidden");
   if (!panel.classList.contains("hidden")) {
     const search = document.getElementById("lawSearchInput");
     search.value = "";
+    syncCategoryUi();
     populateGibTopicSelect(document.getElementById("topicInput").value.trim(), "");
     search.focus();
+  }
+};
+
+document.getElementById("syncPoolToCategoryBtn").onclick = async () => {
+  const savedUrl = (localStorage.getItem(STORAGE_KEYS.lawUrl) || document.getElementById("lawUrlInput").value || "").trim();
+  if (savedUrl) {
+    await fetchTextFromUrl(savedUrl);
+  } else {
+    syncCategoryUi();
+    populateGibTopicSelect(document.getElementById("topicInput").value.trim(), document.getElementById("lawSearchInput").value);
+    setLawStatus("Mevzuat Havuzu metnindeki eşleşen başlıklar aktif kategori listesine senkronize edildi.");
   }
 };
 
@@ -734,7 +869,9 @@ document.getElementById("saveSettingsBtn").onclick = () => {
 document.getElementById("saveLawBtn").onclick = () => {
   const law = document.getElementById("lawTextInput").value.trim();
   localStorage.setItem(STORAGE_KEYS.lawText, law);
-  setLawStatus("Mevzuat metni kaydedildi.");
+  syncCategoryUi();
+  populateGibTopicSelect(document.getElementById("topicInput").value.trim(), document.getElementById("lawSearchInput").value);
+  setLawStatus("Mevzuat metni kaydedildi ve bölümlere işlendi.");
 };
 
 document.getElementById("fetchUrlBtn").onclick = () => {
@@ -751,133 +888,4 @@ document.querySelectorAll(".preset-btn").forEach((btn) => {
   btn.onclick = () => {
     const text = PRESETS[btn.dataset.preset] || "";
     const ta = document.getElementById("lawTextInput");
-    ta.value = ta.value ? `${ta.value}\n\n${text}` : text;
-  };
-});
-
-document.querySelectorAll(".chat-quick-btn").forEach((btn) => {
-  btn.onclick = () => {
-    const prompt = btn.dataset.prompt || "";
-    if (prompt) handleChatSend(prompt);
-  };
-});
-
-document.getElementById("generateBtn").onclick = () => generateLessonAndQuestion(false);
-document.getElementById("newQuestionBtn").onclick = () => generateLessonAndQuestion(true);
-document.getElementById("wrongQuizBtn").onclick = startWrongQuiz;
-document.getElementById("checkAnswerBtn").onclick = checkAnswer;
-document.getElementById("sendChatBtn").onclick = () => handleChatSend();
-document.getElementById("chatInput").onkeydown = (e) => { if (e.key === "Enter") handleChatSend(); };
-document.getElementById("clearChatBtn").onclick = () => {
-  document.getElementById("chatMessages").innerHTML = `
-    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 space-y-2">
-      <div class="flex items-center justify-between gap-2">
-        <span class="text-[11px] font-bold uppercase tracking-wider text-slate-800">Mevzuat Analiz Asistanı</span>
-        <span class="text-[11px] text-emerald-700 font-semibold">Kanıta Dayalı Mod</span>
-      </div>
-      <p class="leading-relaxed">
-        Sohbet temizlendi. Sorunuzu <strong>Mevzuat Yorumu</strong>, <strong>Kanunlar Arası Bağlantı</strong> ve <strong>Yönlendirme</strong> başlıklarıyla yanıtlarım.
-      </p>
-    </div>`;
-};
-document.getElementById("mistakeFilter").onchange = renderMistakes;
-document.getElementById("clearMistakesBtn").onclick = () => {
-  mistakes = [];
-  saveAllState();
-  renderMistakes();
-};
-document.getElementById("resetStatsBtn").onclick = () => {
-  stats = { correct: 0, total: 0, byTopic: {} };
-  saveAllState();
-  updateBadges();
-  renderTopicStats();
-};
-
-document.getElementById("exportBackupBtn").onclick = () => {
-  const payload = {
-    exportedAt: new Date().toISOString(),
-    stats,
-    mistakes,
-    lawText: localStorage.getItem(STORAGE_KEYS.lawText) || ""
-  };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "vergi-asistani-yedek.json";
-  a.click();
-  URL.revokeObjectURL(url);
-};
-
-document.getElementById("importBackupInput").onchange = (e) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    try {
-      const data = JSON.parse(String(reader.result || "{}"));
-      if (data.stats) stats = data.stats;
-      if (Array.isArray(data.mistakes)) mistakes = data.mistakes;
-      if (typeof data.lawText === "string") {
-        localStorage.setItem(STORAGE_KEYS.lawText, data.lawText);
-        document.getElementById("lawTextInput").value = data.lawText;
-      }
-      saveAllState();
-      updateBadges();
-      renderTopicStats();
-      renderMistakes();
-      alert("Yedek başarıyla geri yüklendi.");
-    } catch {
-      alert("Geçersiz JSON yedek dosyası.");
-    }
-  };
-  reader.readAsText(file);
-};
-
-(function init() {
-  const initialTopic = pickRandomGibTopic("");
-  populateGibTopicSelect(initialTopic, "");
-  syncSelectionModeBadge();
-  document.getElementById("apiKeyInput").value = localStorage.getItem(STORAGE_KEYS.apiKey) || "";
-  const savedModel = localStorage.getItem(STORAGE_KEYS.model);
-  if (savedModel) {
-    const sel = document.getElementById("modelSelect");
-    if ([...sel.options].some((o) => o.value === savedModel)) sel.value = savedModel;
-  }
-  document.getElementById("lawTextInput").value = localStorage.getItem(STORAGE_KEYS.lawText) || "";
-  updateNetworkStatus();
-  updateBadges();
-  renderTopicStats();
-  renderMistakes();
-  renderQuestion(currentQuestion);
-
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js").then((reg) => {
-      if (reg.waiting) showUpdateBanner(reg.waiting);
-      reg.addEventListener("updatefound", () => {
-        const nw = reg.installing;
-        if (!nw) return;
-        nw.addEventListener("statechange", () => {
-          if (nw.state === "installed" && navigator.serviceWorker.controller) {
-            showUpdateBanner(nw);
-          }
-        });
-      });
-    });
-    let refreshing = false;
-    navigator.serviceWorker.addEventListener("controllerchange", () => {
-      if (!refreshing) {
-        refreshing = true;
-        window.location.reload();
-      }
-    });
-  }
-})();
-
-function showUpdateBanner(worker) {
-  const banner = document.getElementById("updateBanner");
-  banner.classList.remove("hidden");
-  document.getElementById("reloadUpdateBtn").onclick = () => {
-    worker.postMessage({ type: "SKIP_WAITING" });
-  };
-}
+    ta.value = ta.value ? `${ta.value}\n\n${
