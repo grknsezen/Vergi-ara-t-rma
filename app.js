@@ -11,6 +11,7 @@ const STORAGE_KEYS = {
 };
 
 const DEFAULT_GEMINI_MODEL = "gemini-3.8-flash";
+const YMM_SLICE_LIMIT = 85000;
 let currentMcqList = [];
 
 function normalizeModelName(modelName) {
@@ -35,6 +36,10 @@ function safeSetStorage(key, value) {
   } catch (e) {
     alert("Tarayıcı depolama alanı doldu. Havuz metnini biraz kısaltarak tekrar deneyin.");
   }
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function toPdfSafeTurkish(text) {
@@ -67,7 +72,7 @@ function parseJsonLoose(rawText) {
   }
 }
 
-async function callGemini(promptText, expectJson = true, systemInstructionText = "") {
+async function callGemini(promptText, expectJson = true, systemInstructionText = "", onRetryStatus = null) {
   const apiKey = safeGetStorage(STORAGE_KEYS.apiKey, "").trim();
   if (!apiKey) {
     throw new Error("Lütfen önce sağ üstteki 'API & Havuz Ayarları' bölümünden Gemini API anahtarınızı girin.");
@@ -104,23 +109,37 @@ async function callGemini(promptText, expectJson = true, systemInstructionText =
     payload.generationConfig.responseMimeType = "application/json";
   }
 
-  const res = await fetch(endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
+  const maxRetries = 4;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
 
-  if (!res.ok) {
+    if (res.ok) {
+      const data = await res.json();
+      const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("\n") || "";
+      if (!text.trim()) {
+        throw new Error("Gemini boş yanıt döndürdü.");
+      }
+      return text;
+    }
+
     const errBody = await res.text();
+    const isTransient = res.status === 429 || res.status === 500 || res.status === 503 || res.status === 504;
+
+    if (isTransient && attempt < maxRetries) {
+      const waitMs = (attempt + 1) * 3500;
+      if (typeof onRetryStatus === "function") {
+        onRetryStatus(`Sunucu yoğun (${res.status}), ${Math.round(waitMs / 1000)} sn sonra tekrar deneniyor (${attempt + 1}/${maxRetries})...`);
+      }
+      await sleep(waitMs);
+      continue;
+    }
+
     throw new Error(`Gemini API Hatası (${res.status}): ${errBody.slice(0, 260)}`);
   }
-
-  const data = await res.json();
-  const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("\n") || "";
-  if (!text.trim()) {
-    throw new Error("Gemini boş yanıt döndürdü.");
-  }
-  return text;
 }
 
 async function extractTextFromPdfFile(file) {
@@ -183,7 +202,13 @@ Sadece şu JSON şemasını döndür:
   ]
 }`;
 
-  const raw = await callGemini(prompt, true, sys);
+  const raw = await callGemini(prompt, true, sys, (msg) => {
+    const el = document.getElementById("mcqStatusText");
+    if (el) {
+      el.className = "status-text";
+      el.textContent = msg;
+    }
+  });
   const parsed = parseJsonLoose(raw);
   return Array.isArray(parsed.questions) ? parsed.questions : [];
 }
@@ -354,7 +379,7 @@ KRİTİK KURALLAR:
 ${ymmSlice ? `REFERANS YMM SINAV HAVUZU (ÜSLUP VE DERİNLİK ÖRNEĞİ):\n${ymmSlice}` : ""}`;
 }
 
-async function generateYmmWrittenBatch(subject, focus, formatType, ymmSlice, startIndex, count) {
+async function generateYmmWrittenBatch(subject, focus, formatType, ymmSlice, startIndex, count, onRetryStatus = null) {
   const sysPrompt = buildYmmSystemPrompt(subject, formatType, ymmSlice);
 
   const prompt = `Ders: "${subject}" | Özel Odak: "${focus || "Genel YMM Yazılı Kapsamı"}" | Format: "${formatType}".
@@ -372,7 +397,7 @@ Yalnızca şu JSON nesnesini döndür:
   ]
 }`;
 
-  const raw = await callGemini(prompt, true, sysPrompt);
+  const raw = await callGemini(prompt, true, sysPrompt, onRetryStatus);
   const parsed = parseJsonLoose(raw);
   const arr = Array.isArray(parsed.questions) ? parsed.questions : Array.isArray(parsed) ? parsed : [];
 
@@ -500,7 +525,7 @@ async function generateYmmSingleOnScreen() {
     document.getElementById("ymmFormatSelect")?.value ||
     "2026/2 TÜRMOB Tarzı Çatı Vaka (Tek Çatı Mükellef + Veriler + a-e Bentleri, 100 Puan)";
   const ymmPool = safeGetStorage(STORAGE_KEYS.ymmPool, "").trim();
-  const ymmSlice = ymmPool.length > 120000 ? ymmPool.slice(0, 120000) : ymmPool;
+  const ymmSlice = ymmPool.length > YMM_SLICE_LIMIT ? ymmPool.slice(0, YMM_SLICE_LIMIT) : ymmPool;
 
   const btn = document.getElementById("generateYmmSingleBtn");
   const prevText = btn ? btn.textContent : "";
@@ -511,7 +536,9 @@ async function generateYmmSingleOnScreen() {
 
   try {
     setYmmPdfProgress("2026/2 TÜRMOB tarzında çatı vaka ve komisyon cevabı üretiliyor (30-60 sn sürebilir)...");
-    const batch = await generateYmmWrittenBatch(subject, focus, formatType, ymmSlice, 1, 1);
+    const batch = await generateYmmWrittenBatch(subject, focus, formatType, ymmSlice, 1, 1, (retryMsg) =>
+      setYmmPdfProgress(retryMsg)
+    );
     if (!batch.length) {
       throw new Error("Sınav üretilemedi, lütfen tekrar deneyin.");
     }
@@ -545,7 +572,7 @@ async function generateYmmPdfTestSet() {
     5
   );
   const ymmPool = safeGetStorage(STORAGE_KEYS.ymmPool, "").trim();
-  const ymmSlice = ymmPool.length > 120000 ? ymmPool.slice(0, 120000) : ymmPool;
+  const ymmSlice = ymmPool.length > YMM_SLICE_LIMIT ? ymmPool.slice(0, YMM_SLICE_LIMIT) : ymmPool;
 
   const btn = document.getElementById("generateYmmPdfBtn");
   const prevText = btn ? btn.textContent : "";
@@ -558,7 +585,9 @@ async function generateYmmPdfTestSet() {
     const collected = [];
     for (let i = 1; i <= requestedCount; i++) {
       setYmmPdfProgress(`YMM çatı sınavı üretiliyor (${i} / ${requestedCount})... Lütfen bekleyin.`);
-      const batch = await generateYmmWrittenBatch(subject, focus, formatType, ymmSlice, i, 1);
+      const batch = await generateYmmWrittenBatch(subject, focus, formatType, ymmSlice, i, 1, (retryMsg) =>
+        setYmmPdfProgress(retryMsg)
+      );
       if (!batch.length) {
         throw new Error(`${i}. sınav üretilemedi; lütfen tekrar deneyin.`);
       }
