@@ -879,7 +879,7 @@ async function callGemini(promptText, expectJson = false, customPrefix = "") {
 
           lastError = new Error(msg);
           if (isTransient && attempt < maxRetries) {
-            await sleep(1500 * attempt);
+            await sleep(1600 * attempt);
             continue;
           }
           if (isTransient) {
@@ -895,7 +895,7 @@ async function callGemini(promptText, expectJson = false, customPrefix = "") {
         const isTransient = /high demand|overloaded|temporarily unavailable|network|failed to fetch|429|503/i.test(msg);
         lastError = err;
         if (isTransient && attempt < maxRetries) {
-          await sleep(1500 * attempt);
+          await sleep(1600 * attempt);
           continue;
         }
         if (isTransient) {
@@ -1328,7 +1328,7 @@ async function generateSmmmPdfTestSet() {
   const subject = document.getElementById("smmmSubjectSelect")?.value || "Vergi Mevzuatı ve Uygulaması";
   const focus = (document.getElementById("smmmFocusInput")?.value || "").trim();
   const style = document.getElementById("smmmStyleSelect")?.value || "Çıkmış Soru Tarzı";
-  const requestedCount = Math.min(Math.max(parseInt(document.getElementById("smmmPdfCountInput")?.value || "40", 10) || 40, 5), 60);
+  const requestedCount = Math.min(Math.max(parseInt(document.getElementById("smmmPdfCountInput")?.value || "20", 10) || 20, 5), 60);
   const smmmPool = safeGetStorage(STORAGE_KEYS.smmmPool, "").trim();
   const smmmSlice = smmmPool.length > 60000 ? smmmPool.slice(0, 60000) : smmmPool;
 
@@ -1340,7 +1340,7 @@ async function generateSmmmPdfTestSet() {
   }
 
   try {
-    const batchSize = 8;
+    const batchSize = 5;
     const collected = [];
 
     while (collected.length < requestedCount) {
