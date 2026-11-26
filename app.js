@@ -314,7 +314,7 @@ function startTimerIfConfigured() {
 
 async function callGemini(promptText) {
   const apiKey = (localStorage.getItem(STORAGE_KEYS.apiKey) || "").trim();
-  const model = localStorage.getItem(STORAGE_KEYS.model) || "gemini-2.5-flash";
+  const model = localStorage.getItem(STORAGE_KEYS.model) || "gemini-3.8-flash";
   const lawText = (localStorage.getItem(STORAGE_KEYS.lawText) || "").trim();
   if (!apiKey) throw new Error("API anahtarı kayıtlı değil. Ayarlar sekmesinden ekleyin.");
 
