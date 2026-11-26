@@ -154,7 +154,6 @@ function updatePoolStatusUI() {
   }
 }
 
-// 1. ÇOKTAN SEÇMELİ TEST
 async function generateMcqBatch(topic, difficulty, count, generalSlice) {
   const sys = `Sen Türkiye vergi mevzuatı, muhasebe standartları ve mali hukuk alanında uzman bir sınav hazırlama komisyonu üyesisin.
 Aşağıdaki çalışma havuzundan ve güncel Türk mevzuatından yararlanarak özgün, çeldiricileri güçlü çoktan seçmeli sorular üret.
@@ -309,7 +308,6 @@ function exportMcqToPdf(questions, topic, difficulty) {
   doc.save(`Test_${toPdfSafeTurkish(topic).replace(/\s+/g, "_")}.pdf`);
 }
 
-// 2. YMM YAZILI SINAV
 function buildYmmSystemPrompt(subject, formatType, ymmSlice) {
   const isVergiTeknigi = /vergi tekni/i.test(String(subject || ""));
   const domainDetail = isVergiTeknigi
@@ -586,13 +584,11 @@ async function generateYmmPdfTestSet() {
   }
 }
 
-// 3. OLAY DİNLEYİCİLERİ VE BAŞLATMA
 document.addEventListener("DOMContentLoaded", () => {
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./sw.js").catch(() => {});
   }
 
-  // Eski kayıtlı model varsa otomatik güncelle
   const currentStoredModel = safeGetStorage(STORAGE_KEYS.model, DEFAULT_GEMINI_MODEL);
   const normalizedStoredModel = normalizeModelName(currentStoredModel);
   if (currentStoredModel !== normalizedStoredModel) {
