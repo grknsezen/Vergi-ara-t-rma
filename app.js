@@ -81,7 +81,7 @@ window.addEventListener("offline", updateNetworkStatus);
   
 function updateBadges(key) {  
   const badge = document.getElementById("modeBadge");  
-  if (key && key.startsWith("AIza")) {  
+  if (key && key.trim().length > 10) {  
     badge.textContent = "Canlı Gemini API Aktif";  
     badge.className = "text-[11px] text-emerald-400 truncate";  
   } else {  
