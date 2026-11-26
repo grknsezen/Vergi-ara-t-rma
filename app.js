@@ -368,7 +368,7 @@ function startTimerIfConfigured() {
   timerInterval = setInterval(tick, 1000);
 }
 
-async function callGemini(promptText) {
+async function callGemini(promptText, expectJson = false) {
   const apiKey = (localStorage.getItem(STORAGE_KEYS.apiKey) || "").trim();
   const model = localStorage.getItem(STORAGE_KEYS.model) || "gemini-3.8-flash";
   const lawText = (localStorage.getItem(STORAGE_KEYS.lawText) || "").trim();
@@ -378,28 +378,47 @@ async function callGemini(promptText) {
     ? `Türk vergi mevzuatı uzmanı olarak yanıt ver. Şu mevzuat metnini öncelikli kaynak al:\n${lawText}\n\n`
     : "Türk vergi mevzuatı uzmanı olarak net, dayanaklı ve sınav/uygulama odaklı yanıt ver.\n\n";
 
+  const body = {
+    contents: [{ role: "user", parts: [{ text: systemRule + promptText }] }]
+  };
+  if (expectJson) {
+    body.generationConfig = { responseMimeType: "application/json" };
+  }
+
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ role: "user", parts: [{ text: systemRule + promptText }] }]
-    })
+    body: JSON.stringify(body)
   });
 
   const data = await res.json();
   if (!res.ok) {
     throw new Error(data?.error?.message || `HTTP ${res.status}`);
   }
-  return data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  const parts = data?.candidates?.[0]?.content?.parts || [];
+  return parts.map((p) => p.text || "").join("\n").trim();
 }
 
 function parseJsonLoose(raw) {
-  const cleaned = raw.replace(/```json|```/gi, "").trim();
+  let cleaned = String(raw || "")
+    .replace(/```json|```/gi, "")
+    .replace(/[“”]/g, '"')
+    .trim();
+
   const start = cleaned.indexOf("{");
   const end = cleaned.lastIndexOf("}");
-  if (start === -1 || end === -1) throw new Error("JSON formatı ayrıştırılamadı.");
-  return JSON.parse(cleaned.slice(start, end + 1));
+  if (start === -1 || end === -1 || end <= start) {
+    throw new Error("Model geçerli JSON döndürmedi. Tekrar deneyin.");
+  }
+
+  cleaned = cleaned.slice(start, end + 1).replace(/,\s*([}\]])/g, "$1");
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    const sanitized = cleaned.replace(/[\u0000-\u001F]+/g, " ");
+    return JSON.parse(sanitized);
+  }
 }
 
 async function generateLessonAndQuestion(onlyQuestion = false) {
@@ -422,7 +441,7 @@ async function generateLessonAndQuestion(onlyQuestion = false) {
   try {
     const prompt = `Kaynak bağlam: gib.gov.tr mevzuatı | Seçilen Kanun: "${topic}" | Zorluk: "${difficulty}".
 Bu kanun kapsamından önemli bir konu veya vaka seçerek konu özeti, kritik ayrım ve 4 şıklı çoktan seçmeli soru üret.
-Yalnızca geçerli JSON döndür:
+Yalnızca şu şemada tek bir JSON nesnesi döndür (iç metinlerde çift tırnak yerine tek tırnak kullan):
 {
   "lessonTitle": "...",
   "lessonSummary": "...",
@@ -433,7 +452,7 @@ Yalnızca geçerli JSON döndür:
   "answerIndex": 0,
   "explanation": "..."
 }`;
-    const text = await callGemini(prompt);
+    const text = await callGemini(prompt, true);
     const parsed = parseJsonLoose(text);
 
     if (!onlyQuestion) {
@@ -443,11 +462,15 @@ Yalnızca geçerli JSON döndür:
       document.getElementById("lessonBasis").textContent = `Dayanak: ${parsed.lessonBasis || topic}`;
     }
 
+    const opts = Array.isArray(parsed.options) && parsed.options.length >= 2
+      ? parsed.options.slice(0, 4)
+      : ["A) Seçenek 1", "B) Seçenek 2", "C) Seçenek 3", "D) Seçenek 4"];
+
     renderQuestion({
       topic,
-      question: parsed.question,
-      options: parsed.options,
-      answerIndex: Number(parsed.answerIndex) || 0,
+      question: parsed.question || `${topic} kapsamındaki vaka sorusu`,
+      options: opts,
+      answerIndex: Math.min(Math.max(Number(parsed.answerIndex) || 0, 0), opts.length - 1),
       explanation: parsed.explanation || ""
     });
 
@@ -542,7 +565,7 @@ async function handleChatSend() {
   const loadingBubble = document.getElementById("chatMessages").lastChild;
 
   try {
-    const answer = await callGemini(q);
+    const answer = await callGemini(q, false);
     loadingBubble.textContent = answer;
   } catch (err) {
     loadingBubble.textContent = "Hata: " + err.message;
