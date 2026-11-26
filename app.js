@@ -10,8 +10,10 @@ const MAX_LAW_CHARS = 25000;
 
 const GIB_MEVZUAT_POOL = [
   "193 sayılı Gelir Vergisi Kanunu - Ticari Kazancın Tespiti ve İndirilecek Giderler (GVK m. 38-40)",
+  "193 sayılı Gelir Vergisi Kanunu - Ücret İstisnaları ve Vergi Tarifesi (GVK m. 23, 103)",
   "193 sayılı Gelir Vergisi Kanunu - Serbest Meslek Kazançları ve Stopaj Uygulaması (GVK m. 65-68, 94)",
   "193 sayılı Gelir Vergisi Kanunu - Gayrimenkul Sermaye İradı İstisnası ve Götürü Gider (GVK m. 21, 70, 74)",
+  "193 sayılı Gelir Vergisi Kanunu - Menkul Sermaye İratları ve Değer Artışı Kazançları (GVK m. 75, Mük. 80)",
   "5520 sayılı Kurumlar Vergisi Kanunu - İştirak Kazançları İstisnası (KVK m. 5/1-a)",
   "5520 sayılı Kurumlar Vergisi Kanunu - Taşınmaz ve İştirak Hissesi Satış Kazancı İstisnası (KVK m. 5/1-e)",
   "5520 sayılı Kurumlar Vergisi Kanunu - Ar-Ge ve Tasarım İndirimi ile Yatırım İndirimi (KVK m. 10)",
@@ -39,7 +41,7 @@ const PRESETS = {
 let stats = JSON.parse(localStorage.getItem(STORAGE_KEYS.stats) || '{"correct":0,"total":0,"byTopic":{}}');
 let mistakes = JSON.parse(localStorage.getItem(STORAGE_KEYS.mistakes) || "[]");
 let currentQuestion = {
-  topic: GIB_MEVZUAT_POOL[3],
+  topic: GIB_MEVZUAT_POOL[5],
   question: "Tam mükellef (X) A.Ş., tam mükellef (Y) A.Ş.'nin sermayesine iştirak etmekte ve (Y) A.Ş.'den nakit kâr payı almaktadır. Bu kazancın kurumlar vergisi karşısındaki durumu nedir?",
   options: [
     "A) Kurumlar vergisinden istisnadır.",
@@ -59,12 +61,25 @@ if (window.pdfjsLib && window.pdfjsLib.GlobalWorkerOptions) {
     "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 }
 
+function populateGibTopicSelect(selectedTopic = "") {
+  const sel = document.getElementById("gibTopicSelect");
+  if (!sel) return;
+  sel.innerHTML = GIB_MEVZUAT_POOL.map(
+    (item) => `<option value="${escapeAttr(item)}">${escapeHtml(item)}</option>`
+  ).join("");
+  if (selectedTopic && GIB_MEVZUAT_POOL.includes(selectedTopic)) {
+    sel.value = selectedTopic;
+  }
+}
+
 function pickRandomGibTopic(currentValue = "") {
   const candidates = GIB_MEVZUAT_POOL.filter((item) => item !== currentValue);
   const pool = candidates.length ? candidates : GIB_MEVZUAT_POOL;
   const chosen = pool[Math.floor(Math.random() * pool.length)];
   const input = document.getElementById("topicInput");
   if (input) input.value = chosen;
+  const sel = document.getElementById("gibTopicSelect");
+  if (sel) sel.value = chosen;
   return chosen;
 }
 
@@ -533,7 +548,26 @@ function escapeAttr(str) {
   return String(str).replace(/"/g, "&quot;");
 }
 
+document.getElementById("toggleLawPickerBtn").onclick = () => {
+  document.getElementById("lawPickerPanel").classList.toggle("hidden");
+};
+
+document.getElementById("closeLawPickerBtn").onclick = () => {
+  document.getElementById("lawPickerPanel").classList.add("hidden");
+};
+
+document.getElementById("gibTopicSelect").onchange = (e) => {
+  const chosen = e.target.value;
+  if (!chosen) return;
+  document.getElementById("topicInput").value = chosen;
+  const autoCb = document.getElementById("autoRandomOnGenerate");
+  if (autoCb) autoCb.checked = false;
+  document.getElementById("lawPickerPanel").classList.add("hidden");
+};
+
 document.getElementById("randomGibTopicBtn").onclick = () => {
+  const autoCb = document.getElementById("autoRandomOnGenerate");
+  if (autoCb) autoCb.checked = true;
   pickRandomGibTopic(document.getElementById("topicInput").value.trim());
 };
 
@@ -636,7 +670,8 @@ document.getElementById("importBackupInput").onchange = (e) => {
 };
 
 (function init() {
-  pickRandomGibTopic("");
+  const initialTopic = pickRandomGibTopic("");
+  populateGibTopicSelect(initialTopic);
   document.getElementById("apiKeyInput").value = localStorage.getItem(STORAGE_KEYS.apiKey) || "";
   const savedModel = localStorage.getItem(STORAGE_KEYS.model);
   if (savedModel) {
