@@ -255,30 +255,12 @@ function syncSelectionModeBadge() {
   if (!badge) return;
   if (autoCb && autoCb.checked) {
     badge.textContent = "Rastgele Mod";
-    badge.className = "text-[11px] font-semibold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200/80 shrink-0";
+    badge.style.background = "#eef2ff";
+    badge.style.color = "#4338ca";
   } else {
     badge.textContent = "Manuel Seçim";
-    badge.className = "text-[11px] font-semibold px-2.5 py-1 rounded-full bg-slate-900 text-white border border-slate-900 shrink-0";
-  }
-}
-
-function populateGibTopicSelect(selectedTopic = "", filterText = "") {
-  const sel = document.getElementById("gibTopicSelect");
-  if (!sel) return;
-  const pool = getCategoryPool(activeCategory);
-  const q = String(filterText || "").trim().toLocaleLowerCase("tr");
-  const list = q
-    ? pool.filter((item) => item.toLocaleLowerCase("tr").includes(q))
-    : pool;
-
-  sel.innerHTML = list.length
-    ? list.map((item) => `<option value="${escapeAttr(item)}">${escapeHtml(item)}</option>`).join("")
-    : `<option disabled value="">Bu bölümde kayıt bulunamadı</option>`;
-
-  if (selectedTopic && list.includes(selectedTopic)) {
-    sel.value = selectedTopic;
-  } else {
-    sel.selectedIndex = -1;
+    badge.style.background = "#0f172a";
+    badge.style.color = "#ffffff";
   }
 }
 
@@ -295,6 +277,36 @@ function applyChosenTopicFromList(chosen) {
   syncSelectionModeBadge();
   closeLawPickerPanel();
 }
+window.applyChosenTopicFromList = applyChosenTopicFromList;
+
+function populateGibTopicSelect(selectedTopic = "", filterText = "") {
+  const listEl = document.getElementById("gibTopicList");
+  if (!listEl) return;
+  const pool = getCategoryPool(activeCategory);
+  const q = String(filterText || "").trim().toLocaleLowerCase("tr");
+  const list = q
+    ? pool.filter((item) => item.toLocaleLowerCase("tr").includes(q))
+    : pool;
+
+  if (!list.length) {
+    listEl.innerHTML = `<div style="padding:10px;font-size:12px;color:#64748b;">Bu bölümde eşleşen kayıt bulunamadı.</div>`;
+    return;
+  }
+
+  listEl.innerHTML = "";
+  list.forEach((item) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = item === selectedTopic ? "law-pick-item is-selected" : "law-pick-item";
+    btn.textContent = item;
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      applyChosenTopicFromList(item);
+    });
+    listEl.appendChild(btn);
+  });
+}
 
 function pickRandomGibTopic(currentValue = "") {
   const poolAll = getCategoryPool(activeCategory);
@@ -308,8 +320,6 @@ function pickRandomGibTopic(currentValue = "") {
   if (searchInput) searchInput.value = "";
   syncCategoryUi();
   populateGibTopicSelect(chosen, "");
-  const sel = document.getElementById("gibTopicSelect");
-  if (sel) sel.value = chosen;
   return chosen;
 }
 
@@ -323,10 +333,6 @@ function selectCategoryFromUi(category) {
   if (isRandom) {
     pickRandomGibTopic(currentTopicInput ? currentTopicInput.value.trim() : "");
   } else {
-    const pool = getCategoryPool(activeCategory);
-    if (pool.length && currentTopicInput) {
-      currentTopicInput.value = pool[0];
-    }
     populateGibTopicSelect(currentTopicInput ? currentTopicInput.value.trim() : "", "");
   }
 }
@@ -388,9 +394,8 @@ function setLawStatus(msg, isError = false) {
   const el = document.getElementById("lawSourceStatus");
   if (!el) return;
   el.textContent = msg;
-  el.className = isError
-    ? "text-xs text-rose-600 font-medium"
-    : "text-xs text-emerald-700 font-medium";
+  el.style.color = isError ? "#e11d48" : "#047857";
+  el.style.fontWeight = "600";
   el.classList.remove("hidden");
 }
 
@@ -521,13 +526,15 @@ function updateNetworkStatus() {
   const text = document.getElementById("netText");
   if (!badge || !dot || !text) return;
   if (online) {
-    badge.className = "text-[11px] px-2.5 py-1 rounded-full border flex items-center gap-1.5 bg-emerald-950/70 text-emerald-300 border-emerald-700/60";
-    dot.className = "w-2 h-2 rounded-full bg-emerald-400";
-    text.textContent = "Çevrimiçi";
+    badge.style.background = "rgba(6, 78, 59, 0.7)";
+    badge.style.color = "#6ee7b7";
+    if (dot) dot.style.background = "#34d399";
+    if (text) text.textContent = "Çevrimiçi";
   } else {
-    badge.className = "text-[11px] px-2.5 py-1 rounded-full border flex items-center gap-1.5 bg-rose-950/70 text-rose-300 border-rose-700/60";
-    dot.className = "w-2 h-2 rounded-full bg-rose-400";
-    text.textContent = "Çevrimdışı";
+    badge.style.background = "rgba(127, 29, 29, 0.75)";
+    badge.style.color = "#fca5a5";
+    if (dot) dot.style.background = "#f87171";
+    if (text) text.textContent = "Çevrimdışı";
   }
 }
 
@@ -540,10 +547,10 @@ function updateBadges(key) {
   if (badge) {
     if (activeKey.length > 8) {
       badge.textContent = "Canlı Gemini API Aktif";
-      badge.className = "text-[11px] text-emerald-400 truncate mt-0.5";
+      badge.style.color = "#34d399";
     } else {
       badge.textContent = "Demo Modu (Ayarlardan API Anahtarı Ekleyin)";
-      badge.className = "text-[11px] text-amber-400 truncate mt-0.5";
+      badge.style.color = "#fbbf24";
     }
   }
   const scoreEl = document.getElementById("scoreBadge");
@@ -560,9 +567,9 @@ function renderTopicStats() {
   }
   el.innerHTML = entries.map(([topic, d]) => {
     const rate = d.total ? Math.round((d.correct / d.total) * 100) : 0;
-    return `<div class="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-0 gap-2">
-      <span class="truncate font-medium text-slate-800">${escapeHtml(topic)}</span>
-      <span class="text-xs shrink-0 text-slate-600">${d.correct}/${d.total} (%${rate})</span>
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;gap:8px;">
+      <span style="font-weight:600;color:#0f172a;">${escapeHtml(topic)}</span>
+      <span style="font-size:12px;color:#475569;">${d.correct}/${d.total} (%${rate})</span>
     </div>`;
   }).join("");
 }
@@ -584,17 +591,15 @@ function renderMistakes() {
 
   listEl.innerHTML = filtered.map((m) => {
     const realIndex = mistakes.indexOf(m);
-    return `<div class="rounded-xl border border-rose-200 bg-rose-50/50 p-3.5 space-y-2">
-      <div class="flex items-center justify-between gap-2">
-        <span class="text-xs font-semibold text-rose-800">${escapeHtml(m.topic)}</span>
-        <button onclick="removeMistake(${realIndex})" type="button" class="text-xs text-emerald-700 font-semibold hover:underline">Tekrar Çözdüm / Sil</button>
+    return `<div style="border:1px solid #fecdd3;background:#fff1f2;border-radius:12px;padding:12px;margin-bottom:10px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;">
+        <span style="font-size:12px;font-weight:700;color:#9f1239;">${escapeHtml(m.topic)}</span>
+        <button onclick="removeMistake(${realIndex})" type="button" style="border:0;background:transparent;font-size:12px;color:#047857;font-weight:700;cursor:pointer;">Tekrar Çözdüm / Sil</button>
       </div>
-      <p class="font-medium text-slate-900">${escapeHtml(m.question)}</p>
-      <p class="text-xs text-slate-600"><strong>Doğru Cevap:</strong> ${escapeHtml(m.correctOption || "")}</p>
-      <p class="text-xs text-slate-700">${escapeHtml(m.explanation || "")}</p>
-      <textarea rows="2" placeholder="Kendi kısa notunuz veya mevzuat/tebliğ notu..."
-        onchange="updateMistakeNote(${realIndex}, this.value)"
-        class="w-full rounded-lg border border-slate-300 bg-white p-2 text-xs text-slate-800">${escapeHtml(m.note || "")}</textarea>
+      <p style="margin:0 0 6px;font-weight:600;color:#0f172a;">${escapeHtml(m.question)}</p>
+      <p style="margin:0 0 4px;font-size:12px;color:#334155;"><strong>Doğru Cevap:</strong> ${escapeHtml(m.correctOption || "")}</p>
+      <p style="margin:0 0 8px;font-size:12px;color:#475569;">${escapeHtml(m.explanation || "")}</p>
+      <textarea rows="2" placeholder="Kendi kısa notunuz..." onchange="updateMistakeNote(${realIndex}, this.value)">${escapeHtml(m.note || "")}</textarea>
     </div>`;
   }).join("");
 }
@@ -630,14 +635,14 @@ function renderQuestion(q) {
   q.options.forEach((opt, idx) => {
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.className = "w-full text-left rounded-xl border border-slate-300 px-4 py-3 text-sm hover:bg-slate-50 transition";
+    btn.style.cssText = "width:100%;text-align:left;border:1px solid #cbd5e1;background:#fff;border-radius:12px;padding:12px 14px;font-size:13px;cursor:pointer;";
     btn.textContent = opt;
     btn.onclick = () => {
       selectedOptionIndex = idx;
       [...container.children].forEach((c, i) => {
-        c.className = i === idx
-          ? "w-full text-left rounded-xl border-2 border-indigo-600 bg-indigo-50 px-4 py-3 text-sm font-medium transition"
-          : "w-full text-left rounded-xl border border-slate-300 px-4 py-3 text-sm hover:bg-slate-50 transition";
+        c.style.border = i === idx ? "2px solid #4f46e5" : "1px solid #cbd5e1";
+        c.style.background = i === idx ? "#eef2ff" : "#fff";
+        c.style.fontWeight = i === idx ? "600" : "400";
       });
     };
     container.appendChild(btn);
@@ -852,13 +857,13 @@ function checkAnswer() {
     stats.correct += 1;
     stats.byTopic[currentQuestion.topic].correct += 1;
     if (box) {
-      box.className = "rounded-xl p-4 text-sm space-y-2 border bg-emerald-50 border-emerald-200 text-emerald-950";
-      box.innerHTML = `<p class="font-bold">Doğru Yanıt!</p><p>${escapeHtml(currentQuestion.explanation)}</p>`;
+      box.style.cssText = "border-radius:12px;padding:14px;font-size:13px;background:#ecfdf5;border:1px solid #a7f3d0;color:#064e3b;";
+      box.innerHTML = `<p style="margin:0 0 6px;font-weight:700;">Doğru Yanıt!</p><p style="margin:0;">${escapeHtml(currentQuestion.explanation)}</p>`;
     }
   } else {
     if (box) {
-      box.className = "rounded-xl p-4 text-sm space-y-2 border bg-rose-50 border-rose-200 text-rose-950";
-      box.innerHTML = `<p class="font-bold">Yanlış Yanıt — Doğru Seçenek: ${escapeHtml(currentQuestion.options[currentQuestion.answerIndex] || "")}</p><p>${escapeHtml(currentQuestion.explanation)}</p>`;
+      box.style.cssText = "border-radius:12px;padding:14px;font-size:13px;background:#fff1f2;border:1px solid #fecdd3;color:#881337;";
+      box.innerHTML = `<p style="margin:0 0 6px;font-weight:700;">Yanlış Yanıt — Doğru Seçenek: ${escapeHtml(currentQuestion.options[currentQuestion.answerIndex] || "")}</p><p style="margin:0;">${escapeHtml(currentQuestion.explanation)}</p>`;
     }
     mistakes.unshift({
       topic: currentQuestion.topic,
@@ -881,7 +886,7 @@ function appendUserChatMessage(text) {
   const wrap = document.getElementById("chatMessages");
   if (!wrap) return;
   const div = document.createElement("div");
-  div.className = "rounded-2xl bg-slate-950 text-white px-4 py-3 text-sm ml-8 shadow-sm";
+  div.style.cssText = "background:#020617;color:#fff;border-radius:14px;padding:12px 14px;font-size:13px;margin-left:28px;";
   div.textContent = text;
   wrap.appendChild(div);
   wrap.scrollTop = wrap.scrollHeight;
@@ -890,14 +895,8 @@ function appendUserChatMessage(text) {
 function createAssistantChatCard() {
   const wrap = document.getElementById("chatMessages");
   const card = document.createElement("div");
-  card.className = "rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-800 mr-4 space-y-3 shadow-xs";
-  card.innerHTML = `
-    <div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
-      <span class="text-[11px] font-bold uppercase tracking-wider text-indigo-700">Mevzuat Değerlendirmesi</span>
-      <span class="text-[11px] text-slate-400">Analiz</span>
-    </div>
-    <p class="text-slate-600 text-xs">Mevzuat bağlantıları ve yorum hazırlanıyor...</p>
-  `;
+  card.style.cssText = "border:1px solid #e2e8f0;background:#fff;border-radius:14px;padding:14px;font-size:13px;color:#1e293b;margin-right:16px;";
+  card.innerHTML = `<p style="margin:0;font-size:12px;color:#64748b;">Mevzuat bağlantıları ve yorum hazırlanıyor...</p>`;
   if (wrap) {
     wrap.appendChild(card);
     wrap.scrollTop = wrap.scrollHeight;
@@ -908,30 +907,26 @@ function createAssistantChatCard() {
 function renderStructuredAdvisorCard(card, data) {
   const bulletsHtml = (items) => {
     const arr = Array.isArray(items) && items.length ? items : ["Bu başlık için ayrıca teyit edilmesi gereken özel bir bağlantı belirtilmemiştir."];
-    return `<ul class="list-disc pl-4 space-y-1 text-xs text-slate-700 leading-relaxed">${arr.map((i) => `<li>${escapeHtml(i)}</li>`).join("")}</ul>`;
+    return `<ul style="margin:4px 0 0;padding-left:18px;font-size:12px;color:#334155;line-height:1.5;">${arr.map((i) => `<li style="margin-bottom:4px;">${escapeHtml(i)}</li>`).join("")}</ul>`;
   };
 
   const cautionBlock = data.caution
-    ? `<div class="rounded-xl border border-amber-200 bg-amber-50/90 p-3 text-xs text-amber-950 leading-relaxed">
-         <strong class="font-bold">Teyit / Sınır Notu:</strong> ${escapeHtml(data.caution)}
+    ? `<div style="margin-top:10px;border:1px solid #fde68a;background:#fffbeb;border-radius:10px;padding:10px;font-size:12px;color:#451a03;">
+         <strong>Teyit / Sınır Notu:</strong> ${escapeHtml(data.caution)}
        </div>`
     : "";
 
   card.innerHTML = `
-    <div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
-      <span class="text-[11px] font-bold uppercase tracking-wider text-indigo-700">Mevzuat Değerlendirmesi</span>
-      <span class="text-[11px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">Kaynak Kontrollü</span>
+    <div style="margin-bottom:8px;">
+      <strong style="font-size:12px;text-transform:uppercase;color:#0f172a;">1. Mevzuat Yorumu</strong>
+      <p style="margin:4px 0 0;font-size:12px;color:#334155;line-height:1.55;white-space:pre-line;">${escapeHtml(data.comment || "")}</p>
     </div>
-    <div class="space-y-1">
-      <h4 class="text-xs font-bold uppercase tracking-wide text-slate-900">1. Mevzuat Yorumu</h4>
-      <p class="text-xs text-slate-700 leading-relaxed whitespace-pre-line">${escapeHtml(data.comment || "")}</p>
-    </div>
-    <div class="space-y-1 pt-1 border-t border-slate-100">
-      <h4 class="text-xs font-bold uppercase tracking-wide text-slate-900">2. Kanunlar Arası Bağlantılar</h4>
+    <div style="margin-top:8px;padding-top:8px;border-top:1px solid #f1f5f9;">
+      <strong style="font-size:12px;text-transform:uppercase;color:#0f172a;">2. Kanunlar Arası Bağlantılar</strong>
       ${bulletsHtml(data.crossLawLinks)}
     </div>
-    <div class="space-y-1 pt-1 border-t border-slate-100">
-      <h4 class="text-xs font-bold uppercase tracking-wide text-slate-900">3. Sizi Yönlendiren Adımlar</h4>
+    <div style="margin-top:8px;padding-top:8px;border-top:1px solid #f1f5f9;">
+      <strong style="font-size:12px;text-transform:uppercase;color:#0f172a;">3. Sizi Yönlendiren Adımlar</strong>
       ${bulletsHtml(data.guidance)}
     </div>
     ${cautionBlock}
@@ -970,11 +965,7 @@ Yalnızca şu JSON şemasında yanıt ver (iç metinlerde çift tırnak yerine t
     const parsed = parseJsonLoose(raw);
     renderStructuredAdvisorCard(card, parsed);
   } catch (err) {
-    card.innerHTML = `
-      <div class="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-900">
-        <strong>Hata:</strong> ${escapeHtml(err.message)}
-      </div>
-    `;
+    card.innerHTML = `<p style="margin:0;font-size:12px;color:#9f1239;"><strong>Hata:</strong> ${escapeHtml(err.message)}</p>`;
   } finally {
     if (wrap) wrap.scrollTop = wrap.scrollHeight;
   }
@@ -1030,13 +1021,13 @@ function handleSaveSettings() {
   if (st) {
     st.classList.remove("hidden");
     if (!rawKey) {
-      st.className = "text-xs text-amber-700 font-medium";
+      st.style.color = "#b45309";
       st.textContent = "API anahtarı alanı boş bırakıldı; model ayarı kaydedildi.";
     } else if (resKey.persisted) {
-      st.className = "text-xs text-emerald-700 font-medium";
+      st.style.color = "#047857";
       st.textContent = `API anahtarı ve model (${model}) cihaza kaydedildi.`;
     } else {
-      st.className = "text-xs text-amber-700 font-medium";
+      st.style.color = "#b45309";
       st.textContent = "Tarayıcı kalıcı depolaması kısıtlı; oturum süresince aktif olarak kaydedildi.";
     }
     clearTimeout(window.__settingsTimer);
@@ -1050,16 +1041,6 @@ function bindDirectListeners() {
     searchInput.oninput = (e) => {
       populateGibTopicSelect(document.getElementById("topicInput")?.value.trim() || "", e.target.value);
     };
-  }
-
-  const topicSelect = document.getElementById("gibTopicSelect");
-  if (topicSelect) {
-    const onPick = (e) => {
-      const val = e.target.value || (e.target.selectedOptions && e.target.selectedOptions[0]?.value) || "";
-      if (val) applyChosenTopicFromList(val);
-    };
-    topicSelect.onchange = onPick;
-    topicSelect.onclick = onPick;
   }
 
   const autoRandomEl = document.getElementById("autoRandomOnGenerate");
@@ -1133,16 +1114,7 @@ function bindDirectListeners() {
     clearChatBtn.onclick = () => {
       const wrap = document.getElementById("chatMessages");
       if (wrap) {
-        wrap.innerHTML = `
-          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 space-y-2">
-            <div class="flex items-center justify-between gap-2">
-              <span class="text-[11px] font-bold uppercase tracking-wider text-slate-800">Mevzuat Analiz Asistanı</span>
-              <span class="text-[11px] text-emerald-700 font-semibold">Kanıta Dayalı Mod</span>
-            </div>
-            <p class="leading-relaxed">
-              Sohbet temizlendi. Sorunuzu <strong>Mevzuat Yorumu</strong>, <strong>Kanunlar Arası Bağlantı</strong> ve <strong>Yönlendirme</strong> başlıklarıyla yanıtlarım.
-            </p>
-          </div>`;
+        wrap.innerHTML = `<div style="border:1px solid #e2e8f0;background:#f8fafc;border-radius:14px;padding:12px;font-size:13px;color:#334155;">Sohbet temizlendi.</div>`;
       }
     };
   }
@@ -1247,8 +1219,7 @@ function initApp() {
     if (lawUrlInput) lawUrlInput.value = safeGetStorage(STORAGE_KEYS.lawUrl, "");
 
     syncCategoryUi();
-    const initialTopic = pickRandomGibTopic("");
-    populateGibTopicSelect(initialTopic, "");
+    populateGibTopicSelect("", "");
     syncSelectionModeBadge();
 
     updateNetworkStatus();
