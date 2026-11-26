@@ -19,7 +19,7 @@ function safeGetStorage(key, fallback = "") {
       return val;
     }
   } catch {
-    // localStorage erişimi kısıtlıysa bellek yedeğine düş
+    // Bellek yedeğine düş
   }
   return Object.prototype.hasOwnProperty.call(window.__memStore, key)
     ? window.__memStore[key]
@@ -165,17 +165,17 @@ if (window.pdfjsLib && window.pdfjsLib.GlobalWorkerOptions) {
     "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 }
 
-function inferCategoryFromLine(line) {
+function inferCategoryFromLine(line, fallbackCategory = null) {
   const lower = String(line || "").toLocaleLowerCase("tr");
-  if (lower.includes("yönetmelik")) return "yonetmelikler";
-  if (lower.includes("sirküler")) return "sirkulerler";
-  if (lower.includes("özelge")) return "ozelgeler";
-  if (lower.includes("tebliğ")) return "tebligler";
+  if (lower.includes("yönetmelik") || lower.includes("yonetmelik")) return "yonetmelikler";
+  if (lower.includes("sirküler") || lower.includes("sirkuler")) return "sirkulerler";
+  if (lower.includes("özelge") || lower.includes("ozelge")) return "ozelgeler";
+  if (lower.includes("tebliğ") || lower.includes("teblig")) return "tebligler";
   if (lower.includes("kanun")) return "kanunlar";
-  return null;
+  return fallbackCategory;
 }
 
-function extractItemsFromPoolText(rawText) {
+function extractItemsFromPoolText(rawText, defaultCategory = null) {
   const buckets = {
     kanunlar: [],
     tebligler: [],
@@ -184,15 +184,39 @@ function extractItemsFromPoolText(rawText) {
     yonetmelikler: []
   };
 
-  const lines = String(rawText || "")
-    .split(/\r?\n/)
-    .map((l) => l.replace(/^[\s\-*•\d.)]+/, "").trim())
-    .filter((l) => l.length >= 12 && l.length <= 220 && !l.startsWith("--- Kaynak:"));
+  let currentSectionCategory = defaultCategory;
+  const rawLines = String(rawText || "").split(/\r?\n/);
 
-  for (const line of lines) {
-    const cat = inferCategoryFromLine(line);
-    if (cat && !buckets[cat].includes(line)) {
-      buckets[cat].push(line);
+  for (const rawLine of rawLines) {
+    const trimmed = rawLine.trim();
+    if (!trimmed) continue;
+
+    if (trimmed.startsWith("--- Kaynak:")) {
+      currentSectionCategory = inferCategoryFromLine(trimmed, defaultCategory);
+      continue;
+    }
+
+    const cleaned = trimmed
+      .replace(/^[\s\-*•▪▸►◦·\d.)]+/, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (!cleaned || cleaned.length < 6) continue;
+
+    const headingCat = inferCategoryFromLine(cleaned, null);
+    if (headingCat && cleaned.length <= 120) {
+      currentSectionCategory = headingCat;
+    }
+
+    const targetCat = headingCat || currentSectionCategory;
+    if (!targetCat || !buckets[targetCat]) continue;
+
+    const candidate = cleaned.length > 260
+      ? cleaned.slice(0, 257).trim() + "..."
+      : cleaned;
+
+    if (!buckets[targetCat].includes(candidate)) {
+      buckets[targetCat].push(candidate);
     }
   }
 
@@ -249,11 +273,27 @@ function populateGibTopicSelect(selectedTopic = "", filterText = "") {
 
   sel.innerHTML = list.length
     ? list.map((item) => `<option value="${escapeAttr(item)}">${escapeHtml(item)}</option>`).join("")
-    : `<option disabled value="">Bu bölümde eşleşen kayıt bulunamadı</option>`;
+    : `<option disabled value="">Bu bölümde kayıt bulunamadı</option>`;
 
   if (selectedTopic && list.includes(selectedTopic)) {
     sel.value = selectedTopic;
+  } else {
+    sel.selectedIndex = -1;
   }
+}
+
+function applyChosenTopicFromList(chosen) {
+  const clean = String(chosen || "").trim();
+  if (!clean) return;
+  const tInput = document.getElementById("topicInput");
+  if (tInput) {
+    tInput.value = clean;
+    tInput.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+  const autoCb = document.getElementById("autoRandomOnGenerate");
+  if (autoCb) autoCb.checked = false;
+  syncSelectionModeBadge();
+  closeLawPickerPanel();
 }
 
 function pickRandomGibTopic(currentValue = "") {
@@ -324,14 +364,18 @@ async function syncPoolToActiveCategory() {
   const savedUrl = (safeGetStorage(STORAGE_KEYS.lawUrl, "") || document.getElementById("lawUrlInput")?.value || "").trim();
   if (savedUrl) {
     await fetchTextFromUrl(savedUrl);
-  } else {
-    syncCategoryUi();
-    populateGibTopicSelect(
-      document.getElementById("topicInput")?.value.trim() || "",
-      document.getElementById("lawSearchInput")?.value || ""
-    );
-    setLawStatus("Mevzuat Havuzu metnindeki eşleşen başlıklar aktif kategori listesine senkronize edildi.");
+    return;
   }
+  const lawText = safeGetStorage(STORAGE_KEYS.lawText, "");
+  const buckets = extractItemsFromPoolText(lawText);
+  syncCategoryUi();
+  populateGibTopicSelect(
+    document.getElementById("topicInput")?.value.trim() || "",
+    document.getElementById("lawSearchInput")?.value || ""
+  );
+  setLawStatus(
+    `Havuz tarandı: Kanun (${buckets.kanunlar.length}), Tebliğ (${buckets.tebligler.length}), Özelge (${buckets.ozelgeler.length}), Sirküler (${buckets.sirkulerler.length}), Yönetmelik (${buckets.yonetmelikler.length}).`
+  );
 }
 window.syncPoolToActiveCategory = syncPoolToActiveCategory;
 
@@ -372,12 +416,15 @@ function appendLawText(incoming, sourceLabel) {
 
   ta.value = merged;
   safeSetStorage(STORAGE_KEYS.lawText, merged);
+  const buckets = extractItemsFromPoolText(merged);
   syncCategoryUi();
   populateGibTopicSelect(
     document.getElementById("topicInput")?.value.trim() || "",
     document.getElementById("lawSearchInput")?.value || ""
   );
-  setLawStatus(`"${sourceLabel}" verisi aktarıldı, kaydedildi ve mevzuat listelerine işlendi${trimmedNote}.`);
+  setLawStatus(
+    `"${sourceLabel}" aktarıldı${trimmedNote} — Kanun: ${buckets.kanunlar.length}, Tebliğ: ${buckets.tebligler.length}, Özelge: ${buckets.ozelgeler.length}, Sirküler: ${buckets.sirkulerler.length}, Yönetmelik: ${buckets.yonetmelikler.length}.`
+  );
 }
 
 function htmlToPlainText(htmlString) {
@@ -1007,16 +1054,12 @@ function bindDirectListeners() {
 
   const topicSelect = document.getElementById("gibTopicSelect");
   if (topicSelect) {
-    topicSelect.onchange = (e) => {
-      const chosen = e.target.value;
-      if (!chosen) return;
-      const tInput = document.getElementById("topicInput");
-      if (tInput) tInput.value = chosen;
-      const autoCb = document.getElementById("autoRandomOnGenerate");
-      if (autoCb) autoCb.checked = false;
-      syncSelectionModeBadge();
-      closeLawPickerPanel();
+    const onPick = (e) => {
+      const val = e.target.value || (e.target.selectedOptions && e.target.selectedOptions[0]?.value) || "";
+      if (val) applyChosenTopicFromList(val);
     };
+    topicSelect.onchange = onPick;
+    topicSelect.onclick = onPick;
   }
 
   const autoRandomEl = document.getElementById("autoRandomOnGenerate");
