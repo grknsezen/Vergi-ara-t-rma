@@ -10,7 +10,16 @@ const STORAGE_KEYS = {
   generalPool: "exam_app_general_pool_text"
 };
 
+const DEFAULT_GEMINI_MODEL = "gemini-3.8-flash";
 let currentMcqList = [];
+
+function normalizeModelName(modelName) {
+  const clean = String(modelName || "").trim().replace(/^models\//i, "");
+  if (!clean || /^gemini-2\.5-/i.test(clean)) {
+    return DEFAULT_GEMINI_MODEL;
+  }
+  return clean;
+}
 
 function safeGetStorage(key, fallback = "") {
   try {
@@ -64,7 +73,12 @@ async function callGemini(promptText, expectJson = true, systemInstructionText =
     throw new Error("Lütfen önce sağ üstteki 'API & Havuz Ayarları' bölümünden Gemini API anahtarınızı girin.");
   }
 
-  const model = safeGetStorage(STORAGE_KEYS.model, "gemini-2.5-pro") || "gemini-2.5-pro";
+  const rawSavedModel = safeGetStorage(STORAGE_KEYS.model, DEFAULT_GEMINI_MODEL);
+  const model = normalizeModelName(rawSavedModel);
+  if (rawSavedModel !== model) {
+    safeSetStorage(STORAGE_KEYS.model, model);
+  }
+
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
   const payload = {
@@ -578,6 +592,13 @@ document.addEventListener("DOMContentLoaded", () => {
     navigator.serviceWorker.register("./sw.js").catch(() => {});
   }
 
+  // Eski kayıtlı model varsa otomatik güncelle
+  const currentStoredModel = safeGetStorage(STORAGE_KEYS.model, DEFAULT_GEMINI_MODEL);
+  const normalizedStoredModel = normalizeModelName(currentStoredModel);
+  if (currentStoredModel !== normalizedStoredModel) {
+    safeSetStorage(STORAGE_KEYS.model, normalizedStoredModel);
+  }
+
   document.querySelectorAll(".tab-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
@@ -590,13 +611,26 @@ document.addEventListener("DOMContentLoaded", () => {
   const modal = document.getElementById("settingsModal");
   document.getElementById("openSettingsBtn")?.addEventListener("click", () => {
     document.getElementById("apiKeyInput").value = safeGetStorage(STORAGE_KEYS.apiKey, "");
-    document.getElementById("modelSelect").value = safeGetStorage(STORAGE_KEYS.model, "gemini-2.5-pro");
+    const modelSelect = document.getElementById("modelSelect");
+    const activeModel = normalizeModelName(safeGetStorage(STORAGE_KEYS.model, DEFAULT_GEMINI_MODEL));
+    if (modelSelect) {
+      if (!Array.from(modelSelect.options).some((opt) => opt.value === activeModel)) {
+        const customOpt = document.createElement("option");
+        customOpt.value = activeModel;
+        customOpt.textContent = activeModel;
+        modelSelect.appendChild(customOpt);
+      }
+      modelSelect.value = activeModel;
+    }
     modal.classList.remove("hidden");
   });
   document.getElementById("closeSettingsBtn")?.addEventListener("click", () => modal.classList.add("hidden"));
   document.getElementById("saveSettingsBtn")?.addEventListener("click", () => {
     safeSetStorage(STORAGE_KEYS.apiKey, document.getElementById("apiKeyInput").value.trim());
-    safeSetStorage(STORAGE_KEYS.model, document.getElementById("modelSelect").value);
+    safeSetStorage(
+      STORAGE_KEYS.model,
+      normalizeModelName(document.getElementById("modelSelect").value)
+    );
     modal.classList.add("hidden");
   });
 
