@@ -101,12 +101,13 @@
     }
 
     .tab-btn {
-      padding: 10px 16px;
+      padding: 10px 14px;
       border: 1px solid var(--border);
       background: var(--surface);
       color: var(--text);
       border-radius: var(--radius);
       font-weight: 600;
+      font-size: 0.9rem;
       cursor: pointer;
       transition: all 0.15s ease;
     }
@@ -179,6 +180,7 @@
     }
 
     input[type="text"],
+    input[type="url"],
     input[type="password"],
     input[type="number"],
     input[type="file"],
@@ -258,6 +260,11 @@
       color: #fff;
     }
 
+    .btn-sm {
+      padding: 6px 10px;
+      font-size: 0.8rem;
+    }
+
     .status-text {
       margin: 10px 0 0;
       font-size: 0.9rem;
@@ -281,6 +288,7 @@
       border-bottom: 1px solid var(--border);
       padding-bottom: 10px;
       margin-bottom: 16px;
+      flex-wrap: wrap;
     }
 
     .quiz-header h3 {
@@ -363,6 +371,34 @@
       color: var(--accent);
     }
 
+    .link-box {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      background: var(--surface-alt);
+      margin-bottom: 16px;
+    }
+
+    .link-list {
+      list-style: none;
+      margin: 10px 0 0;
+      padding: 0;
+    }
+
+    .link-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 10px;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      margin-bottom: 6px;
+      font-size: 0.88rem;
+      word-break: break-all;
+    }
+
     .modal {
       position: fixed;
       inset: 0;
@@ -414,16 +450,17 @@
         </div>
       </div>
       <div class="topbar-actions">
-        <button id="openSettingsBtn" class="btn btn-secondary">API &amp; Havuz Ayarları</button>
+        <button id="openSettingsBtn" class="btn btn-secondary">API &amp; Ayarlar</button>
       </div>
     </div>
   </header>
 
   <main class="container">
     <nav class="tabs" role="tablist">
-      <button class="tab-btn active" data-tab="mcqTab">1. Test Sınavı (Çoktan Seçmeli)</button>
-      <button class="tab-btn" data-tab="ymmTab">2. YMM Yazılı Sınav (Vaka &amp; Analiz)</button>
-      <button class="tab-btn" data-tab="poolTab">3. PDF &amp; Havuz Yönetimi</button>
+      <button class="tab-btn active" data-tab="mcqTab">1. Test Sınavı</button>
+      <button class="tab-btn" data-tab="ymmTab">2. YMM Yazılı Vaka</button>
+      <button class="tab-btn" data-tab="poolTab">3. PDF &amp; Link Havuzu</button>
+      <button class="tab-btn" data-tab="legTab">4. Mevzuat (Kanun &amp; Tebliğ)</button>
     </nav>
 
     <!-- SEKME 1: ÇOKTAN SEÇMELİ TEST -->
@@ -444,8 +481,8 @@
             </select>
           </div>
           <div class="form-group">
-            <label for="mcqCountInput">Soru Sayısı (1 - 25)</label>
-            <input type="number" id="mcqCountInput" min="1" max="25" value="5" />
+            <label for="mcqCountInput">Soru Sayısı (1 - 20)</label>
+            <input type="number" id="mcqCountInput" min="1" max="20" value="5" />
           </div>
         </div>
         <div class="btn-row">
@@ -467,17 +504,15 @@
       </div>
     </section>
 
-    <!-- SEKME 2: YMM YAZILI SINAV -->
+    <!-- SEKME 2: YMM YAZILI VAKA (HAFİF & İKİ AŞAMALI) -->
     <section id="ymmTab" class="tab-panel">
       <div class="card">
-        <h2>TÜRMOB YMM Yazılı Sınav Üretici (Çatı Örnek &amp; Çok Bentli Vaka)</h2>
+        <h2>TÜRMOB YMM Yazılı Vaka Üretici (Hızlı &amp; İki Aşamalı)</h2>
         <p class="hint">
-          2026/2. Dönem Vergi Tekniği sınav formatını esas alır: <strong>Çatı Örnek Mükellef</strong> +
-          <strong>Veriler / Mali Tablo &amp; Parametreler</strong> + <strong>(a)-(e) Alt Bentleri (100 Puan)</strong> ve
-          <strong>Adım Adım Komisyon Cevabı</strong> üretir.
+          Bağlantı kopmalarını önlemek için önce <strong>Çatı Örnek + Veriler + (a)-(e) Bentleri</strong> üretilir; komisyon cevabı ise soru geldikten sonra ayrı butonla üretilir.
         </p>
 
-        <div class="grid-3">
+        <div class="grid-2">
           <div class="form-group">
             <label for="ymmSubjectSelect">YMM Sınav Dersi</label>
             <select id="ymmSubjectSelect">
@@ -494,65 +529,48 @@
           </div>
 
           <div class="form-group">
-            <label for="ymmFocusInput">Özel Odak / Mevzuat Konusu (İsteğe Bağlı)</label>
-            <input type="text" id="ymmFocusInput" placeholder="Örn: VUK 379 Kanun Yolundan Vazgeçme, 6183 m.23, Yeniden Değerleme..." />
-          </div>
-
-          <div class="form-group">
-            <label for="ymmPdfCountInput">Üretilecek Çatı Sınav Sayısı (1 - 5)</label>
-            <input type="number" id="ymmPdfCountInput" min="1" max="5" value="1" />
+            <label for="ymmFocusInput">Özel Odak / Konu (İsteğe Bağlı)</label>
+            <input type="text" id="ymmFocusInput" placeholder="Örn: VUK 379, 6183 m.23, Yeniden Değerleme, Dar Mükellef..." />
           </div>
         </div>
 
-        <div class="grid-2">
-          <div class="form-group">
-            <label for="ymmFormatSelect">Sınav Kurgusu</label>
-            <select id="ymmFormatSelect">
-              <option value="2026/2 TÜRMOB Tarzı Çatı Vaka (Tek Çatı Mükellef + Veriler + a-e Bentleri, 100 Puan)" selected>
-                2026/2 TÜRMOB Tarzı Çatı Vaka (Tek Çatı + Veriler + a-e Bentleri, 100 Puan)
-              </option>
-              <option value="Çoklu Somut Olay (3-4 Bağımsız Somut Olay + Kanuni Değerlendirme)">
-                Çoklu Somut Olay (3-4 Bağımsız Somut Olay + Kanuni Değerlendirme)
-              </option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Örnek Havuz Durumu</label>
-            <div id="ymmPoolBadge" class="info-box">Havuz kontrol ediliyor...</div>
-          </div>
+        <div class="form-group">
+          <label>Havuz &amp; Mevzuat Durumu</label>
+          <div id="ymmPoolBadge" class="info-box">Durum kontrol ediliyor...</div>
         </div>
 
         <div class="btn-row">
-          <button id="generateYmmSingleBtn" class="btn btn-primary">Ekranda 1 Çatı Sınav Üret</button>
-          <button id="generateYmmPdfBtn" class="btn btn-accent">YMM Sınav + Komisyon Cevabı PDF İndir</button>
+          <button id="generateYmmSingleBtn" class="btn btn-primary">1. Adım: Çatı Vaka Sorusu Üret</button>
+          <button id="generateYmmSolutionBtn" class="btn btn-accent" disabled>2. Adım: Komisyon Cevabını Üret</button>
+          <button id="generateYmmPdfBtn" class="btn btn-secondary">Mevcut Vaka + Cevabı PDF İndir</button>
         </div>
         <p id="ymmPdfStatus" class="status-text"></p>
       </div>
 
       <div id="ymmPreviewArea" class="card hidden">
         <div class="quiz-header">
-          <h3 id="ymmPreviewTitle">Üretilen YMM Yazılı Sınavı</h3>
-          <button id="toggleYmmSolutionBtn" class="btn btn-secondary">Komisyon Cevabını Göster / Gizle</button>
+          <h3 id="ymmPreviewTitle">Üretilen YMM Yazılı Vakası</h3>
+          <button id="toggleYmmSolutionBtn" class="btn btn-secondary btn-sm">Cevabı Göster / Gizle</button>
         </div>
         <div id="ymmQuestionContent" class="ymm-paper"></div>
         <div id="ymmSolutionWrapper" class="ymm-solution hidden">
-          <h4>SINAV KOMİSYONU CEVAPLARI</h4>
+          <h4>SINAV KOMİSYONU CEVABI</h4>
           <div id="ymmSolutionContent" class="ymm-paper"></div>
         </div>
       </div>
     </section>
 
-    <!-- SEKME 3: PDF & HAVUZ YÖNETİMİ -->
+    <!-- SEKME 3: PDF & LİNK HAVUZU -->
     <section id="poolTab" class="tab-panel">
       <div class="card">
-        <h2>Geçmiş YMM Sınavları &amp; Ders Notu PDF Havuzu</h2>
+        <h2>PDF Dosyaları &amp; Kaynak Link Havuzu</h2>
         <p class="hint">
-          TÜRMOB YMM geçmiş sınav PDF'lerini (soru + komisyon cevap anahtarı dahil) buraya yükleyin. Sistem metni çıkarıp tarayıcı hafızasına kaydeder.
+          PDF dosyalarından metin çıkarabilir veya çalışma/sınav linkleri ekleyip havuza aktarabilirsiniz.
         </p>
 
         <div class="grid-2">
           <div class="form-group">
-            <label for="ymmPdfUpload">YMM Örnek Sınav PDF'i Yükle (Çoklu Seçim Yapılabilir)</label>
+            <label for="ymmPdfUpload">YMM Örnek Sınav PDF'i Yükle</label>
             <input type="file" id="ymmPdfUpload" accept="application/pdf" multiple />
           </div>
           <div class="form-group">
@@ -560,16 +578,31 @@
             <input type="file" id="generalPdfUpload" accept="application/pdf" multiple />
           </div>
         </div>
+
+        <!-- LİNK EKLEME BÖLÜMÜ -->
+        <div class="link-box">
+          <label for="resourceLinkInput">Kaynak Bağlantısı (URL) Ekle</label>
+          <div class="grid-2">
+            <input type="text" id="resourceLinkTitleInput" placeholder="Bağlantı başlığı (Örn: GİB Rehber / Sınav Duyurusu)" />
+            <input type="url" id="resourceLinkInput" placeholder="https://..." />
+          </div>
+          <div class="btn-row">
+            <button id="addLinkBtn" class="btn btn-primary btn-sm">Linki Listeye Ekle</button>
+            <button id="fetchLinksToPoolBtn" class="btn btn-accent btn-sm">Link İçeriklerini Havuza Çek</button>
+          </div>
+          <ul id="resourceLinkList" class="link-list"></ul>
+        </div>
+
         <p id="uploadStatusText" class="status-text"></p>
 
         <div class="form-group">
-          <label for="ymmPoolTextarea">Kayıtlı YMM Sınav Havuzu Metni (Düzenlenebilir)</label>
-          <textarea id="ymmPoolTextarea" rows="8" placeholder="Yüklenen YMM sınav PDF metinleri burada görünür..."></textarea>
+          <label for="ymmPoolTextarea">Kayıtlı YMM Sınav Havuzu Metni</label>
+          <textarea id="ymmPoolTextarea" rows="7" placeholder="Yüklenen YMM sınav PDF veya link metinleri burada görünür..."></textarea>
         </div>
 
         <div class="form-group">
-          <label for="generalPoolTextarea">Kayıtlı Genel Çalışma Havuzu Metni (Düzenlenebilir)</label>
-          <textarea id="generalPoolTextarea" rows="6" placeholder="Genel ders notu PDF metinleri burada görünür..."></textarea>
+          <label for="generalPoolTextarea">Kayıtlı Genel Çalışma Havuzu Metni</label>
+          <textarea id="generalPoolTextarea" rows="5" placeholder="Genel ders notu PDF veya link metinleri burada görünür..."></textarea>
         </div>
 
         <div class="btn-row">
@@ -577,6 +610,34 @@
           <button id="clearYmmPoolBtn" class="btn btn-danger">YMM Havuzunu Temizle</button>
           <button id="clearGeneralPoolBtn" class="btn btn-danger">Genel Havuzu Temizle</button>
         </div>
+      </div>
+    </section>
+
+    <!-- SEKME 4: MEVZUAT (KANUNLAR & TEBLİĞLER İKİ AYRI BÖLÜM) -->
+    <section id="legTab" class="tab-panel">
+      <div class="card">
+        <h2>Mevzuat Referansları (Kanunlar &amp; Tebliğler)</h2>
+        <p class="hint">
+          Soru ve komisyon cevabı üretilirken dikkate alınmasını istediğiniz kanun maddelerini ve tebliğ düzenlemelerini iki ayrı bölüm halinde kaydedin.
+        </p>
+
+        <div class="grid-2">
+          <div class="form-group">
+            <label for="lawsTextarea">1. Bölüm: Kanunlar (VUK, GVK, KVK, KDV, 6183, İYUK vb.)</label>
+            <textarea id="lawsTextarea" rows="12" placeholder="Örn:&#10;- 213 sayılı VUK m. 116-126 (Vergi Hataları), m. 353, m. 376, m. 379, mük. m. 298/Ç&#10;- 5520 sayılı KVK m. 5, m. 30&#10;- 3065 sayılı KDV Kanunu m. 9"></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="communiquesTextarea">2. Bölüm: Tebliğler (Genel Tebliğler, Sirküler, Uygulama Esasları)</label>
+            <textarea id="communiquesTextarea" rows="12" placeholder="Örn:&#10;- KDV Genel Uygulama Tebliği (Sorumlu Sıfatıyla KDV / İade Mahsup)&#10;- VUK Genel Tebliğleri (Yeniden Değerleme / Özel Usulsüzlük / Uzlaşma)&#10;- Kurumlar Vergisi Genel Tebliği"></textarea>
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button id="saveLegislationBtn" class="btn btn-primary">Kanun &amp; Tebliğ Notlarını Kaydet</button>
+          <button id="clearLegislationBtn" class="btn btn-danger">Mevzuat Alanlarını Temizle</button>
+        </div>
+        <p id="legStatusText" class="status-text"></p>
       </div>
     </section>
   </main>
@@ -595,8 +656,8 @@
       <div class="form-group">
         <label for="modelSelect">Model Seçimi</label>
         <select id="modelSelect">
-          <option value="gemini-3.8-flash" selected>gemini-3.8-flash (YMM Vaka &amp; Hesaplama İçin Önerilen)</option>
-          <option value="gemini-4-argon">gemini-4-argon (İleri Düzey Akıl Yürütme)</option>
+          <option value="gemini-3.8-flash" selected>gemini-3.8-flash (Hızlı &amp; Kararlı)</option>
+          <option value="gemini-4-argon">gemini-4-argon (Detaylı Analiz)</option>
         </select>
       </div>
       <div class="btn-row">
