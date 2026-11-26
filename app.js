@@ -6,6 +6,7 @@ const STORAGE_KEYS = {
   stats: "vergi_pwa_stats",
   mistakes: "vergi_pwa_mistakes"
 };
+const MAX_LAW_CHARS = 25000;
 
 const PRESETS = {
   kvk51a: "5520 sayılı KVK Madde 5/1-a: Kurumların, başka bir kurumun sermayesine katılmasından elde ettikleri kazançlar (tam mükellef kurumlardan elde edilen kâr payları ile yatırım fonu/ortaklığı katılma payları/hisselerine ilişkin hükümler) vergiden istisnadır.",
@@ -31,9 +32,128 @@ let selectedOptionIndex = null;
 let timerInterval = null;
 let remainingSeconds = 0;
 
+if (window.pdfjsLib && window.pdfjsLib.GlobalWorkerOptions) {
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+}
+
 function saveAllState() {
   localStorage.setItem(STORAGE_KEYS.stats, JSON.stringify(stats));
   localStorage.setItem(STORAGE_KEYS.mistakes, JSON.stringify(mistakes));
+}
+
+function setLawStatus(msg, isError = false) {
+  const el = document.getElementById("lawSourceStatus");
+  el.textContent = msg;
+  el.className = isError
+    ? "text-xs text-rose-600 font-medium"
+    : "text-xs text-emerald-700 font-medium";
+  el.classList.remove("hidden");
+}
+
+function appendLawText(incoming, sourceLabel) {
+  const cleaned = String(incoming || "")
+    .replace(/\s+\n/g, "\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+  if (!cleaned) throw new Error("Kaynakta okunabilir metin bulunamadı.");
+
+  const ta = document.getElementById("lawTextInput");
+  const header = `--- Kaynak: ${sourceLabel} ---\n`;
+  let merged = ta.value.trim()
+    ? `${ta.value.trim()}\n\n${header}${cleaned}`
+    : `${header}${cleaned}`;
+
+  let trimmedNote = "";
+  if (merged.length > MAX_LAW_CHARS) {
+    merged = merged.slice(0, MAX_LAW_CHARS);
+    trimmedNote = ` (${MAX_LAW_CHARS.toLocaleString("tr-TR")} karakter sınırı uygulandı)`;
+  }
+
+  ta.value = merged;
+  localStorage.setItem(STORAGE_KEYS.lawText, merged);
+  setLawStatus(`"${sourceLabel}" metni aktarıldı ve kaydedildi${trimmedNote}.`);
+}
+
+function htmlToPlainText(htmlString) {
+  const doc = new DOMParser().parseFromString(htmlString, "text/html");
+  doc.querySelectorAll("script, style, noscript, svg, nav, footer, header").forEach((n) => n.remove());
+  return (doc.body?.innerText || doc.body?.textContent || "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+async function fetchTextFromUrl(rawUrl) {
+  const url = (rawUrl || "").trim();
+  if (!/^https?:\/\//i.test(url)) {
+    throw new Error("Lütfen http:// veya https:// ile başlayan geçerli bir bağlantı girin.");
+  }
+
+  const btn = document.getElementById("fetchUrlBtn");
+  const prev = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Çekiliyor...";
+
+  try {
+    let extracted = "";
+    try {
+      const directRes = await fetch(url);
+      if (directRes.ok) {
+        const ct = directRes.headers.get("content-type") || "";
+        const body = await directRes.text();
+        extracted = ct.includes("text/html") || /<html[\s>]/i.test(body) ? htmlToPlainText(body) : body;
+      }
+    } catch {
+      // CORS engeli durumunda okuyucu katmanına düş
+    }
+
+    if (!extracted || extracted.length < 40) {
+      const readerUrl = `https://r.jina.ai/${url}`;
+      const rRes = await fetch(readerUrl);
+      if (!rRes.ok) {
+        throw new Error("Bağlantıdaki içerik okunamadı (site erişimi engelliyor olabilir).");
+      }
+      extracted = await rRes.text();
+    }
+
+    appendLawText(extracted, url);
+  } catch (err) {
+    setLawStatus("Link hatası: " + err.message, true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = prev;
+  }
+}
+
+async function extractTextFromPdfFile(file) {
+  if (!file) return;
+  if (!window.pdfjsLib) {
+    setLawStatus("PDF okuyucu kütüphanesi yüklenemedi. İnternet bağlantınızı kontrol edin.", true);
+    return;
+  }
+
+  document.getElementById("pdfFileName").textContent = `${file.name} okunuyor...`;
+  setLawStatus("PDF sayfalarından metin çıkarılıyor...");
+
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const pages = [];
+
+    for (let i = 1; i <= pdf.numPages; i += 1) {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items.map((item) => item.str).join(" ").trim();
+      if (pageText) pages.push(`[Sayfa ${i}]\n${pageText}`);
+      if (pages.join("\n\n").length >= MAX_LAW_CHARS) break;
+    }
+
+    document.getElementById("pdfFileName").textContent = `${file.name} (${pdf.numPages} sayfa)`;
+    appendLawText(pages.join("\n\n"), file.name);
+  } catch (err) {
+    document.getElementById("pdfFileName").textContent = "PDF okunamadı";
+    setLawStatus("PDF okuma hatası: " + (err?.message || "Dosya şifreli veya taranmış görsel olabilir."), true);
+  }
 }
 
 function updateNetworkStatus() {
@@ -387,7 +507,17 @@ document.getElementById("saveSettingsBtn").onclick = () => {
 document.getElementById("saveLawBtn").onclick = () => {
   const law = document.getElementById("lawTextInput").value.trim();
   localStorage.setItem(STORAGE_KEYS.lawText, law);
-  alert("Mevzuat metni kaydedildi.");
+  setLawStatus("Mevzuat metni kaydedildi.");
+};
+
+document.getElementById("fetchUrlBtn").onclick = () => {
+  fetchTextFromUrl(document.getElementById("lawUrlInput").value);
+};
+
+document.getElementById("pdfFileInput").onchange = (e) => {
+  const file = e.target.files?.[0];
+  extractTextFromPdfFile(file);
+  e.target.value = "";
 };
 
 document.querySelectorAll(".preset-btn").forEach((btn) => {
