@@ -1,1689 +1,539 @@
-const ALL_TABS = ["konu", "soru", "smmm", "ymm", "sohbet", "hatalar", "ayarlar"];
-const STORAGE_KEYS = {
-  apiKey: "vergi_pwa_api_key",
-  model: "vergi_pwa_model",
-  lawText: "vergi_pwa_law_text",
-  lawUrl: "vergi_pwa_law_url",
-  smmmPool: "vergi_pwa_smmm_pool",
-  ymmPool: "vergi_pwa_ymm_pool",
-  stats: "vergi_pwa_stats",
-  mistakes: "vergi_pwa_mistakes"
-};
-const MAX_LAW_CHARS = 200000;
-const IDB_NAME = "VergiAsistaniDB";
-const IDB_STORE = "kv";
-const FALLBACK_MODELS = [
-  "gemini-3.8-flash",
-  "gemini-3.5-flash-lite",
-  "gemini-4-neon",
-  "gemini-4-hydrogen"
-];
-
-window.__memStore = window.__memStore || {};
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function openIdb() {
-  return new Promise((resolve, reject) => {
-    if (!window.indexedDB) {
-      reject(new Error("IndexedDB desteklenmiyor"));
-      return;
-    }
-    const req = window.indexedDB.open(IDB_NAME, 1);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(IDB_STORE)) {
-        db.createObjectStore(IDB_STORE);
-      }
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-async function idbSet(key, val) {
-  try {
-    const db = await openIdb();
-    await new Promise((resolve, reject) => {
-      const tx = db.transaction(IDB_STORE, "readwrite");
-      tx.objectStore(IDB_STORE).put(val, key);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function idbGet(key) {
-  try {
-    const db = await openIdb();
-    return await new Promise((resolve, reject) => {
-      const tx = db.transaction(IDB_STORE, "readonly");
-      const req = tx.objectStore(IDB_STORE).get(key);
-      req.onsuccess = () => resolve(req.result ?? null);
-      req.onerror = () => reject(req.error);
-    });
-  } catch {
-    return null;
-  }
-}
-
-function safeGetStorage(key, fallback = "") {
-  try {
-    const val = window.localStorage.getItem(key);
-    if (val !== null) {
-      window.__memStore[key] = val;
-      return val;
-    }
-  } catch {
-    // Bellek yedeğine düş
-  }
-  return Object.prototype.hasOwnProperty.call(window.__memStore, key)
-    ? window.__memStore[key]
-    : fallback;
-}
-
-function safeSetStorage(key, value) {
-  const strVal = String(value ?? "");
-  window.__memStore[key] = strVal;
-  if (key === STORAGE_KEYS.lawText || key === STORAGE_KEYS.smmmPool || key === STORAGE_KEYS.ymmPool) {
-    idbSet(key, strVal);
-  }
-  try {
-    window.localStorage.setItem(key, strVal);
-    return { ok: true, persisted: true };
-  } catch {
-    return {
-      ok: true,
-      persisted: key === STORAGE_KEYS.lawText || key === STORAGE_KEYS.smmmPool || key === STORAGE_KEYS.ymmPool
-    };
-  }
-}
-
-const CATEGORY_LABELS = {
-  kanunlar: "Kanunlar",
-  tebligler: "Tebliğler",
-  sirkulerler: "Sirkülerler"
-};
-
-const MEVZUAT_BY_CATEGORY = {
-  kanunlar: [
-    "193 sayılı Gelir Vergisi Kanunu",
-    "213 sayılı Vergi Usul Kanunu",
-    "3065 sayılı Katma Değer Vergisi Kanunu",
-    "5520 sayılı Kurumlar Vergisi Kanunu",
-    "6183 sayılı Amme Alacaklarının Tahsil Usulü Hakkında Kanunu",
-    "488 sayılı Damga Vergisi Kanunu",
-    "492 sayılı Harçlar Kanunu",
-    "7338 sayılı Veraset ve İntikal Vergisi Kanunu",
-    "1319 sayılı Emlak Vergisi Kanunu",
-    "4760 sayılı Özel Tüketim Vergisi Kanunu",
-    "197 sayılı Motorlu Taşıtlar Vergisi Kanunu",
-    "6802 sayılı Gider Vergileri Kanunu",
-    "2464 sayılı Belediye Gelirleri Kanunu",
-    "4691 sayılı Teknoloji Geliştirme Bölgeleri Kanunu",
-    "5746 sayılı Araştırma, Geliştirme ve Tasarım Faaliyetlerinin Desteklenmesi Hakkında Kanun",
-    "3218 sayılı Serbest Bölgeler Kanunu"
-  ],
-  tebligler: [
-    "KDV Genel Uygulama Tebliği",
-    "Kurumlar Vergisi Genel Tebliği (Seri No: 1)",
-    "Transfer Fiyatlandırması Yoluyla Örtülü Kazanç Dağıtımı Hakkında Genel Tebliğ (Seri No: 1)",
-    "Gelir Vergisi Genel Tebliği (Seri No: 252 - Tevkifat Yoluyla Kesilen Vergilerin İadesi)",
-    "Gelir Vergisi Genel Tebliği (Seri No: 301 - Vergiye Uyumlu Mükelleflere Vergi İndirimi)",
-    "Gelir Vergisi Genel Tebliği (Seri No: 311 - Ücret Gelirlerinin Vergilendirilmesi)",
-    "Gelir Vergisi Genel Tebliği (Seri No: 319 - Asgari Ücret İstisnası)",
-    "VUK Genel Tebliği (Sıra No: 509 - Elektronik Belge Uygulamaları)",
-    "VUK Genel Tebliği (Sıra No: 459 - Tahsilat ve Ödemelerin Tevsik Zorunluluğu)",
-    "VUK Genel Tebliği (Sıra No: 555 - Enflasyon Düzeltmesi Uygulama Esasları)",
-    "VUK Genel Tebliği (Sıra No: 456 - Elektronik Tebligat Sistemi)",
-    "VUK Genel Tebliği (Sıra No: 519 - İzaha Davet Müessesesi)",
-    "VUK Genel Tebliği (Sıra No: 333 - Amortisman Süreleri Listesi)",
-    "Tahsilat Genel Tebliği (Seri No: A/1)",
-    "Özel Tüketim Vergisi Uygulama Genel Tebliğleri",
-    "Damga Vergisi Kanunu Genel Tebliğleri",
-    "Harçlar Kanunu Genel Tebliğleri"
-  ],
-  sirkulerler: [
-    "Kurumlar Vergisi Sirküleri (Seri No: 1)",
-    "KDV Sirküleri (Sıra No: 60)",
-    "GVK Sirküleri — Ücret, İstisna ve Tevkifat Uygulamaları",
-    "GVK Sirküleri — Gayrimenkul ve Menkul Sermaye İratları",
-    "GVK Sirküleri — Geçici 67. Madde Uygulaması",
-    "KVK Sirküleri — İstisnalar, İndirimler ve Finansman Gider Kısıtlaması",
-    "KVK Sirküleri — Geçici Vergi ve Değerleme Uygulamaları",
-    "KDV Sirküleri — Kısmi Tevkifat ve İade Usulleri",
-    "KDV Sirküleri — İhraç Kayıtlı Teslimler ve İndirimli Oran",
-    "VUK Sirküleri — e-Defter, e-Belge ve Beyan Süreleri",
-    "VUK Sirküleri — Enflasyon Düzeltmesi Uygulamaları",
-    "VUK Sirküleri — Şüpheli/Değersiz Alacak ve Reeskont",
-    "Tahsilat Sirküleri — Tecil, Taksitlendirme ve Borcu Yoktur Yazısı"
-  ]
-};
-
-let activeCategory = "kanunlar";
-let stats = { correct: 0, total: 0, byTopic: {} };
-let mistakes = [];
-let currentQuestion = {
-  topic: MEVZUAT_BY_CATEGORY.kanunlar[3],
-  question: "Tam mükellef (X) A.Ş., tam mükellef (Y) A.Ş.'nin sermayesine iştirak etmekte ve (Y) A.Ş.'den nakit kâr payı almaktadır. Bu kazancın kurumlar vergisi karşısındaki durumu nedir?",
-  options: [
-    "A) Kurumlar vergisinden istisnadır.",
-    "B) %50 oranında vergiye tabidir.",
-    "C) Tamamı ticari kazanç olarak vergilendirilir.",
-    "D) Yalnızca yurt dışı dağıtımlarda istisnadır."
-  ],
-  answerIndex: 0,
-  explanation: "5520 sayılı KVK m. 5/1-a uyarınca tam mükellef kurumların başka bir tam mükellef kurumdan elde ettikleri kâr payları istisna kapsamındadır."
-};
-let selectedOptionIndex = null;
-let timerInterval = null;
-let remainingSeconds = 0;
-
-let currentSmmmQuestion = {
-  subject: "Vergi Mevzuatı ve Uygulaması",
-  question: "SMMM Yeterlilik test sorusu üretmek için yukarıdan ders seçip 'Tek Soru Üret' veya 'Gerçek Sınav Sayısı Kadar PDF Test Üret ve İndir' butonuna basın.",
-  options: [
-    "A) Seçenek 1",
-    "B) Seçenek 2",
-    "C) Seçenek 3",
-    "D) Seçenek 4",
-    "E) Seçenek 5"
-  ],
-  answerIndex: 0,
-  solution: "Çözüm adımları ve mevzuat/muhasebe dayanağı burada yer alır."
-};
-let selectedSmmmOptionIndex = null;
-
-let currentYmmQuestion = {
-  subject: "Gelir Üzerinden Alınan Vergiler",
-  question: "YMM yazılı sınav vaka sorusu üretmek için ders seçip 'Yazılı Vaka Sorusu Üret' veya 'YMM Yazılı Sınav PDF Seti Üret ve İndir' butonuna basın.",
-  solution: "Kanuni dayanak, şartlar ve hesaplama adımları burada gösterilir.",
-  keyPoints: ["İlgili kanun maddesi ve istisna/indirim şartları", "Sayısal tutar ve oran kontrolü", "Beyanname / raporlama etkisi"]
-};
-
-function switchTab(tab) {
-  if (typeof window.__coreSwitchTab === "function") {
-    window.__coreSwitchTab(tab);
-    return;
-  }
-  const target = ALL_TABS.includes(tab) ? tab : "konu";
-  ALL_TABS.forEach((t) => {
-    const sec = document.getElementById("tab-" + t);
-    if (sec) sec.classList.toggle("hidden", t !== target);
-    const nav = document.getElementById("nav-" + t);
-    if (nav) {
-      nav.className = t === target
-        ? "flex flex-col items-center justify-center py-1 text-[10px] font-bold text-slate-900"
-        : "flex flex-col items-center justify-center py-1 text-[10px] font-medium text-slate-500";
-    }
-  });
-}
-window.switchTab = switchTab;
-
-document.addEventListener("vergi:tabchanged", (e) => {
-  const tab = e.detail?.tab;
-  if (tab === "hatalar") renderMistakes();
-  if (tab === "smmm") syncPoolBadges();
-  if (tab === "ymm") syncPoolBadges();
-});
-
-function syncPoolBadges() {
-  const smmmBadge = document.getElementById("smmmPoolBadge");
-  const smmmPool = safeGetStorage(STORAGE_KEYS.smmmPool, "").trim();
-  if (smmmBadge) {
-    if (smmmPool.length > 0) {
-      smmmBadge.textContent = `Havuz: ${(smmmPool.length / 1000).toFixed(1)}K kr`;
-      smmmBadge.style.background = "#ecfdf5";
-      smmmBadge.style.color = "#065f46";
-    } else {
-      smmmBadge.textContent = "Havuz: Boş";
-      smmmBadge.style.background = "#eef2ff";
-      smmmBadge.style.color = "#3730a3";
-    }
-  }
-
-  const ymmBadge = document.getElementById("ymmPoolBadge");
-  const ymmPool = safeGetStorage(STORAGE_KEYS.ymmPool, "").trim();
-  if (ymmBadge) {
-    if (ymmPool.length > 0) {
-      ymmBadge.textContent = `YMM Havuz: ${(ymmPool.length / 1000).toFixed(1)}K kr`;
-      ymmBadge.style.background = "#ecfdf5";
-      ymmBadge.style.color = "#065f46";
-    } else {
-      ymmBadge.textContent = "YMM Havuz: Boş";
-      ymmBadge.style.background = "#fef3c7";
-      ymmBadge.style.color = "#92400e";
-    }
-  }
-}
-
-async function loadStoredState() {
-  try {
-    stats = JSON.parse(safeGetStorage(STORAGE_KEYS.stats, '{"correct":0,"total":0,"byTopic":{}}'));
-  } catch {
-    stats = { correct: 0, total: 0, byTopic: {} };
-  }
-  try {
-    mistakes = JSON.parse(safeGetStorage(STORAGE_KEYS.mistakes, "[]"));
-    if (!Array.isArray(mistakes)) mistakes = [];
-  } catch {
-    mistakes = [];
-  }
-
-  const idbLaw = await idbGet(STORAGE_KEYS.lawText);
-  if (typeof idbLaw === "string" && idbLaw.length > 0) {
-    window.__memStore[STORAGE_KEYS.lawText] = idbLaw;
-    const lawTa = document.getElementById("lawTextInput");
-    if (lawTa && !lawTa.value) lawTa.value = idbLaw;
-    syncCategoryUi();
-    populateGibTopicSelect(document.getElementById("topicInput")?.value.trim() || "", "");
-  }
-
-  const idbSmmm = await idbGet(STORAGE_KEYS.smmmPool);
-  if (typeof idbSmmm === "string" && idbSmmm.length > 0) {
-    window.__memStore[STORAGE_KEYS.smmmPool] = idbSmmm;
-    const smmmTa = document.getElementById("smmmPoolTextInput");
-    if (smmmTa && !smmmTa.value) smmmTa.value = idbSmmm;
-  }
-
-  const idbYmm = await idbGet(STORAGE_KEYS.ymmPool);
-  if (typeof idbYmm === "string" && idbYmm.length > 0) {
-    window.__memStore[STORAGE_KEYS.ymmPool] = idbYmm;
-    const ymmTa = document.getElementById("ymmPoolTextInput");
-    if (ymmTa && !ymmTa.value) ymmTa.value = idbYmm;
-  }
-
-  syncPoolBadges();
-}
-
-if (window.pdfjsLib && window.pdfjsLib.GlobalWorkerOptions) {
-  window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+if (window.pdfjsLib) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
     "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 }
 
-function cleanMarkdownAndUrls(text) {
-  return String(text || "")
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
-    .replace(/https?:\/\/\S+/gi, " ")
-    .replace(/[_next\/static\/media\/\S]+/gi, " ")
-    .replace(/^#{1,6}\s*/gm, "")
-    .replace(/[*_`~]+/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
+const STORAGE_KEYS = {
+  apiKey: "exam_app_gemini_api_key",
+  model: "exam_app_gemini_model",
+  ymmPool: "exam_app_ymm_pool_text",
+  generalPool: "exam_app_general_pool_text"
+};
 
-function isNoisyScrapedItem(line) {
-  const lower = String(line || "").toLocaleLowerCase("tr");
-  if (!line || line.length < 8 || line.length > 180) return true;
-  if (
-    lower.includes("son gün ") ||
-    lower.includes("vergi-takvimi") ||
-    lower.includes("selecteddate=") ||
-    lower.includes("image ") ||
-    lower.includes("_next/static") ||
-    lower.includes("en güncel vergi kanunlarına bu alandan") ||
-    lower.includes("çerez") ||
-    lower.includes("cookie") ||
-    lower.includes("telif") ||
-    lower.includes("gizlilik politikası")
-  ) {
-    return true;
+let currentMcqList = [];
+
+function safeGetStorage(key, fallback = "") {
+  try {
+    return localStorage.getItem(key) ?? fallback;
+  } catch (e) {
+    return fallback;
   }
-  return false;
 }
 
-function inferCategoryFromLine(line, fallbackCategory = null) {
-  const lower = String(line || "").toLocaleLowerCase("tr");
-  if (lower.includes("sirküler") || lower.includes("sirkuler")) return "sirkulerler";
-  if (lower.includes("tebliğ") || lower.includes("teblig")) return "tebligler";
-  if (lower.includes("kanun")) return "kanunlar";
-  return fallbackCategory;
+function safeSetStorage(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch (e) {
+    alert("Tarayıcı depolama alanı doldu. Havuz metnini biraz kısaltarak tekrar deneyin.");
+  }
 }
 
-function extractItemsFromPoolText(rawText, defaultCategory = null) {
-  const buckets = {
-    kanunlar: [],
-    tebligler: [],
-    sirkulerler: []
+function toPdfSafeTurkish(text) {
+  return String(text || "")
+    .replace(/ğ/g, "g").replace(/Ğ/g, "G")
+    .replace(/ü/g, "u").replace(/Ü/g, "U")
+    .replace(/ş/g, "s").replace(/Ş/g, "S")
+    .replace(/ı/g, "i").replace(/İ/g, "I")
+    .replace(/ö/g, "o").replace(/Ö/g, "O")
+    .replace(/ç/g, "c").replace(/Ç/g, "C")
+    .replace(/₺/g, "TL")
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/–|—/g, "-");
+}
+
+function parseJsonLoose(rawText) {
+  let cleaned = String(rawText || "").trim();
+  cleaned = cleaned.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+
+  try {
+    return JSON.parse(cleaned);
+  } catch (_) {
+    const firstBrace = cleaned.indexOf("{");
+    const lastBrace = cleaned.lastIndexOf("}");
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      return JSON.parse(cleaned.slice(firstBrace, lastBrace + 1));
+    }
+    throw new Error("Model yanıtı geçerli JSON biçiminde çözümlenemedi.");
+  }
+}
+
+async function callGemini(promptText, expectJson = true, systemInstructionText = "") {
+  const apiKey = safeGetStorage(STORAGE_KEYS.apiKey, "").trim();
+  if (!apiKey) {
+    throw new Error("Lütfen önce sağ üstteki 'API & Havuz Ayarları' bölümünden Gemini API anahtarınızı girin.");
+  }
+
+  const model = safeGetStorage(STORAGE_KEYS.model, "gemini-2.5-pro") || "gemini-2.5-pro";
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+  const payload = {
+    contents: [
+      {
+        role: "user",
+        parts: [{ text: promptText }]
+      }
+    ],
+    generationConfig: {
+      temperature: 0.35,
+      maxOutputTokens: 16384
+    }
   };
 
-  let currentSectionCategory = defaultCategory;
-  const rawLines = String(rawText || "").split(/\r?\n/);
-
-  for (const rawLine of rawLines) {
-    const trimmed = rawLine.trim();
-    if (!trimmed) continue;
-
-    if (trimmed.startsWith("--- Kaynak:")) {
-      currentSectionCategory = inferCategoryFromLine(trimmed, defaultCategory);
-      continue;
-    }
-
-    const cleaned = cleanMarkdownAndUrls(trimmed)
-      .replace(/^[\s\-*•▪▸►◦·\d.)]+/, "")
-      .trim();
-
-    if (isNoisyScrapedItem(cleaned)) continue;
-
-    const headingCat = inferCategoryFromLine(cleaned, null);
-    if (headingCat && cleaned.length <= 130) {
-      currentSectionCategory = headingCat;
-    }
-
-    const targetCat = headingCat || currentSectionCategory;
-    if (!targetCat || !buckets[targetCat]) continue;
-
-    if (!buckets[targetCat].includes(cleaned)) {
-      buckets[targetCat].push(cleaned);
-    }
+  if (systemInstructionText) {
+    payload.systemInstruction = {
+      parts: [{ text: systemInstructionText }]
+    };
   }
 
-  return buckets;
-}
+  if (expectJson) {
+    payload.generationConfig.responseMimeType = "application/json";
+  }
 
-function getCategoryPool(category = activeCategory) {
-  const base = MEVZUAT_BY_CATEGORY[category] || MEVZUAT_BY_CATEGORY.kanunlar;
-  const lawText = safeGetStorage(STORAGE_KEYS.lawText, "");
-  const extra = (extractItemsFromPoolText(lawText)[category] || []).filter(
-    (item) => !base.some((b) => b.toLocaleLowerCase("tr") === item.toLocaleLowerCase("tr"))
-  );
-  return [...base, ...extra];
-}
-
-function syncCategoryUi() {
-  document.querySelectorAll(".law-cat-btn").forEach((btn) => {
-    const isSelected = btn.dataset.category === activeCategory;
-    btn.className = isSelected
-      ? "law-cat-btn cursor-pointer rounded-lg py-2 px-1 text-[12px] font-bold bg-slate-900 text-white shadow-xs transition truncate"
-      : "law-cat-btn cursor-pointer rounded-lg py-2 px-1 text-[12px] font-semibold text-slate-600 hover:text-slate-900 transition truncate";
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
   });
 
-  const label = CATEGORY_LABELS[activeCategory] || "Kanunlar";
-  const pool = getCategoryPool(activeCategory);
-  const titleEl = document.getElementById("pickerPanelTitle");
-  const countEl = document.getElementById("categoryCountBadge");
-  const catLabelEl = document.getElementById("lessonCategoryLabel");
-
-  if (titleEl) titleEl.textContent = `GİB ${label} Listesi`;
-  if (countEl) countEl.textContent = `${label} (${pool.length})`;
-  if (catLabelEl) catLabelEl.textContent = label;
-}
-
-function applyChosenTopicFromList(chosen) {
-  const clean = String(chosen || "").trim();
-  if (!clean) return;
-  const tInput = document.getElementById("topicInput");
-  if (tInput) {
-    tInput.value = clean;
-    tInput.dispatchEvent(new Event("input", { bubbles: true }));
-  }
-  closeLawPickerPanel();
-}
-window.applyChosenTopicFromList = applyChosenTopicFromList;
-
-function populateGibTopicSelect(selectedTopic = "", filterText = "") {
-  const listEl = document.getElementById("gibTopicList");
-  if (!listEl) return;
-  const pool = getCategoryPool(activeCategory);
-  const q = String(filterText || "").trim().toLocaleLowerCase("tr");
-  const list = q
-    ? pool.filter((item) => item.toLocaleLowerCase("tr").includes(q))
-    : pool;
-
-  if (!list.length) {
-    listEl.innerHTML = `<div style="padding:10px;font-size:12px;color:#64748b;">Bu bölümde eşleşen kayıt bulunamadı.</div>`;
-    return;
+  if (!res.ok) {
+    const errBody = await res.text();
+    throw new Error(`Gemini API Hatası (${res.status}): ${errBody.slice(0, 260)}`);
   }
 
-  listEl.innerHTML = "";
-  list.forEach((item) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = item === selectedTopic ? "law-pick-item is-selected" : "law-pick-item";
-    btn.textContent = item;
-    btn.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      applyChosenTopicFromList(item);
+  const data = await res.json();
+  const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("\n") || "";
+  if (!text.trim()) {
+    throw new Error("Gemini boş yanıt döndürdü.");
+  }
+  return text;
+}
+
+async function extractTextFromPdfFile(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let fullText = `\n--- DOSYA: ${file.name} ---\n`;
+
+  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+    const page = await pdf.getPage(pageNum);
+    const content = await page.getTextContent();
+    const strings = content.items.map((item) => item.str);
+    fullText += `\n[Sayfa ${pageNum}]\n` + strings.join(" ");
+  }
+  return fullText;
+}
+
+function updatePoolStatusUI() {
+  const ymmText = safeGetStorage(STORAGE_KEYS.ymmPool, "");
+  const genText = safeGetStorage(STORAGE_KEYS.generalPool, "");
+
+  const ymmArea = document.getElementById("ymmPoolTextarea");
+  const genArea = document.getElementById("generalPoolTextarea");
+  if (ymmArea) ymmArea.value = ymmText;
+  if (genArea) genArea.value = genText;
+
+  const badge = document.getElementById("ymmPoolBadge");
+  if (badge) {
+    badge.textContent = ymmText.trim()
+      ? `YMM Örnek Havuzu Aktif (${ymmText.length.toLocaleString("tr-TR")} karakter yüklü)`
+      : "Henüz YMM örnek sınav PDF'i yüklenmedi (Sekme 3'ten yükleyebilirsiniz).";
+  }
+}
+
+// 1. ÇOKTAN SEÇMELİ TEST
+async function generateMcqBatch(topic, difficulty, count, generalSlice) {
+  const sys = `Sen Türkiye vergi mevzuatı, muhasebe standartları ve mali hukuk alanında uzman bir sınav hazırlama komisyonu üyesisin.
+Aşağıdaki çalışma havuzundan ve güncel Türk mevzuatından yararlanarak özgün, çeldiricileri güçlü çoktan seçmeli sorular üret.
+Uydurma kanun maddesi veya oranı kullanma.
+
+ÇALIŞMA HAVUZU:
+${generalSlice || "Genel Türk Vergi ve Muhasebe Mevzuatı"}`;
+
+  const prompt = `Konu: "${topic}" | Zorluk: "${difficulty}".
+Tam olarak ${count} adet 5 şıklı (A, B, C, D, E) çoktan seçmeli soru üret.
+JSON alanlarının içindeki metinlerde çift tırnak (") yerine tek tırnak (') kullan.
+Sadece şu JSON şemasını döndür:
+{
+  "questions": [
+    {
+      "question": "Soru metni...",
+      "options": {
+        "A": "...",
+        "B": "...",
+        "C": "...",
+        "D": "...",
+        "E": "..."
+      },
+      "answer": "A",
+      "explanation": "Doğru cevabın kanuni dayanağı ve kısa açıklaması..."
+    }
+  ]
+}`;
+
+  const raw = await callGemini(prompt, true, sys);
+  const parsed = parseJsonLoose(raw);
+  return Array.isArray(parsed.questions) ? parsed.questions : [];
+}
+
+function renderMcqToScreen(questions, topic) {
+  const area = document.getElementById("mcqQuizArea");
+  const container = document.getElementById("mcqQuestionsContainer");
+  const title = document.getElementById("mcqQuizTitle");
+  const badge = document.getElementById("mcqScoreBadge");
+
+  title.textContent = `${topic} (${questions.length} Soru)`;
+  badge.textContent = "Devam Ediyor";
+  container.innerHTML = "";
+
+  questions.forEach((q, idx) => {
+    const div = document.createElement("div");
+    div.className = "mcq-item";
+    div.dataset.index = idx;
+
+    const optsHtml = ["A", "B", "C", "D", "E"]
+      .map(
+        (letter) => `
+        <label class="mcq-option">
+          <input type="radio" name="mcq_${idx}" value="${letter}" />
+          <span><strong>${letter})</strong> ${q.options?.[letter] || ""}</span>
+        </label>`
+      )
+      .join("");
+
+    div.innerHTML = `
+      <div class="mcq-question">${idx + 1}. ${q.question}</div>
+      <div>${optsHtml}</div>
+      <div class="mcq-explanation hidden" id="mcq_exp_${idx}"></div>
+    `;
+    container.appendChild(div);
+  });
+
+  area.classList.remove("hidden");
+}
+
+function gradeMcqQuiz() {
+  let correctCount = 0;
+  currentMcqList.forEach((q, idx) => {
+    const selected = document.querySelector(`input[name="mcq_${idx}"]:checked`)?.value || "";
+    const expDiv = document.getElementById(`mcq_exp_${idx}`);
+    const isCorrect = selected === q.answer;
+    if (isCorrect) correctCount++;
+
+    expDiv.className = `mcq-explanation ${isCorrect ? "correct" : "wrong"}`;
+    expDiv.innerHTML = `<strong>${isCorrect ? "Doğru!" : `Yanlış (Sizin seçiminiz: ${selected || "Boş"})`} — Doğru Cevap: ${q.answer}</strong><br>${q.explanation || ""}`;
+    expDiv.classList.remove("hidden");
+  });
+
+  const badge = document.getElementById("mcqScoreBadge");
+  const score = Math.round((correctCount / Math.max(currentMcqList.length, 1)) * 100);
+  badge.textContent = `Sonuç: ${correctCount}/${currentMcqList.length} (${score} Puan)`;
+}
+
+function exportMcqToPdf(questions, topic, difficulty) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 15;
+  const maxWidth = pageWidth - margin * 2;
+  let y = 18;
+
+  const ensureSpace = (needed = 10) => {
+    if (y + needed > pageHeight - 15) {
+      doc.addPage();
+      y = 18;
+    }
+  };
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.text(toPdfSafeTurkish(`CALISMA TESTI - ${topic}`), margin, y);
+  y += 6;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9.5);
+  doc.text(toPdfSafeTurkish(`Zorluk: ${difficulty} | Soru Sayisi: ${questions.length}`), margin, y);
+  y += 8;
+
+  questions.forEach((q, idx) => {
+    const qLines = doc.splitTextToSize(toPdfSafeTurkish(`${idx + 1}. ${q.question}`), maxWidth);
+    ensureSpace(qLines.length * 5 + 26);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text(qLines, margin, y);
+    y += qLines.length * 4.8 + 2;
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9.5);
+    ["A", "B", "C", "D", "E"].forEach((opt) => {
+      const optLines = doc.splitTextToSize(toPdfSafeTurkish(`   ${opt}) ${q.options?.[opt] || ""}`), maxWidth);
+      ensureSpace(optLines.length * 4.5 + 2);
+      doc.text(optLines, margin, y);
+      y += optLines.length * 4.4 + 1;
     });
-    listEl.appendChild(btn);
+    y += 4;
   });
+
+  doc.addPage();
+  y = 18;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.text(toPdfSafeTurkish("CEVAP ANAHTARI VE ACIKLAMALAR"), margin, y);
+  y += 8;
+
+  questions.forEach((q, idx) => {
+    const expLines = doc.splitTextToSize(
+      toPdfSafeTurkish(`${idx + 1}. Cevap: ${q.answer} - ${q.explanation || ""}`),
+      maxWidth
+    );
+    ensureSpace(expLines.length * 4.5 + 4);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9.5);
+    doc.text(expLines, margin, y);
+    y += expLines.length * 4.5 + 3;
+  });
+
+  doc.save(`Test_${toPdfSafeTurkish(topic).replace(/\s+/g, "_")}.pdf`);
 }
 
-function selectCategoryFromUi(category) {
-  activeCategory = CATEGORY_LABELS[category] ? category : "kanunlar";
-  syncCategoryUi();
-  const currentTopicInput = document.getElementById("topicInput");
-  const currentFilter = document.getElementById("lawSearchInput")?.value || "";
-  populateGibTopicSelect(currentTopicInput ? currentTopicInput.value.trim() : "", currentFilter);
-}
-window.selectCategoryFromUi = selectCategoryFromUi;
+// 2. YMM YAZILI SINAV
+function buildYmmSystemPrompt(subject, formatType, ymmSlice) {
+  const isVergiTeknigi = /vergi tekni/i.test(String(subject || ""));
+  const domainDetail = isVergiTeknigi
+    ? `213 sayılı VUK, 193 sayılı GVK, 5520 sayılı KVK, 3065 sayılı KDV Kanunu, 6183 sayılı AATUHK ve 2577 sayılı İYUK hükümlerini bir arada işleten karma vaka kurgusu kur.
+Alt bentlerde (a, b, c, d, e) şu tarz konu kombinasyonlarını dengeli dağıt:
+- Ortaklık/mükellefiyet türüne göre (örneğin paylı komandit şirket veya çok ortaklı sermaye şirketi) ticari/mali kar paylaşımı, fon/istisna (ör. VUK 325/A girişim sermayesi fonu, KVK 5/1-a), değerleme (VUK 279) ve vergi hatası/düzeltme (VUK 116-126, 112/4);
+- İnceleme/tarhiyat/dava/istinaf/temyiz süreci, VUK 379 Kanun Yolundan Vazgeçme, gecikme faizi ve iade/mahsup (6183 m.23);
+- Yoklama ve tespit tutanakları, VUK 353 özel usulsüzlük cezaları (düzenleyen ve belge almayan muhatap yönüyle), uzlaşma (VUK Ek m.1-12) ve cezada indirim (VUK 376) süre/oran/ödeme koşulları;
+- İlk tesis ve taazzuv giderleri / peştemallık (VUK 282, 326), amortisman usulü (normal / azalan bakiyeler), VUK mükerrer m.298(Ç) yeniden değerleme ve matrah/vergi zıyaı cezası hesabı;
+- Gayrimaddi hakların devri/yenileme fonu (VUK 328), yurt dışı ödemelerde ÇVÖA tevkifatı (KVK 30), sorumlu sıfatıyla KDV (KDV m.9 - 2 No.lu KDV) ve kredi faizi/masrafı maliyete intikali (VUK 262).`
+    : `İlgili YMM sınav dersinin temel kanun ve tebliğlerini (VUK, GVK, KVK, KDV, 6183, İYUK, TTK, TMS/TFRS, SPK veya denetim/meslek hukuku) bir arada işleten somut olay, mali tablo/veri ve hesaplama odaklı vaka kurgusu kur.`;
 
-function toggleLawPickerPanel() {
-  const panel = document.getElementById("lawPickerPanel");
-  if (!panel) return;
-  panel.classList.toggle("hidden");
-  if (!panel.classList.contains("hidden")) {
-    const search = document.getElementById("lawSearchInput");
-    if (search) search.value = "";
-    syncCategoryUi();
-    populateGibTopicSelect(document.getElementById("topicInput")?.value.trim() || "", "");
-    if (search) search.focus();
-  }
-}
-window.toggleLawPickerPanel = toggleLawPickerPanel;
+  const isCatiFormat = /2026\/2/i.test(String(formatType || ""));
 
-function closeLawPickerPanel() {
-  const panel = document.getElementById("lawPickerPanel");
-  if (panel) panel.classList.add("hidden");
-}
-window.closeLawPickerPanel = closeLawPickerPanel;
+  const structureRules = isCatiFormat
+    ? `YAPI VE FORMAT ZORUNLULUĞU (TÜRMOB 2026/2. DÖNEM VERGİ TEKNİĞİ TARZI):
+1. "question" alanı tek bir bütünleşik YMM sınav kağıdı formatında olmalıdır:
+   - BAŞLIK VE UYARI NOTU (Sınav süresi, puanlama notu).
+   - SORU 1 — ÇATI ÖRNEK METNİ: Gerçek/tüzel kişi mükellef (unvanı, faaliyet konusu, defter/e-belge durumu, ortaklık yapısı ve pay oranları/tutarları) ayrıntılı ve somut olarak tanımlansın.
+   - VERİLER BÖLÜMÜ (a, b, c, d, e, f, g, h...):
+     * Özet Gelir Tablosu veya Bilanço kalemleri (rakamları tutarlı),
+     * Ortakların veya ilgili tarafların önceki/cari dönem beyan özetleri,
+     * Sınavda esas alınacak kanuni oranlar, vergi dilimleri, özel usulsüzlük/uzlaşma hadleri, gecikme faizi/tecil faizi oranları ve döviz kurları açıkça verilsin.
+   - İSTENENLER BÖLÜMÜ (a, b, c, d, e alt bentleri — her birinin sonunda parantez içinde puanı yazılı olsun ve toplam 100 puan etsin; örn: (25 puan), (15 puan), (20 puan), (20 puan), (20 puan)):
+     * Her bent çatı mükellef üzerinden münferit bir vergisel/hukuki olayı anlatsın ve hem hukuki değerlendirme hem de vergi/matrah/ceza/faiz/iade hesaplaması istesin.
+2. "solution" alanı (SINAV KOMİSYONU CEVAPLARI):
+   - Her bir alt bent (a, b, c, d, e) için önce ilgili Kanun ve Tebliğ maddelerini (madde numarası ve hükmün özüyle) açıklasın,
+   - Ardından sorudaki sayıları kullanarak adım adım matematiksel hesaplamaları (parantez içi ara işlemlerle) yapsın,
+   - Mevzuatta doktrin/idare yorum farkı bulunabilecek noktalarda "Veya" başlığı altında alternatif çözümü de göstersin,
+   - Alt maddeler halinde puan dağılımını (örn. (4 puan), (5 puan)...) belirtsin.`
+    : `YAPI VE FORMAT:
+- "question" alanında 3 veya 4 adet kapsamlı somut olay (Soru 1, Soru 2, Soru 3...) ve puanları (toplam 100 puan) yer alsın.
+- "solution" alanında her soru için kanun/tebliğ dayanakları ve adım adım hesaplamalı komisyon cevabı yer alsın.`;
 
-function saveAllState() {
-  safeSetStorage(STORAGE_KEYS.stats, JSON.stringify(stats));
-  safeSetStorage(STORAGE_KEYS.mistakes, JSON.stringify(mistakes));
-}
+  return `Sen TÜRMOB Yeminli Mali Müşavirlik (YMM) Sınav Komisyonu üyesi ve kıdemli vergi hukukçususun.
+${domainDetail}
 
-function setLawStatus(msg, isError = false) {
-  const el = document.getElementById("lawSourceStatus");
-  if (!el) return;
-  el.textContent = msg;
-  el.style.color = isError ? "#e11d48" : "#047857";
-  el.style.fontWeight = "600";
-  el.classList.remove("hidden");
-}
+${structureRules}
 
-function setSmmmPoolStatus(msg, isError = false) {
-  const el = document.getElementById("smmmPoolStatus");
-  if (!el) return;
-  el.textContent = msg;
-  el.style.color = isError ? "#e11d48" : "#3730a3";
-  el.style.fontWeight = "600";
-  el.classList.remove("hidden");
+KRİTİK KURALLAR:
+- Tüm rakamlar, oranlar, tarihler ve matematiksel işlemler kendi içinde %100 tutarlı olmalıdır.
+- Uydurma kanun maddesi veya oranı yazma; sorunun "Veriler" kısmında verdiğin parametrelerle çözümdeki hesaplamalar birebir örtüşsün.
+
+${ymmSlice ? `REFERANS YMM SINAV HAVUZU (ÜSLUP VE DERİNLİK ÖRNEĞİ):\n${ymmSlice}` : ""}`;
 }
 
-function setYmmPoolStatus(msg, isError = false) {
-  const el = document.getElementById("ymmPoolStatus");
-  if (!el) return;
-  el.textContent = msg;
-  el.style.color = isError ? "#e11d48" : "#92400e";
-  el.style.fontWeight = "600";
-  el.classList.remove("hidden");
+async function generateYmmWrittenBatch(subject, focus, formatType, ymmSlice, startIndex, count) {
+  const sysPrompt = buildYmmSystemPrompt(subject, formatType, ymmSlice);
+
+  const prompt = `Ders: "${subject}" | Özel Odak: "${focus || "Genel YMM Yazılı Kapsamı"}" | Format: "${formatType}".
+Tam olarak ${count} adet özgün ve eksiksiz YMM yazılı sınavı üret (Sınav No: ${startIndex}).
+ÖNEMLİ: JSON string değerlerinin içinde kesinlikle çift tırnak (") kullanma; metin içi alıntılarda tek tırnak (') kullan ve satır sonlarını \\n ile kodla.
+Yalnızca şu JSON nesnesini döndür:
+{
+  "questions": [
+    {
+      "no": ${startIndex},
+      "question": "Soru 1 - [Çatı Örnek + Veriler + İstenenler a, b, c, d, e bentleri ve puanları]...",
+      "solution": "Cevap 1 - [a, b, c, d, e bentlerinin kanuni dayanakları, adım adım hesaplamaları ve puan dağılımı]...",
+      "keyPoints": ["Ana konu 1", "Ana konu 2", "Ana konu 3"]
+    }
+  ]
+}`;
+
+  const raw = await callGemini(prompt, true, sysPrompt);
+  const parsed = parseJsonLoose(raw);
+  const arr = Array.isArray(parsed.questions) ? parsed.questions : Array.isArray(parsed) ? parsed : [];
+
+  return arr
+    .map((item, idx) => ({
+      no: Number(item.no) || startIndex + idx,
+      question: String(item.question || "").trim(),
+      solution: String(item.solution || "").trim(),
+      keyPoints: Array.isArray(item.keyPoints)
+        ? item.keyPoints.map((k) => String(k || "").trim()).filter(Boolean)
+        : []
+    }))
+    .filter((q) => q.question.length > 0);
 }
 
-function setSmmmPdfProgress(msg, isError = false) {
-  const el = document.getElementById("smmmPdfProgress");
-  if (!el) return;
-  el.textContent = msg;
-  el.style.color = isError ? "#e11d48" : "#3730a3";
-  el.classList.remove("hidden");
+function renderYmmWrittenExamToPdf(examList, meta) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 14;
+  const maxWidth = pageWidth - margin * 2;
+  let y = 18;
+
+  const addHeaderFooter = () => {
+    const totalPages = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(100);
+      doc.text(
+        toPdfSafeTurkish(`YMM Yazili Sinav Calisma Seti - ${meta.subject} (${meta.dateStr})`),
+        margin,
+        pageHeight - 8
+      );
+      doc.text(`Sayfa ${i} / ${totalPages}`, pageWidth - margin - 20, pageHeight - 8);
+      doc.setTextColor(0);
+    }
+  };
+
+  const writeParagraphs = (rawText, fontSize = 9.5, isBold = false) => {
+    doc.setFont("helvetica", isBold ? "bold" : "normal");
+    doc.setFontSize(fontSize);
+    const paragraphs = String(rawText || "").split(/\r?\n/);
+
+    for (const para of paragraphs) {
+      if (!para.trim()) {
+        y += 3;
+        continue;
+      }
+      const lines = doc.splitTextToSize(toPdfSafeTurkish(para), maxWidth);
+      for (const line of lines) {
+        if (y > pageHeight - 16) {
+          doc.addPage();
+          y = 18;
+        }
+        doc.text(line, margin, y);
+        y += fontSize * 0.46;
+      }
+      y += 1.5;
+    }
+  };
+
+  examList.forEach((exam, idx) => {
+    if (idx > 0) {
+      doc.addPage();
+      y = 18;
+    }
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.text(
+      toPdfSafeTurkish(`TURMOB YMM YAZILI SINAV CALISMASI - ${meta.subject.toUpperCase()}`),
+      margin,
+      y
+    );
+    y += 6;
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text(
+      toPdfSafeTurkish(`Tarih: ${meta.dateStr} | Sinav No: ${exam.no} | Odak: ${meta.focus || "Genel"}`),
+      margin,
+      y
+    );
+    y += 5;
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 6;
+
+    writeParagraphs(exam.question, 9.5, false);
+
+    doc.addPage();
+    y = 18;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.text(
+      toPdfSafeTurkish(`SINAV KOMISYONU CEVAPLARI (SINAV NO: ${exam.no})`),
+      margin,
+      y
+    );
+    y += 5;
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 6;
+
+    writeParagraphs(exam.solution, 9.2, false);
+  });
+
+  addHeaderFooter();
+  const safeSubj = toPdfSafeTurkish(meta.subject).replace(/\s+/g, "_");
+  doc.save(`YMM_${safeSubj}_${meta.dateStr.replace(/\./g, "-")}.pdf`);
 }
 
 function setYmmPdfProgress(msg, isError = false) {
-  const el = document.getElementById("ymmPdfProgress");
+  const el = document.getElementById("ymmPdfStatus");
   if (!el) return;
   el.textContent = msg;
-  el.style.color = isError ? "#e11d48" : "#92400e";
-  el.classList.remove("hidden");
+  el.className = isError ? "status-text error" : "status-text";
 }
 
-function appendLawText(incoming, sourceLabel) {
-  const cleaned = String(incoming || "")
-    .replace(/\s+\n/g, "\n")
-    .replace(/[ \t]{2,}/g, " ")
-    .trim();
-  if (!cleaned) throw new Error("Kaynakta okunabilir metin bulunamadı.");
-
-  const ta = document.getElementById("lawTextInput");
-  if (!ta) return;
-  const header = `--- Kaynak: ${sourceLabel} ---\n`;
-  let merged = ta.value.trim()
-    ? `${ta.value.trim()}\n\n${header}${cleaned}`
-    : `${header}${cleaned}`;
-
-  let trimmedNote = "";
-  if (merged.length > MAX_LAW_CHARS) {
-    merged = merged.slice(0, MAX_LAW_CHARS);
-    trimmedNote = ` (${MAX_LAW_CHARS.toLocaleString("tr-TR")} karakter sınırı uygulandı)`;
-  }
-
-  ta.value = merged;
-  safeSetStorage(STORAGE_KEYS.lawText, merged);
-  syncCategoryUi();
-  populateGibTopicSelect(
-    document.getElementById("topicInput")?.value.trim() || "",
-    document.getElementById("lawSearchInput")?.value || ""
-  );
-  setLawStatus(`"${sourceLabel}" aktarıldı${trimmedNote} — Toplam: ${merged.length.toLocaleString("tr-TR")} karakter.`);
-}
-
-function appendSmmmPoolText(incoming, sourceLabel) {
-  const cleaned = String(incoming || "")
-    .replace(/\s+\n/g, "\n")
-    .replace(/[ \t]{2,}/g, " ")
-    .trim();
-  if (!cleaned) throw new Error("PDF dosyasında okunabilir metin bulunamadı.");
-
-  const ta = document.getElementById("smmmPoolTextInput");
-  if (!ta) return;
-  const header = `--- SMMM Örnek Kaynak: ${sourceLabel} ---\n`;
-  let merged = ta.value.trim()
-    ? `${ta.value.trim()}\n\n${header}${cleaned}`
-    : `${header}${cleaned}`;
-
-  let trimmedNote = "";
-  if (merged.length > MAX_LAW_CHARS) {
-    merged = merged.slice(0, MAX_LAW_CHARS);
-    trimmedNote = ` (${MAX_LAW_CHARS.toLocaleString("tr-TR")} karakter sınırı uygulandı)`;
-  }
-
-  ta.value = merged;
-  safeSetStorage(STORAGE_KEYS.smmmPool, merged);
-  syncPoolBadges();
-  setSmmmPoolStatus(`"${sourceLabel}" SMMM havuzuna eklendi${trimmedNote} — Toplam: ${merged.length.toLocaleString("tr-TR")} karakter.`);
-}
-
-function appendYmmPoolText(incoming, sourceLabel) {
-  const cleaned = String(incoming || "")
-    .replace(/\s+\n/g, "\n")
-    .replace(/[ \t]{2,}/g, " ")
-    .trim();
-  if (!cleaned) throw new Error("PDF dosyasında okunabilir metin bulunamadı.");
-
-  const ta = document.getElementById("ymmPoolTextInput");
-  if (!ta) return;
-  const header = `--- YMM Örnek Kaynak: ${sourceLabel} ---\n`;
-  let merged = ta.value.trim()
-    ? `${ta.value.trim()}\n\n${header}${cleaned}`
-    : `${header}${cleaned}`;
-
-  let trimmedNote = "";
-  if (merged.length > MAX_LAW_CHARS) {
-    merged = merged.slice(0, MAX_LAW_CHARS);
-    trimmedNote = ` (${MAX_LAW_CHARS.toLocaleString("tr-TR")} karakter sınırı uygulandı)`;
-  }
-
-  ta.value = merged;
-  safeSetStorage(STORAGE_KEYS.ymmPool, merged);
-  syncPoolBadges();
-  setYmmPoolStatus(`"${sourceLabel}" YMM havuzuna eklendi${trimmedNote} — Toplam: ${merged.length.toLocaleString("tr-TR")} karakter.`);
-}
-
-function htmlToPlainText(htmlString) {
-  const doc = new DOMParser().parseFromString(htmlString, "text/html");
-  doc.querySelectorAll("script, style, noscript, svg, nav, footer, header").forEach((n) => n.remove());
-  return (doc.body?.innerText || doc.body?.textContent || "")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
-
-async function fetchTextFromUrl(rawUrl) {
-  const url = (rawUrl || "").trim();
-  if (!/^https?:\/\//i.test(url)) {
-    throw new Error("Lütfen http:// veya https:// ile başlayan geçerli bir bağlantı girin.");
-  }
-
-  safeSetStorage(STORAGE_KEYS.lawUrl, url);
-  const btn = document.getElementById("fetchUrlBtn");
-  const prev = btn ? btn.textContent : "";
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = "Çekiliyor...";
-  }
-
-  try {
-    let extracted = "";
-    try {
-      const directRes = await fetch(url);
-      if (directRes.ok) {
-        const ct = directRes.headers.get("content-type") || "";
-        const body = await directRes.text();
-        extracted = ct.includes("text/html") || /<html[\s>]/i.test(body) ? htmlToPlainText(body) : body;
-      }
-    } catch {
-      // CORS engeli durumunda okuyucu katmanına düş
-    }
-
-    if (!extracted || extracted.length < 40) {
-      const readerUrl = `https://r.jina.ai/${url}`;
-      const rRes = await fetch(readerUrl);
-      if (!rRes.ok) {
-        throw new Error("Bağlantıdaki içerik okunamadı (site erişimi engelliyor olabilir).");
-      }
-      extracted = await rRes.text();
-    }
-
-    appendLawText(extracted, url);
-  } catch (err) {
-    setLawStatus("Link hatası: " + err.message, true);
-  } finally {
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = prev;
-    }
-  }
-}
-
-async function extractTextFromPdfFile(file, target = "law") {
-  if (!file) return;
-  const isSmmm = target === "smmm";
-  const isYmm = target === "ymm";
-
-  const statusFn = isYmm ? setYmmPoolStatus : (isSmmm ? setSmmmPoolStatus : setLawStatus);
-  const appendFn = isYmm ? appendYmmPoolText : (isSmmm ? appendSmmmPoolText : appendLawText);
-  const fileNameId = isYmm ? "ymmPdfFileName" : (isSmmm ? "smmmPdfFileName" : "pdfFileName");
-  const fileNameEl = document.getElementById(fileNameId);
-
-  if (!window.pdfjsLib) {
-    statusFn("PDF okuyucu kütüphanesi yüklenemedi. İnternet bağlantınızı kontrol edin.", true);
-    return;
-  }
-
-  if (fileNameEl) fileNameEl.textContent = `${file.name} okunuyor...`;
-  statusFn(`${file.name} sayfalarından metin çıkarılıyor...`);
-
-  try {
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    const pages = [];
-
-    for (let i = 1; i <= pdf.numPages; i += 1) {
-      const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items.map((item) => item.str).join(" ").trim();
-      if (pageText) pages.push(`[Sayfa ${i}]\n${pageText}`);
-      if (pages.join("\n\n").length >= MAX_LAW_CHARS) break;
-    }
-
-    if (fileNameEl) fileNameEl.textContent = `${file.name} (${pdf.numPages} sayfa)`;
-    appendFn(pages.join("\n\n"), file.name);
-  } catch (err) {
-    if (fileNameEl) fileNameEl.textContent = "PDF okunamadı";
-    statusFn("PDF okuma hatası: " + (err?.message || "Dosya şifreli veya taranmış görsel olabilir."), true);
-  }
-}
-
-async function extractMultiplePdfFiles(fileList, target = "law") {
-  const files = Array.from(fileList || []);
-  if (!files.length) return;
-  for (const file of files) {
-    await extractTextFromPdfFile(file, target);
-  }
-  const fileNameId = target === "ymm" ? "ymmPdfFileName" : (target === "smmm" ? "smmmPdfFileName" : "pdfFileName");
-  const fileNameEl = document.getElementById(fileNameId);
-  if (fileNameEl && files.length > 1) {
-    fileNameEl.textContent = `${files.length} PDF dosyası işlendi`;
-  }
-}
-
-function updateNetworkStatus() {
-  const online = navigator.onLine;
-  const badge = document.getElementById("netBadge");
-  const dot = document.getElementById("netDot");
-  const text = document.getElementById("netText");
-  if (!badge || !dot || !text) return;
-  if (online) {
-    badge.style.background = "rgba(6, 78, 59, 0.7)";
-    badge.style.color = "#6ee7b7";
-    if (dot) dot.style.background = "#34d399";
-    if (text) text.textContent = "Çevrimiçi";
-  } else {
-    badge.style.background = "rgba(127, 29, 29, 0.75)";
-    badge.style.color = "#fca5a5";
-    if (dot) dot.style.background = "#f87171";
-    if (text) text.textContent = "Çevrimdışı";
-  }
-}
-
-window.addEventListener("online", updateNetworkStatus);
-window.addEventListener("offline", updateNetworkStatus);
-
-function updateBadges(key) {
-  const badge = document.getElementById("modeBadge");
-  const activeKey = (key ?? safeGetStorage(STORAGE_KEYS.apiKey, "") ?? "").trim();
-  if (badge) {
-    if (activeKey.length > 8) {
-      badge.textContent = "Canlı Gemini API Aktif";
-      badge.style.color = "#34d399";
-    } else {
-      badge.textContent = "Demo Modu (Ayarlardan API Anahtarı Ekleyin)";
-      badge.style.color = "#fbbf24";
-    }
-  }
-  const scoreEl = document.getElementById("scoreBadge");
-  if (scoreEl) scoreEl.textContent = `${stats.correct} / ${stats.total}`;
-}
-
-function renderMistakes() {
-  const listEl = document.getElementById("mistakesList");
-  const filterEl = document.getElementById("mistakeFilter");
-  if (!listEl || !filterEl) return;
-  const currentFilter = filterEl.value || "ALL";
-  const topics = ["ALL", ...new Set(mistakes.map((m) => m.topic))];
-  filterEl.innerHTML = topics.map((t) => `<option value="${escapeAttr(t)}">${t === "ALL" ? "Tüm Mevzuatlar" : escapeHtml(t)}</option>`).join("");
-  filterEl.value = topics.includes(currentFilter) ? currentFilter : "ALL";
-
-  const filtered = mistakes.filter((m) => filterEl.value === "ALL" || m.topic === filterEl.value);
-  if (!filtered.length) {
-    listEl.textContent = "Bu filtrede kayıtlı yanlış soru yok.";
-    return;
-  }
-
-  listEl.innerHTML = filtered.map((m) => {
-    const realIndex = mistakes.indexOf(m);
-    return `<div style="border:1px solid #fecdd3;background:#fff1f2;border-radius:12px;padding:12px;margin-bottom:10px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;">
-        <span style="font-size:12px;font-weight:700;color:#9f1239;">${escapeHtml(m.topic)}</span>
-        <button onclick="removeMistake(${realIndex})" type="button" style="border:0;background:transparent;font-size:12px;color:#047857;font-weight:700;cursor:pointer;">Tekrar Çözdüm / Sil</button>
-      </div>
-      <p style="margin:0 0 6px;font-weight:600;color:#0f172a;">${escapeHtml(m.question)}</p>
-      <p style="margin:0 0 4px;font-size:12px;color:#334155;"><strong>Doğru Cevap:</strong> ${escapeHtml(m.correctOption || "")}</p>
-      <p style="margin:0 0 8px;font-size:12px;color:#475569;">${escapeHtml(m.explanation || "")}</p>
-      <textarea rows="2" placeholder="Kendi kısa notunuz..." onchange="updateMistakeNote(${realIndex}, this.value)">${escapeHtml(m.note || "")}</textarea>
-    </div>`;
-  }).join("");
-}
-
-function updateMistakeNote(index, note) {
-  if (!mistakes[index]) return;
-  mistakes[index].note = note;
-  saveAllState();
-}
-window.updateMistakeNote = updateMistakeNote;
-
-function removeMistake(index) {
-  mistakes.splice(index, 1);
-  saveAllState();
-  renderMistakes();
-}
-window.removeMistake = removeMistake;
-
-function renderQuestion(q) {
-  currentQuestion = q;
-  selectedOptionIndex = null;
-  const qTextEl = document.getElementById("questionText");
-  if (qTextEl) qTextEl.textContent = q.question;
-  const fb = document.getElementById("feedbackBox");
-  if (fb) {
-    fb.classList.add("hidden");
-    fb.innerHTML = "";
-  }
-
-  const container = document.getElementById("optionsContainer");
-  if (!container) return;
-  container.innerHTML = "";
-  q.options.forEach((opt, idx) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.style.cssText = "width:100%;text-align:left;border:1px solid #cbd5e1;background:#fff;border-radius:12px;padding:12px 14px;font-size:14px;cursor:pointer;";
-    btn.textContent = opt;
-    btn.onclick = () => {
-      selectedOptionIndex = idx;
-      [...container.children].forEach((c, i) => {
-        c.style.border = i === idx ? "2px solid #4f46e5" : "1px solid #cbd5e1";
-        c.style.background = i === idx ? "#eef2ff" : "#fff";
-        c.style.fontWeight = i === idx ? "600" : "400";
-      });
-    };
-    container.appendChild(btn);
-  });
-
-  startTimerIfConfigured();
-}
-
-function renderSmmmQuestion(q) {
-  currentSmmmQuestion = q;
-  selectedSmmmOptionIndex = null;
-  const qTextEl = document.getElementById("smmmQuestionText");
-  if (qTextEl) qTextEl.textContent = q.question;
-  const fb = document.getElementById("smmmFeedbackBox");
-  if (fb) {
-    fb.classList.add("hidden");
-    fb.innerHTML = "";
-  }
-
-  const container = document.getElementById("smmmOptionsContainer");
-  if (!container) return;
-  container.innerHTML = "";
-  q.options.forEach((opt, idx) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.style.cssText = "width:100%;text-align:left;border:1px solid #cbd5e1;background:#fff;border-radius:12px;padding:12px 14px;font-size:14px;cursor:pointer;";
-    btn.textContent = opt;
-    btn.onclick = () => {
-      selectedSmmmOptionIndex = idx;
-      [...container.children].forEach((c, i) => {
-        c.style.border = i === idx ? "2px solid #4f46e5" : "1px solid #cbd5e1";
-        c.style.background = i === idx ? "#eef2ff" : "#fff";
-        c.style.fontWeight = i === idx ? "600" : "400";
-      });
-    };
-    container.appendChild(btn);
-  });
-}
-
-function renderYmmQuestion(q) {
-  currentYmmQuestion = q;
-  const qEl = document.getElementById("ymmQuestionText");
-  if (qEl) qEl.textContent = q.question;
-  const draftEl = document.getElementById("ymmDraftAnswerInput");
-  if (draftEl) draftEl.value = "";
-  const solBox = document.getElementById("ymmSolutionBox");
-  if (solBox) {
-    solBox.classList.add("hidden");
-    solBox.innerHTML = "";
-  }
-}
-
-function startTimerIfConfigured() {
-  if (timerInterval) clearInterval(timerInterval);
-  const mins = parseInt(document.getElementById("timerMinutes")?.value || "0", 10);
-  const display = document.getElementById("timerDisplay");
-  if (!display) return;
-  if (!mins || mins <= 0) {
-    display.classList.add("hidden");
-    return;
-  }
-  remainingSeconds = mins * 60;
-  display.classList.remove("hidden");
-  const tick = () => {
-    const m = String(Math.floor(remainingSeconds / 60)).padStart(2, "0");
-    const s = String(remainingSeconds % 60).padStart(2, "0");
-    display.textContent = `${m}:${s}`;
-    if (remainingSeconds <= 0) {
-      clearInterval(timerInterval);
-      display.textContent = "Süre Doldu";
-      return;
-    }
-    remainingSeconds -= 1;
-  };
-  tick();
-  timerInterval = setInterval(tick, 1000);
-}
-
-function buildStrictTaxAdvisorInstruction() {
-  const lawText = safeGetStorage(STORAGE_KEYS.lawText, "").trim();
-  const activeTopic = (document.getElementById("topicInput")?.value || "").trim();
-  const catLabel = CATEGORY_LABELS[activeCategory] || "Kanunlar";
-  const todayStr = new Date().toLocaleDateString("tr-TR");
-  const promptLawSlice = lawText.length > 60000 ? lawText.slice(0, 60000) : lawText;
-
-  const honestyGuardrail = [
-    "KESİN DOĞRULUK VE UYDURMAMA KURALI:",
-    "- Asla kanun/tebliğ/sirküler numarası, madde, oran, tutar veya süre uydurma; emin olmadığın hiçbir bilgiyi kesinmiş gibi sunma.",
-    "- Mevzuat Havuzu'nda kaynak metin verilmişse öncelikle o metindeki hükümlere sadık kal; metinde yer almayan veya belirsiz kalan noktalarda 'Mevzuat Havuzu'nda yer almıyor / teyit edilmelidir' diye açıkça belirt.",
-    "- Güncel/dönemsel tutar, had, oran veya sonradan değişmiş olabilecek düzenlemeler konusunda tam kesinlik yoksa veya güncel Resmî Gazete/GİB teyidi gerekiyorsa tahmin yürütme; ilgili mevzuat mantığını açıklayıp güncel teyit gerektirdiğini net yaz.",
-    `- Bugünün tarihi: ${todayStr}. Aktif mevzuat bölümü: ${catLabel} | Seçili başlık: ${activeTopic || "Belirtilmedi"}.`
-  ].join("\n");
-
-  if (promptLawSlice) {
-    return `Sen Türk vergi mevzuatı alanında çalışan kıdemli bir danışman ve çalışma rehberisin.\n${honestyGuardrail}\n\nÖNCELİKLİ MEVZUAT KAYNAĞI:\n${promptLawSlice}\n\n`;
-  }
-  return `Sen Türk vergi mevzuatı alanında çalışan kıdemli bir danışman ve çalışma rehberisin.\n${honestyGuardrail}\n\n`;
-}
-
-async function callGemini(promptText, expectJson = false, customPrefix = "") {
-  const apiKey = safeGetStorage(STORAGE_KEYS.apiKey, "").trim();
-  const preferredModel = safeGetStorage(STORAGE_KEYS.model, "gemini-3.8-flash").trim() || "gemini-3.8-flash";
-  if (!apiKey) throw new Error("API anahtarı kayıtlı değil. Ayarlar sekmesinden ekleyin.");
-
-  const candidateModels = [
-    preferredModel,
-    ...FALLBACK_MODELS.filter((m) => m !== preferredModel)
-  ];
-
-  const prefix = customPrefix !== "" ? customPrefix : buildStrictTaxAdvisorInstruction();
-  const body = {
-    contents: [{ role: "user", parts: [{ text: prefix + promptText }] }]
-  };
-  if (expectJson) {
-    body.generationConfig = { responseMimeType: "application/json" };
-  }
-
-  let lastError = null;
-
-  for (let mIdx = 0; mIdx < candidateModels.length; mIdx += 1) {
-    const model = candidateModels[mIdx];
-    const maxRetries = mIdx === 0 ? 3 : 2;
-
-    for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
-      try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
-        const res = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body)
-        });
-
-        const data = await res.json();
-        if (!res.ok) {
-          const msg = data?.error?.message || `HTTP ${res.status}`;
-          const isTransient =
-            res.status === 429 ||
-            res.status === 500 ||
-            res.status === 502 ||
-            res.status === 503 ||
-            res.status === 504 ||
-            /high demand|overloaded|temporarily unavailable|try again/i.test(msg);
-
-          lastError = new Error(msg);
-          if (isTransient && attempt < maxRetries) {
-            await sleep(1600 * attempt);
-            continue;
-          }
-          if (isTransient) {
-            break;
-          }
-          throw lastError;
-        }
-
-        const parts = data?.candidates?.[0]?.content?.parts || [];
-        return parts.map((p) => p.text || "").join("\n").trim();
-      } catch (err) {
-        const msg = String(err?.message || "");
-        const isTransient = /high demand|overloaded|temporarily unavailable|network|failed to fetch|429|503/i.test(msg);
-        lastError = err;
-        if (isTransient && attempt < maxRetries) {
-          await sleep(1600 * attempt);
-          continue;
-        }
-        if (isTransient) {
-          break;
-        }
-        throw err;
-      }
-    }
-  }
-
-  throw lastError || new Error("Model şu anda yoğun, lütfen tekrar deneyin.");
-}
-
-function parseJsonLoose(raw) {
-  let cleaned = String(raw || "")
-    .replace(/```json|```/gi, "")
-    .replace(/[“”]/g, '"')
-    .trim();
-
-  const startObj = cleaned.indexOf("{");
-  const startArr = cleaned.indexOf("[");
-  let start = -1;
-  let end = -1;
-
-  if (startArr !== -1 && (startObj === -1 || startArr < startObj)) {
-    start = startArr;
-    end = cleaned.lastIndexOf("]");
-  } else {
-    start = startObj;
-    end = cleaned.lastIndexOf("}");
-  }
-
-  if (start === -1 || end === -1 || end <= start) {
-    throw new Error("Model geçerli JSON döndürmedi. Tekrar deneyin.");
-  }
-
-  cleaned = cleaned.slice(start, end + 1);
-
-  let fixed = "";
-  let inString = false;
-  let escaped = false;
-
-  for (let i = 0; i < cleaned.length; i += 1) {
-    const ch = cleaned[i];
-    const code = ch.charCodeAt(0);
-
-    if (escaped) {
-      fixed += ch;
-      escaped = false;
-      continue;
-    }
-
-    if (ch === "\\") {
-      fixed += ch;
-      escaped = true;
-      continue;
-    }
-
-    if (ch === '"') {
-      if (!inString) {
-        inString = true;
-        fixed += ch;
-      } else {
-        let nextIdx = i + 1;
-        while (nextIdx < cleaned.length && /\s/.test(cleaned[nextIdx])) {
-          nextIdx += 1;
-        }
-        const nextChar = cleaned[nextIdx] || "";
-        if (nextChar === ":" || nextChar === "," || nextChar === "]" || nextChar === "}") {
-          inString = false;
-          fixed += ch;
-        } else {
-          fixed += '\\"';
-        }
-      }
-      continue;
-    }
-
-    if (inString && (code < 32 || ch === "\n" || ch === "\r" || ch === "\t")) {
-      if (ch === "\n") fixed += "\\n";
-      else if (ch === "\r") fixed += "";
-      else if (ch === "\t") fixed += " ";
-      else fixed += " ";
-      continue;
-    }
-
-    fixed += ch;
-  }
-
-  fixed = fixed.replace(/,\s*([}\]])/g, "$1");
-
-  try {
-    return JSON.parse(fixed);
-  } catch (err) {
-    throw new Error("JSON ayrıştırma başarısız: " + err.message);
-  }
-}
-
-async function generateLessonAndQuestion(onlyQuestion = false) {
-  const topicInput = document.getElementById("topicInput");
-  const catLabel = CATEGORY_LABELS[activeCategory] || "Kanunlar";
-  let topic = topicInput ? topicInput.value.trim() : "";
-
-  if (!topic) {
-    const pool = getCategoryPool(activeCategory);
-    topic = pool[0] || "193 sayılı Gelir Vergisi Kanunu";
-    if (topicInput) topicInput.value = topic;
-  }
-
-  const difficulty = document.getElementById("difficultySelect")?.value || "Vaka";
-  const btn = document.getElementById(onlyQuestion ? "newQuestionBtn" : "generateBtn");
-  const prevText = btn ? btn.textContent : "";
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = "Üretiliyor...";
-  }
-
-  try {
-    const prompt = `Kaynak bağlam: gib.gov.tr mevzuatı | Mevzuat Bölümü: "${catLabel}" | Seçili Başlık: "${topic}" | Zorluk: "${difficulty}".
-Bu mevzuat kapsamından konu özeti, kritik ayrım ve 4 şıklı çoktan seçmeli soru üret. Uydurma numara, madde veya oran kullanma; Mevzuat Havuzu metni varsa ona dayan.
-JSON alanlarının içindeki metinlerde asla çift tırnak (") kullanma; gerekirse tek tırnak (') kullan.
-Yalnızca şu şemada tek bir JSON nesnesi döndür:
-{
-  "lessonTitle": "...",
-  "lessonSummary": "...",
-  "lessonCritical": "...",
-  "lessonBasis": "...",
-  "question": "...",
-  "options": ["A) ...", "B) ...", "C) ...", "D) ..."],
-  "answerIndex": 0,
-  "explanation": "..."
-}`;
-    const text = await callGemini(prompt, true);
-    const parsed = parseJsonLoose(text);
-
-    if (!onlyQuestion) {
-      const titleEl = document.getElementById("lessonTitle");
-      const sumEl = document.getElementById("lessonSummary");
-      const critEl = document.getElementById("lessonCritical");
-      const basisEl = document.getElementById("lessonBasis");
-      if (titleEl) titleEl.textContent = parsed.lessonTitle || topic;
-      if (sumEl) sumEl.textContent = parsed.lessonSummary || "";
-      if (critEl) critEl.innerHTML = `<strong>Kritik Ayrım:</strong> ${escapeHtml(parsed.lessonCritical || "")}`;
-      if (basisEl) basisEl.textContent = `Dayanak (${catLabel}): ${parsed.lessonBasis || topic}`;
-    }
-
-    const opts = Array.isArray(parsed.options) && parsed.options.length >= 2
-      ? parsed.options.slice(0, 4)
-      : ["A) Seçenek 1", "B) Seçenek 2", "C) Seçenek 3", "D) Seçenek 4"];
-
-    renderQuestion({
-      topic: `${catLabel} — ${topic}`,
-      question: parsed.question || `${topic} kapsamındaki vaka sorusu`,
-      options: opts,
-      answerIndex: Math.min(Math.max(Number(parsed.answerIndex) || 0, 0), opts.length - 1),
-      explanation: parsed.explanation || ""
-    });
-
-    if (onlyQuestion) switchTab("soru");
-  } catch (err) {
-    alert("Hata: " + err.message);
-  } finally {
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = prevText;
-    }
-  }
-}
-
-async function generateSmmmTestQuestion() {
-  const subject = document.getElementById("smmmSubjectSelect")?.value || "Vergi Mevzuatı ve Uygulaması";
-  const focus = (document.getElementById("smmmFocusInput")?.value || "").trim();
-  const style = document.getElementById("smmmStyleSelect")?.value || "Çıkmış Soru Tarzı";
-  const smmmPool = safeGetStorage(STORAGE_KEYS.smmmPool, "").trim();
-  const smmmSlice = smmmPool.length > 60000 ? smmmPool.slice(0, 60000) : smmmPool;
-
-  const btn = document.getElementById("generateSmmmBtn");
-  const prevText = btn ? btn.textContent : "";
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = "SMMM Test Sorusu Üretiliyor...";
-  }
-
-  try {
-    const customPrefix = smmmSlice
-      ? `Sen TESMER SMMM Yeterlilik sınavlarına yönelik soru hazırlayan uzman bir akademisyen ve mali müşavir eğitmenisin. Aşağıdaki SMMM Örnek Soru Havuzu metnindeki soru dilini, kalıbını ve zorluk seviyesini temel alarak özgün çoktan seçmeli test soruları üret.\n\nSMMM ÖRNEK SORU HAVUZU:\n${smmmSlice}\n\n`
-      : `Sen TESMER SMMM Yeterlilik sınavlarına yönelik soru hazırlayan uzman bir akademisyen ve mali müşavir eğitmenisin. Güncel TMS/TFRS, Tekdüzen Muhasebe Sistemi ve Türk vergi/ticaret mevzuatına uygun özgün çoktan seçmeli test soruları üret.\n\n`;
-
-    const prompt = `Ders: "${subject}" | Alt Konu Odak: "${focus || "Genel Yeterlilik Kapsamı"}" | Soru Tarzı: "${style}".
-Bu ders ve tarza uygun 5 şıklı (A, B, C, D, E) SMMM Yeterlilik test sorusu ve adım adım açıklamalı çözümü üret. Uydurma madde/oran kullanma; hesaplama varsa tüm ara adımları net göster.
-JSON alanlarının içindeki metinlerde asla çift tırnak (") kullanma; gerekirse tek tırnak (') kullan.
-Yalnızca şu şemada tek bir JSON nesnesi döndür:
-{
-  "question": "...",
-  "options": ["A) ...", "B) ...", "C) ...", "D) ...", "E) ..."],
-  "answerIndex": 0,
-  "solution": "..."
-}`;
-
-    const raw = await callGemini(prompt, true, customPrefix);
-    const parsed = parseJsonLoose(raw);
-    const opts = Array.isArray(parsed.options) && parsed.options.length >= 2
-      ? parsed.options.slice(0, 5)
-      : ["A) Seçenek A", "B) Seçenek B", "C) Seçenek C", "D) Seçenek D", "E) Seçenek E"];
-
-    const badgeEl = document.getElementById("smmmQuestionBadge");
-    const tagEl = document.getElementById("smmmSourceTag");
-    if (badgeEl) badgeEl.textContent = subject;
-    if (tagEl) tagEl.textContent = smmmSlice ? "Örnek Havuz Referanslı" : style;
-
-    renderSmmmQuestion({
-      subject,
-      question: parsed.question || `${subject} test sorusu`,
-      options: opts,
-      answerIndex: Math.min(Math.max(Number(parsed.answerIndex) || 0, 0), opts.length - 1),
-      solution: parsed.solution || ""
-    });
-  } catch (err) {
-    alert("Hata: " + err.message);
-  } finally {
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = prevText;
-    }
-  }
-}
-
-async function generateSmmmBatchQuestions(subject, focus, style, smmmSlice, startIndex, count) {
-  const customPrefix = smmmSlice
-    ? `Sen TESMER SMMM Yeterlilik sınavlarına yönelik soru hazırlayan uzman bir akademisyen ve mali müşavir eğitmenisin. Aşağıdaki SMMM Örnek Soru Havuzu PDF metnindeki soru formatını, şık yapısını (A-E), hesaplama/vaka dilini ve zorluk düzeyini birebir takip ederek özgün çoktan seçmeli test soruları üret.\n\nSMMM ÖRNEK SORU HAVUZU:\n${smmmSlice}\n\n`
-    : `Sen TESMER SMMM Yeterlilik sınavlarına yönelik soru hazırlayan uzman bir akademisyen ve mali müşavir eğitmenisin. Güncel TMS/TFRS, Tekdüzen Muhasebe Sistemi ve Türk vergi/ticaret mevzuatına uygun özgün çoktan seçmeli test soruları üret.\n\n`;
-
-  const prompt = `Ders: "${subject}" | Alt Konu Odak: "${focus || "Genel Yeterlilik Kapsamı"}" | Soru Tarzı: "${style}".
-Tam olarak ${count} adet özgün 5 şıklı (A, B, C, D, E) SMMM Yeterlilik test sorusu üret (Soru numaraları ${startIndex}'den başlasın).
-Uydurma kanun/madde/oran kullanma. JSON içindeki metinlerde asla çift tırnak (") kullanma; tek tırnak (') kullan.
-Yalnızca şu JSON nesnesini döndür:
-{
-  "questions": [
-    {
-      "no": ${startIndex},
-      "question": "...",
-      "options": ["A) ...", "B) ...", "C) ...", "D) ...", "E) ..."],
-      "answerLetter": "A",
-      "solution": "..."
-    }
-  ]
-}`;
-
-  const raw = await callGemini(prompt, true, customPrefix);
-  const parsed = parseJsonLoose(raw);
-  const arr = Array.isArray(parsed.questions) ? parsed.questions : (Array.isArray(parsed) ? parsed : []);
-  return arr.map((item, idx) => {
-    const opts = Array.isArray(item.options) && item.options.length >= 2
-      ? item.options.slice(0, 5)
-      : ["A) Seçenek A", "B) Seçenek B", "C) Seçenek C", "D) Seçenek D", "E) Seçenek E"];
-    const letter = String(item.answerLetter || ["A", "B", "C", "D", "E"][Number(item.answerIndex) || 0] || "A")
-      .trim()
-      .toUpperCase()
-      .slice(0, 1);
-    return {
-      no: Number(item.no) || (startIndex + idx),
-      question: String(item.question || "").trim(),
-      options: opts,
-      answerLetter: ["A", "B", "C", "D", "E"].includes(letter) ? letter : "A",
-      solution: String(item.solution || "").trim()
-    };
-  }).filter((q) => q.question.length > 0);
-}
-
-// YMM Yazılı Sınav Soruları Üretici
-async function generateYmmWrittenBatch(subject, focus, formatType, ymmSlice, startIndex, count) {
-  const customPrefix = ymmSlice
-    ? `Sen TÜRMOB Yeminli Mali Müşavirlik (YMM) yazılı sınavlarına yönelik vaka ve analiz sorusu hazırlayan kıdemli bir vergi hukukçusu, denetçi ve akademisyensin. Aşağıdaki YMM Yazılı Sınav Örnek Havuzu metnindeki soru dilini, vaka kurgusunu, çok aşamalı analiz yapısını ve derinliği takip ederek özgün YMM yazılı sınav soruları üret.\n\nYMM ÖRNEK SORU HAVUZU:\n${ymmSlice}\n\n`
-    : `Sen TÜRMOB Yeminli Mali Müşavirlik (YMM) yazılı sınavlarına yönelik vaka ve analiz sorusu hazırlayan kıdemli bir vergi hukukçusu, denetçi ve akademisyensin. Türk vergi kanunları, muhasebe standartları, denetim ve meslek hukuku çerçevesinde derinlikli YMM yazılı sınav soruları üret.\n\n`;
-
-  const prompt = `Ders: "${subject}" | Odak: "${focus || "Genel YMM Yazılı Kapsamı"}" | Format: "${formatType}".
-Tam olarak ${count} adet özgün YMM yazılı sınav vaka/analiz sorusu üret (Soru numaraları ${startIndex}'den başlasın). Her soru açık uçlu/yazılı vaka niteliğinde olsun (gerekirse a), b), c) alt bentleri içerebilir); uydurma kanun/madde/oran kullanma.
-JSON içindeki metinlerde asla çift tırnak (") kullanma; tek tırnak (') kullan.
-Yalnızca şu JSON nesnesini döndür:
-{
-  "questions": [
-    {
-      "no": ${startIndex},
-      "question": "...",
-      "solution": "...",
-      "keyPoints": ["...", "..."]
-    }
-  ]
-}`;
-
-  const raw = await callGemini(prompt, true, customPrefix);
-  const parsed = parseJsonLoose(raw);
-  const arr = Array.isArray(parsed.questions) ? parsed.questions : (Array.isArray(parsed) ? parsed : []);
-  return arr.map((item, idx) => ({
-    no: Number(item.no) || (startIndex + idx),
-    question: String(item.question || "").trim(),
-    solution: String(item.solution || "").trim(),
-    keyPoints: Array.isArray(item.keyPoints) ? item.keyPoints.map((k) => String(k || "").trim()).filter(Boolean) : []
-  })).filter((q) => q.question.length > 0);
-}
-
-async function generateYmmSingleQuestion() {
-  const subject = document.getElementById("ymmSubjectSelect")?.value || "Gelir Üzerinden Alınan Vergiler";
+async function generateYmmSingleOnScreen() {
+  const subject = document.getElementById("ymmSubjectSelect")?.value || "Vergi Tekniği";
   const focus = (document.getElementById("ymmFocusInput")?.value || "").trim();
-  const formatType = document.getElementById("ymmFormatSelect")?.value || "Yazılı Vaka & Analiz";
+  const formatType =
+    document.getElementById("ymmFormatSelect")?.value ||
+    "2026/2 TÜRMOB Tarzı Çatı Vaka (Tek Çatı Mükellef + Veriler + a-e Bentleri, 100 Puan)";
   const ymmPool = safeGetStorage(STORAGE_KEYS.ymmPool, "").trim();
-  const ymmSlice = ymmPool.length > 60000 ? ymmPool.slice(0, 60000) : ymmPool;
+  const ymmSlice = ymmPool.length > 120000 ? ymmPool.slice(0, 120000) : ymmPool;
 
-  const btn = document.getElementById("generateYmmBtn");
+  const btn = document.getElementById("generateYmmSingleBtn");
   const prevText = btn ? btn.textContent : "";
   if (btn) {
     btn.disabled = true;
-    btn.textContent = "YMM Yazılı Sorusu Üretiliyor...";
+    btn.textContent = "Çatı Sınav Hazırlanıyor...";
   }
 
   try {
+    setYmmPdfProgress("2026/2 TÜRMOB tarzında çatı vaka ve komisyon cevabı üretiliyor (30-60 sn sürebilir)...");
     const batch = await generateYmmWrittenBatch(subject, focus, formatType, ymmSlice, 1, 1);
-    if (!batch.length) throw new Error("YMM yazılı sorusu üretilemedi.");
-    const item = batch[0];
+    if (!batch.length) {
+      throw new Error("Sınav üretilemedi, lütfen tekrar deneyin.");
+    }
 
-    const badgeEl = document.getElementById("ymmQuestionBadge");
-    const tagEl = document.getElementById("ymmSourceTag");
-    if (badgeEl) badgeEl.textContent = subject;
-    if (tagEl) tagEl.textContent = ymmSlice ? "YMM Havuz Referanslı" : formatType;
+    const exam = batch[0];
+    document.getElementById("ymmPreviewTitle").textContent = `${subject} — Örnek Çatı Sınav`;
+    document.getElementById("ymmQuestionContent").textContent = exam.question;
+    document.getElementById("ymmSolutionContent").textContent = exam.solution;
+    document.getElementById("ymmSolutionWrapper").classList.add("hidden");
+    document.getElementById("ymmPreviewArea").classList.remove("hidden");
 
-    renderYmmQuestion({
-      subject,
-      question: item.question,
-      solution: item.solution,
-      keyPoints: item.keyPoints
-    });
+    setYmmPdfProgress("Çatı sınav başarıyla üretildi. Komisyon cevabını görmek için sağ üstteki butona tıklayabilirsiniz.");
   } catch (err) {
-    alert("Hata: " + err.message);
+    setYmmPdfProgress("Hata: " + err.message, true);
   } finally {
     if (btn) {
       btn.disabled = false;
       btn.textContent = prevText;
     }
   }
-}
-
-function showYmmSolution() {
-  const box = document.getElementById("ymmSolutionBox");
-  if (!box) return;
-  const kpHtml = Array.isArray(currentYmmQuestion.keyPoints) && currentYmmQuestion.keyPoints.length
-    ? `<div style="margin-top:10px;padding-top:10px;border-top:1px solid #fde68a;">
-         <strong style="display:block;font-size:12px;text-transform:uppercase;margin-bottom:4px;">Kritik Değerlendirme Noktaları</strong>
-         <ul style="margin:0;padding-left:18px;font-size:13px;">${currentYmmQuestion.keyPoints.map((k) => `<li style="margin-bottom:4px;">${escapeHtml(k)}</li>`).join("")}</ul>
-       </div>`
-    : "";
-
-  box.innerHTML = `<strong style="display:block;font-size:12px;text-transform:uppercase;margin-bottom:6px;">Model Çözüm ve Mevzuat Dayanağı</strong>
-    <p style="margin:0;white-space:pre-line;">${escapeHtml(currentYmmQuestion.solution || "")}</p>${kpHtml}`;
-  box.classList.remove("hidden");
-}
-
-// Çoktan seçmeli SMMM PDF oluşturucu
-function renderExamPagesToPdf(allQuestions, meta) {
-  if (!window.jspdf || !window.jspdf.jsPDF) {
-    throw new Error("PDF oluşturucu kütüphanesi yüklenemedi. İnternet bağlantınızı kontrol edin.");
-  }
-
-  const { jsPDF } = window.jspdf;
-  const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
-  const pdfW = pdf.internal.pageSize.getWidth();
-  const pdfH = pdf.internal.pageSize.getHeight();
-
-  const scale = 2.5;
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(pdfW * scale);
-  canvas.height = Math.round(pdfH * scale);
-  const ctx = canvas.getContext("2d");
-
-  const marginX = 44 * scale;
-  const topY = 48 * scale;
-  const bottomLimit = (pdfH - 42) * scale;
-  const contentW = canvas.width - marginX * 2;
-  let cursorY = topY;
-  let pageNum = 1;
-  let hasDrawnOnPage = false;
-
-  const flushPage = (isFirstPage) => {
-    if (!hasDrawnOnPage) return;
-    if (!isFirstPage) pdf.addPage();
-    const imgData = canvas.toDataURL("image/jpeg", 0.92);
-    pdf.addImage(imgData, "JPEG", 0, 0, pdfW, pdfH);
-  };
-
-  const startNewPage = (headerTitle) => {
-    if (hasDrawnOnPage) {
-      flushPage(pageNum === 1);
-      pageNum += 1;
-    }
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    ctx.fillStyle = "#0f172a";
-    ctx.fillRect(marginX, 24 * scale, contentW, 28 * scale);
-    ctx.fillStyle = "#ffffff";
-    ctx.font = `bold ${11 * scale}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
-    ctx.fillText(headerTitle, marginX + 10 * scale, 42 * scale);
-
-    ctx.fillStyle = "#64748b";
-    ctx.font = `${9.5 * scale}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
-    ctx.fillText(`Sayfa ${pageNum}`, canvas.width - marginX - 55 * scale, 42 * scale);
-
-    cursorY = topY + 24 * scale;
-    hasDrawnOnPage = true;
-  };
-
-  const wrapLines = (text, fontStr, maxWidth) => {
-    ctx.font = fontStr;
-    const paragraphs = String(text || "").split(/\r?\n/);
-    const lines = [];
-    for (const para of paragraphs) {
-      const words = para.split(/\s+/).filter(Boolean);
-      if (!words.length) {
-        lines.push("");
-        continue;
-      }
-      let current = "";
-      for (const w of words) {
-        const candidate = current ? `${current} ${w}` : w;
-        if (ctx.measureText(candidate).width <= maxWidth) {
-          current = candidate;
-        } else {
-          if (current) lines.push(current);
-          current = w;
-        }
-      }
-      if (current) lines.push(current);
-    }
-    return lines.length ? lines : [""];
-  };
-
-  const mainTitle = `SMMM YETERLİLİK TEST SETİ — ${meta.subject.toLocaleUpperCase("tr-TR")}`;
-  startNewPage(mainTitle);
-
-  ctx.fillStyle = "#334155";
-  ctx.font = `${10.5 * scale}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
-  const subInfo = `Soru Sayısı: ${allQuestions.length}  |  Tarz: ${meta.style}  |  Odak: ${meta.focus || "Genel"}  |  Tarih: ${meta.dateStr}`;
-  ctx.fillText(subInfo, marginX, cursorY);
-  cursorY += 22 * scale;
-
-  ctx.strokeStyle = "#cbd5e1";
-  ctx.lineWidth = 1 * scale;
-  ctx.beginPath();
-  ctx.moveTo(marginX, cursorY - 8 * scale);
-  ctx.lineTo(marginX + contentW, cursorY - 8 * scale);
-  ctx.stroke();
-
-  const qFont = `bold ${11.5 * scale}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
-  const optFont = `${11 * scale}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
-
-  allQuestions.forEach((q, idx) => {
-    const qNum = idx + 1;
-    const qLines = wrapLines(`${qNum}. ${q.question}`, qFont, contentW);
-    const optLineGroups = q.options.map((o) => wrapLines(o, optFont, contentW - 14 * scale));
-    const totalOptLines = optLineGroups.reduce((acc, g) => acc + g.length, 0);
-    const blockHeight = (qLines.length * 16 + totalOptLines * 15 + 18) * scale;
-
-    if (cursorY + blockHeight > bottomLimit) {
-      startNewPage(mainTitle);
-    }
-
-    ctx.fillStyle = "#0f172a";
-    ctx.font = qFont;
-    qLines.forEach((line) => {
-      ctx.fillText(line, marginX, cursorY);
-      cursorY += 16 * scale;
-    });
-
-    cursorY += 3 * scale;
-    ctx.fillStyle = "#1e293b";
-    ctx.font = optFont;
-    optLineGroups.forEach((group) => {
-      group.forEach((line) => {
-        ctx.fillText(line, marginX + 12 * scale, cursorY);
-        cursorY += 15 * scale;
-      });
-    });
-
-    cursorY += 12 * scale;
-  });
-
-  startNewPage("CEVAP ANAHTARI VE AÇIKLAMALI ÇÖZÜMLER");
-
-  const keyFont = `bold ${11 * scale}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
-  const solFont = `${10.5 * scale}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
-
-  allQuestions.forEach((q, idx) => {
-    const qNum = idx + 1;
-    const solLines = wrapLines(`Çözüm: ${q.solution || "İlgili mevzuat ve muhasebe standardı esas alınmıştır."}`, solFont, contentW - 10 * scale);
-    const needed = (16 + solLines.length * 14 + 12) * scale;
-
-    if (cursorY + needed > bottomLimit) {
-      startNewPage("CEVAP ANAHTARI VE AÇIKLAMALI ÇÖZÜMLER");
-    }
-
-    ctx.fillStyle = "#047857";
-    ctx.font = keyFont;
-    ctx.fillText(`Soru ${qNum} — Doğru Yanıt: ${q.answerLetter}`, marginX, cursorY);
-    cursorY += 15 * scale;
-
-    ctx.fillStyle = "#334155";
-    ctx.font = solFont;
-    solLines.forEach((line) => {
-      ctx.fillText(line, marginX + 8 * scale, cursorY);
-      cursorY += 14 * scale;
-    });
-
-    cursorY += 10 * scale;
-  });
-
-  flushPage(pageNum === 1);
-
-  const safeSlug = meta.subject
-    .toLocaleLowerCase("tr")
-    .replace(/[^a-z0-9ğüşıöç]+/gi, "-")
-    .replace(/^-|-$/g, "");
-  pdf.save(`SMMM-${safeSlug || "test"}-${allQuestions.length}-soru.pdf`);
-}
-
-// YMM Yazılı Sınav PDF oluşturucu
-function renderYmmWrittenExamToPdf(allQuestions, meta) {
-  if (!window.jspdf || !window.jspdf.jsPDF) {
-    throw new Error("PDF oluşturucu kütüphanesi yüklenemedi. İnternet bağlantınızı kontrol edin.");
-  }
-
-  const { jsPDF } = window.jspdf;
-  const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
-  const pdfW = pdf.internal.pageSize.getWidth();
-  const pdfH = pdf.internal.pageSize.getHeight();
-
-  const scale = 2.5;
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(pdfW * scale);
-  canvas.height = Math.round(pdfH * scale);
-  const ctx = canvas.getContext("2d");
-
-  const marginX = 44 * scale;
-  const topY = 48 * scale;
-  const bottomLimit = (pdfH - 42) * scale;
-  const contentW = canvas.width - marginX * 2;
-  let cursorY = topY;
-  let pageNum = 1;
-  let hasDrawnOnPage = false;
-
-  const flushPage = (isFirstPage) => {
-    if (!hasDrawnOnPage) return;
-    if (!isFirstPage) pdf.addPage();
-    const imgData = canvas.toDataURL("image/jpeg", 0.92);
-    pdf.addImage(imgData, "JPEG", 0, 0, pdfW, pdfH);
-  };
-
-  const startNewPage = (headerTitle) => {
-    if (hasDrawnOnPage) {
-      flushPage(pageNum === 1);
-      pageNum += 1;
-    }
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    ctx.fillStyle = "#78350f";
-    ctx.fillRect(marginX, 24 * scale, contentW, 28 * scale);
-    ctx.fillStyle = "#ffffff";
-    ctx.font = `bold ${11 * scale}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
-    ctx.fillText(headerTitle, marginX + 10 * scale, 42 * scale);
-
-    ctx.fillStyle = "#64748b";
-    ctx.font = `${9.5 * scale}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
-    ctx.fillText(`Sayfa ${pageNum}`, canvas.width - marginX - 55 * scale, 42 * scale);
-
-    cursorY = topY + 24 * scale;
-    hasDrawnOnPage = true;
-  };
-
-  const wrapLines = (text, fontStr, maxWidth) => {
-    ctx.font = fontStr;
-    const paragraphs = String(text || "").split(/\r?\n/);
-    const lines = [];
-    for (const para of paragraphs) {
-      const words = para.split(/\s+/).filter(Boolean);
-      if (!words.length) {
-        lines.push("");
-        continue;
-      }
-      let current = "";
-      for (const w of words) {
-        const candidate = current ? `${current} ${w}` : w;
-        if (ctx.measureText(candidate).width <= maxWidth) {
-          current = candidate;
-        } else {
-          if (current) lines.push(current);
-          current = w;
-        }
-      }
-      if (current) lines.push(current);
-    }
-    return lines.length ? lines : [""];
-  };
-
-  const mainTitle = `YMM YAZILI SINAV SETİ — ${meta.subject.toLocaleUpperCase("tr-TR")}`;
-  startNewPage(mainTitle);
-
-  ctx.fillStyle = "#334155";
-  ctx.font = `${10.5 * scale}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
-  const subInfo = `Soru Sayısı: ${allQuestions.length}  |  Format: ${meta.formatType}  |  Odak: ${meta.focus || "Genel"}  |  Tarih: ${meta.dateStr}`;
-  ctx.fillText(subInfo, marginX, cursorY);
-  cursorY += 22 * scale;
-
-  ctx.strokeStyle = "#cbd5e1";
-  ctx.lineWidth = 1 * scale;
-  ctx.beginPath();
-  ctx.moveTo(marginX, cursorY - 8 * scale);
-  ctx.lineTo(marginX + contentW, cursorY - 8 * scale);
-  ctx.stroke();
-
-  const qFont = `bold ${11.5 * scale}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
-  const bodyFont = `${10.8 * scale}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
-
-  allQuestions.forEach((q, idx) => {
-    const qNum = idx + 1;
-    const qLines = wrapLines(`SORU ${qNum}: ${q.question}`, qFont, contentW);
-    const blockHeight = (qLines.length * 16 + 24) * scale;
-
-    if (cursorY + blockHeight > bottomLimit) {
-      startNewPage(mainTitle);
-    }
-
-    ctx.fillStyle = "#0f172a";
-    ctx.font = qFont;
-    qLines.forEach((line) => {
-      ctx.fillText(line, marginX, cursorY);
-      cursorY += 16 * scale;
-    });
-
-    cursorY += 14 * scale;
-  });
-
-  startNewPage("YMM YAZILI SINAV — MODEL ÇÖZÜMLER VE DEĞERLENDİRME");
-
-  allQuestions.forEach((q, idx) => {
-    const qNum = idx + 1;
-    const solLines = wrapLines(q.solution || "İlgili mevzuat ve muhasebe/denetim ilkeleri çerçevesinde değerlendirilmelidir.", bodyFont, contentW - 8 * scale);
-    const kpText = q.keyPoints && q.keyPoints.length ? `Kritik Noktalar: ${q.keyPoints.join(" | ")}` : "";
-    const kpLines = kpText ? wrapLines(kpText, bodyFont, contentW - 8 * scale) : [];
-    const needed = (18 + (solLines.length + kpLines.length) * 14.5 + 16) * scale;
-
-    if (cursorY + needed > bottomLimit) {
-      startNewPage("YMM YAZILI SINAV — MODEL ÇÖZÜMLER VE DEĞERLENDİRME");
-    }
-
-    ctx.fillStyle = "#92400e";
-    ctx.font = qFont;
-    ctx.fillText(`Soru ${qNum} Çözüm Rehberi`, marginX, cursorY);
-    cursorY += 16 * scale;
-
-    ctx.fillStyle = "#1e293b";
-    ctx.font = bodyFont;
-    solLines.forEach((line) => {
-      ctx.fillText(line, marginX + 6 * scale, cursorY);
-      cursorY += 14.5 * scale;
-    });
-
-    if (kpLines.length) {
-      cursorY += 4 * scale;
-      ctx.fillStyle = "#047857";
-      kpLines.forEach((line) => {
-        ctx.fillText(line, marginX + 6 * scale, cursorY);
-        cursorY += 14.5 * scale;
-      });
-    }
-
-    cursorY += 14 * scale;
-  });
-
-  flushPage(pageNum === 1);
-
-  const safeSlug = meta.subject
-    .toLocaleLowerCase("tr")
-    .replace(/[^a-z0-9ğüşıöç]+/gi, "-")
-    .replace(/^-|-$/g, "");
-  pdf.save(`YMM-Yazili-${safeSlug || "sinav"}-${allQuestions.length}-soru.pdf`);
 }
 
 async function generateYmmPdfTestSet() {
-  const subject = document.getElementById("ymmSubjectSelect")?.value || "Gelir Üzerinden Alınan Vergiler";
+  const subject = document.getElementById("ymmSubjectSelect")?.value || "Vergi Tekniği";
   const focus = (document.getElementById("ymmFocusInput")?.value || "").trim();
-  const formatType = document.getElementById("ymmFormatSelect")?.value || "Yazılı Vaka & Analiz";
-  const requestedCount = Math.min(Math.max(parseInt(document.getElementById("ymmPdfCountInput")?.value || "4", 10) || 4, 1), 20);
+  const formatType =
+    document.getElementById("ymmFormatSelect")?.value ||
+    "2026/2 TÜRMOB Tarzı Çatı Vaka (Tek Çatı Mükellef + Veriler + a-e Bentleri, 100 Puan)";
+  const requestedCount = Math.min(
+    Math.max(parseInt(document.getElementById("ymmPdfCountInput")?.value || "1", 10) || 1, 1),
+    5
+  );
   const ymmPool = safeGetStorage(STORAGE_KEYS.ymmPool, "").trim();
-  const ymmSlice = ymmPool.length > 60000 ? ymmPool.slice(0, 60000) : ymmPool;
+  const ymmSlice = ymmPool.length > 120000 ? ymmPool.slice(0, 120000) : ymmPool;
 
   const btn = document.getElementById("generateYmmPdfBtn");
   const prevText = btn ? btn.textContent : "";
@@ -1693,23 +543,17 @@ async function generateYmmPdfTestSet() {
   }
 
   try {
-    const batchSize = 2;
     const collected = [];
-
-    while (collected.length < requestedCount) {
-      const remaining = requestedCount - collected.length;
-      const currentBatch = Math.min(batchSize, remaining);
-      const startNo = collected.length + 1;
-      setYmmPdfProgress(`YMM yazılı soruları üretiliyor (${collected.length} / ${requestedCount})... Lütfen bekleyin.`);
-
-      const batch = await generateYmmWrittenBatch(subject, focus, formatType, ymmSlice, startNo, currentBatch);
+    for (let i = 1; i <= requestedCount; i++) {
+      setYmmPdfProgress(`YMM çatı sınavı üretiliyor (${i} / ${requestedCount})... Lütfen bekleyin.`);
+      const batch = await generateYmmWrittenBatch(subject, focus, formatType, ymmSlice, i, 1);
       if (!batch.length) {
-        throw new Error("Bu pakette YMM yazılı sorusu üretilemedi; tekrar deneyin.");
+        throw new Error(`${i}. sınav üretilemedi; lütfen tekrar deneyin.`);
       }
-      collected.push(...batch.slice(0, remaining));
+      collected.push(batch[0]);
     }
 
-    setYmmPdfProgress(`YMM PDF dosyası oluşturuluyor (${collected.length} soru)...`);
+    setYmmPdfProgress("PDF dosyası derleniyor...");
     renderYmmWrittenExamToPdf(collected, {
       subject,
       focus,
@@ -1717,10 +561,9 @@ async function generateYmmPdfTestSet() {
       dateStr: new Date().toLocaleDateString("tr-TR")
     });
 
-    setYmmPdfProgress(`Tamamlandı! ${collected.length} soruluk YMM yazılı sınav PDF'i indirildi.`);
+    setYmmPdfProgress(`Tamamlandı! ${collected.length} adet YMM yazılı sınavı ve komisyon cevabı PDF olarak indirildi.`);
   } catch (err) {
     setYmmPdfProgress("Hata: " + err.message, true);
-    alert("YMM PDF Üretim Hatası: " + err.message);
   } finally {
     if (btn) {
       btn.disabled = false;
@@ -1729,639 +572,140 @@ async function generateYmmPdfTestSet() {
   }
 }
 
-async function generateSmmmPdfTestSet() {
-  const subject = document.getElementById("smmmSubjectSelect")?.value || "Vergi Mevzuatı ve Uygulaması";
-  const focus = (document.getElementById("smmmFocusInput")?.value || "").trim();
-  const style = document.getElementById("smmmStyleSelect")?.value || "Çıkmış Soru Tarzı";
-  const requestedCount = Math.min(Math.max(parseInt(document.getElementById("smmmPdfCountInput")?.value || "20", 10) || 20, 5), 60);
-  const smmmPool = safeGetStorage(STORAGE_KEYS.smmmPool, "").trim();
-  const smmmSlice = smmmPool.length > 60000 ? smmmPool.slice(0, 60000) : smmmPool;
-
-  const btn = document.getElementById("generateSmmmPdfBtn");
-  const prevText = btn ? btn.textContent : "";
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = "PDF Hazırlanıyor...";
-  }
-
-  try {
-    const batchSize = 5;
-    const collected = [];
-
-    while (collected.length < requestedCount) {
-      const remaining = requestedCount - collected.length;
-      const currentBatch = Math.min(batchSize, remaining);
-      const startNo = collected.length + 1;
-      setSmmmPdfProgress(`Sorular üretiliyor (${collected.length} / ${requestedCount})... Lütfen bekleyin.`);
-
-      const batch = await generateSmmmBatchQuestions(subject, focus, style, smmmSlice, startNo, currentBatch);
-      if (!batch.length) {
-        throw new Error("Bu pakette soru üretilemedi; tekrar deneyin.");
-      }
-      collected.push(...batch.slice(0, remaining));
-    }
-
-    setSmmmPdfProgress(`PDF dosyası oluşturuluyor (${collected.length} soru)...`);
-    renderExamPagesToPdf(collected, {
-      subject,
-      focus,
-      style,
-      dateStr: new Date().toLocaleDateString("tr-TR")
-    });
-
-    setSmmmPdfProgress(`Tamamlandı! ${collected.length} soruluk PDF test seti indirildi.`);
-  } catch (err) {
-    setSmmmPdfProgress("Hata: " + err.message, true);
-    alert("PDF Üretim Hatası: " + err.message);
-  } finally {
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = prevText;
-    }
-  }
-}
-
-function checkSmmmAnswer() {
-  if (selectedSmmmOptionIndex === null) {
-    alert("Lütfen önce bir şık seçin.");
-    return;
-  }
-
-  const isCorrect = selectedSmmmOptionIndex === currentSmmmQuestion.answerIndex;
-  const topicKey = `SMMM — ${currentSmmmQuestion.subject}`;
-  stats.total += 1;
-  if (!stats.byTopic[topicKey]) {
-    stats.byTopic[topicKey] = { correct: 0, total: 0 };
-  }
-  stats.byTopic[topicKey].total += 1;
-
-  const box = document.getElementById("smmmFeedbackBox");
-  if (box) box.classList.remove("hidden");
-
-  if (isCorrect) {
-    stats.correct += 1;
-    stats.byTopic[topicKey].correct += 1;
-    if (box) {
-      box.style.cssText = "border-radius:14px;padding:15px;font-size:14px;line-height:1.55;background:#ecfdf5;border:1px solid #a7f3d0;color:#064e3b;";
-      box.innerHTML = `<p style="margin:0 0 6px;font-weight:700;">Doğru Yanıt!</p><p style="margin:0;white-space:pre-line;">${escapeHtml(currentSmmmQuestion.solution)}</p>`;
-    }
-  } else {
-    if (box) {
-      box.style.cssText = "border-radius:14px;padding:15px;font-size:14px;line-height:1.55;background:#fff1f2;border:1px solid #fecdd3;color:#881337;";
-      box.innerHTML = `<p style="margin:0 0 6px;font-weight:700;">Yanlış Yanıt — Doğru Seçenek: ${escapeHtml(currentSmmmQuestion.options[currentSmmmQuestion.answerIndex] || "")}</p><p style="margin:0;white-space:pre-line;">${escapeHtml(currentSmmmQuestion.solution)}</p>`;
-    }
-    mistakes.unshift({
-      topic: topicKey,
-      question: currentSmmmQuestion.question,
-      options: currentSmmmQuestion.options,
-      answerIndex: currentSmmmQuestion.answerIndex,
-      correctOption: currentSmmmQuestion.options[currentSmmmQuestion.answerIndex] || "",
-      explanation: currentSmmmQuestion.solution,
-      note: ""
-    });
-  }
-
-  saveAllState();
-  updateBadges();
-  renderMistakes();
-}
-
-function startWrongQuiz() {
-  if (!mistakes.length) {
-    alert("Hata defterinde tekrar edilecek soru bulunmuyor.");
-    return;
-  }
-  const picked = mistakes[Math.floor(Math.random() * mistakes.length)];
-  const opts = picked.options && picked.options.length >= 4
-    ? picked.options
-    : ["A) Doğru değerlendirme", "B) İstisna kapsamında değildir", "C) Tamamı matraha eklenir", "D) Zamanaşımına uğramıştır"];
-  renderQuestion({
-    topic: picked.topic,
-    question: picked.question,
-    options: opts,
-    answerIndex: typeof picked.answerIndex === "number" ? picked.answerIndex : 0,
-    explanation: picked.explanation || ""
-  });
-  switchTab("soru");
-}
-
-function checkAnswer() {
-  if (selectedOptionIndex === null) {
-    alert("Lütfen önce bir şık seçin.");
-    return;
-  }
-  if (timerInterval) clearInterval(timerInterval);
-
-  const isCorrect = selectedOptionIndex === currentQuestion.answerIndex;
-  stats.total += 1;
-  if (!stats.byTopic[currentQuestion.topic]) {
-    stats.byTopic[currentQuestion.topic] = { correct: 0, total: 0 };
-  }
-  stats.byTopic[currentQuestion.topic].total += 1;
-
-  const box = document.getElementById("feedbackBox");
-  if (box) box.classList.remove("hidden");
-
-  if (isCorrect) {
-    stats.correct += 1;
-    stats.byTopic[currentQuestion.topic].correct += 1;
-    if (box) {
-      box.style.cssText = "border-radius:14px;padding:15px;font-size:14px;background:#ecfdf5;border:1px solid #a7f3d0;color:#064e3b;";
-      box.innerHTML = `<p style="margin:0 0 6px;font-weight:700;">Doğru Yanıt!</p><p style="margin:0;">${escapeHtml(currentQuestion.explanation)}</p>`;
-    }
-  } else {
-    if (box) {
-      box.style.cssText = "border-radius:14px;padding:15px;font-size:14px;background:#fff1f2;border:1px solid #fecdd3;color:#881337;";
-      box.innerHTML = `<p style="margin:0 0 6px;font-weight:700;">Yanlış Yanıt — Doğru Seçenek: ${escapeHtml(currentQuestion.options[currentQuestion.answerIndex] || "")}</p><p style="margin:0;">${escapeHtml(currentQuestion.explanation)}</p>`;
-    }
-    mistakes.unshift({
-      topic: currentQuestion.topic,
-      question: currentQuestion.question,
-      options: currentQuestion.options,
-      answerIndex: currentQuestion.answerIndex,
-      correctOption: currentQuestion.options[currentQuestion.answerIndex] || "",
-      explanation: currentQuestion.explanation,
-      note: ""
-    });
-  }
-
-  saveAllState();
-  updateBadges();
-  renderMistakes();
-}
-
-function appendUserChatMessage(text) {
-  const wrap = document.getElementById("chatMessages");
-  if (!wrap) return;
-  const div = document.createElement("div");
-  div.style.cssText = "background:#020617;color:#fff;border-radius:14px;padding:12px 14px;font-size:13px;margin-left:28px;";
-  div.textContent = text;
-  wrap.appendChild(div);
-  wrap.scrollTop = wrap.scrollHeight;
-}
-
-function createAssistantChatCard() {
-  const wrap = document.getElementById("chatMessages");
-  const card = document.createElement("div");
-  card.style.cssText = "border:1px solid #e2e8f0;background:#fff;border-radius:14px;padding:14px;font-size:13px;color:#1e293b;margin-right:16px;";
-  card.innerHTML = `<p style="margin:0;font-size:12px;color:#64748b;">Mevzuat bağlantıları ve yorum hazırlanıyor...</p>`;
-  if (wrap) {
-    wrap.appendChild(card);
-    wrap.scrollTop = wrap.scrollHeight;
-  }
-  return card;
-}
-
-function renderStructuredAdvisorCard(card, data) {
-  const bulletsHtml = (items) => {
-    const arr = Array.isArray(items) && items.length ? items : ["Bu başlık için ayrıca teyit edilmesi gereken özel bir bağlantı belirtilmemiştir."];
-    return `<ul style="margin:4px 0 0;padding-left:18px;font-size:12px;color:#334155;line-height:1.5;">${arr.map((i) => `<li style="margin-bottom:4px;">${escapeHtml(i)}</li>`).join("")}</ul>`;
-  };
-
-  const cautionBlock = data.caution
-    ? `<div style="margin-top:10px;border:1px solid #fde68a;background:#fffbeb;border-radius:10px;padding:10px;font-size:12px;color:#451a03;">
-         <strong>Teyit / Sınır Notu:</strong> ${escapeHtml(data.caution)}
-       </div>`
-    : "";
-
-  card.innerHTML = `
-    <div style="margin-bottom:8px;">
-      <strong style="font-size:12px;text-transform:uppercase;color:#0f172a;">1. Mevzuat Yorumu</strong>
-      <p style="margin:4px 0 0;font-size:12px;color:#334155;line-height:1.55;white-space:pre-line;">${escapeHtml(data.comment || "")}</p>
-    </div>
-    <div style="margin-top:8px;padding-top:8px;border-top:1px solid #f1f5f9;">
-      <strong style="font-size:12px;text-transform:uppercase;color:#0f172a;">2. Kanunlar Arası Bağlantılar</strong>
-      ${bulletsHtml(data.crossLawLinks)}
-    </div>
-    <div style="margin-top:8px;padding-top:8px;border-top:1px solid #f1f5f9;">
-      <strong style="font-size:12px;text-transform:uppercase;color:#0f172a;">3. Sizi Yönlendiren Adımlar</strong>
-      ${bulletsHtml(data.guidance)}
-    </div>
-    ${cautionBlock}
-  `;
-}
-
-async function handleChatSend(overrideQuestion = "") {
-  const input = document.getElementById("chatInput");
-  const q = String(overrideQuestion || (input ? input.value : "") || "").trim();
-  if (!q) return;
-  if (!overrideQuestion && input) input.value = "";
-
-  appendUserChatMessage(q);
-  const card = createAssistantChatCard();
-  const wrap = document.getElementById("chatMessages");
-  if (wrap) wrap.scrollTop = wrap.scrollHeight;
-
-  const advisorPrompt = `Kullanıcı sorusu / vakası: "${q}"
-
-Görevlerin:
-1. "comment": Mevzuat yorumu yap. Kesin hükümleri net açıkla; uydurma numara, madde, oran/tutar veya kesin olmayan yargı üretme.
-2. "crossLawLinks": İlgili kanunlar, tebliğler veya sirkülerler arasındaki somut bağlantıları madde/kavram düzeyinde listele (yalnızca gerçek ve emin olunan bağlantıları yaz).
-3. "guidance": Kullanıcıyı bir sonraki adımda neyi kontrol etmesi, hangi ayrımı netleştirmesi veya hangi kaynağı incelemesi gerektiği konusunda somut ve yönlendirici maddelerle yönlendir.
-4. "caution": Eğer soruda güncel/dönemsel had-oran-tebliğ teyidi gerekiyorsa, Mevzuat Havuzu'nda kaynak eksikse veya belirsizlik varsa bunu açıkça yaz; her şey netse boş bırak "".
-
-JSON alanlarının içindeki metinlerde asla çift tırnak (") kullanma; gerekirse tek tırnak (') kullan.
-Yalnızca şu JSON şemasında yanıt ver:
-{
-  "comment": "...",
-  "crossLawLinks": ["...", "..."],
-  "guidance": ["...", "..."],
-  "caution": "..."
-}`;
-
-  try {
-    const raw = await callGemini(advisorPrompt, true);
-    const parsed = parseJsonLoose(raw);
-    renderStructuredAdvisorCard(card, parsed);
-  } catch (err) {
-    card.innerHTML = `<p style="margin:0;font-size:12px;color:#9f1239;"><strong>Hata:</strong> ${escapeHtml(err.message)}</p>`;
-  } finally {
-    if (wrap) wrap.scrollTop = wrap.scrollHeight;
-  }
-}
-
-function escapeHtml(str) {
-  return String(str).replace(/[&<>"']/g, (m) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
-  }[m]));
-}
-
-function escapeAttr(str) {
-  return String(str).replace(/"/g, "&quot;");
-}
-
-document.addEventListener("click", (e) => {
-  const catBtn = e.target.closest(".law-cat-btn");
-  if (catBtn) {
-    e.preventDefault();
-    selectCategoryFromUi(catBtn.dataset.category || "kanunlar");
-    return;
-  }
-
-  const quickBtn = e.target.closest(".chat-quick-btn");
-  if (quickBtn) {
-    e.preventDefault();
-    const prompt = quickBtn.dataset.prompt || "";
-    if (prompt) handleChatSend(prompt);
-  }
-});
-
-function handleSaveSettings() {
-  const apiInput = document.getElementById("apiKeyInput");
-  const modelSel = document.getElementById("modelSelect");
-  const st = document.getElementById("settingsStatus");
-
-  const rawKey = apiInput ? apiInput.value.trim() : "";
-  const model = modelSel ? modelSel.value : "gemini-3.8-flash";
-
-  const resKey = safeSetStorage(STORAGE_KEYS.apiKey, rawKey);
-  safeSetStorage(STORAGE_KEYS.model, model);
-  updateBadges(rawKey);
-
-  if (st) {
-    st.classList.remove("hidden");
-    if (!rawKey) {
-      st.style.color = "#b45309";
-      st.textContent = "API anahtarı alanı boş bırakıldı; model ayarı kaydedildi.";
-    } else if (resKey.persisted) {
-      st.style.color = "#047857";
-      st.textContent = `API anahtarı ve model (${model}) cihaza kaydedildi.`;
-    } else {
-      st.style.color = "#b45309";
-      st.textContent = "Tarayıcı kalıcı depolaması kısıtlı; oturum süresince aktif olarak kaydedildi.";
-    }
-    clearTimeout(window.__settingsTimer);
-    window.__settingsTimer = setTimeout(() => st.classList.add("hidden"), 3500);
-  }
-}
-
-function bindDirectListeners() {
-  const searchInput = document.getElementById("lawSearchInput");
-  if (searchInput) {
-    searchInput.oninput = (e) => {
-      populateGibTopicSelect(document.getElementById("topicInput")?.value.trim() || "", e.target.value);
-    };
-  }
-
-  const saveSettingsBtn = document.getElementById("saveSettingsBtn");
-  if (saveSettingsBtn) saveSettingsBtn.onclick = handleSaveSettings;
-
-  const apiKeyInput = document.getElementById("apiKeyInput");
-  if (apiKeyInput) {
-    apiKeyInput.onkeydown = (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        handleSaveSettings();
-      }
-    };
-  }
-
-  // YMM Havuz dinleyicileri
-  const ymmPdfInput = document.getElementById("ymmPdfFileInput");
-  if (ymmPdfInput) {
-    ymmPdfInput.onchange = async (e) => {
-      await extractMultiplePdfFiles(e.target.files, "ymm");
-      e.target.value = "";
-    };
-  }
-
-  const saveYmmPoolBtn = document.getElementById("saveYmmPoolBtn");
-  if (saveYmmPoolBtn) {
-    saveYmmPoolBtn.onclick = () => {
-      const txt = document.getElementById("ymmPoolTextInput")?.value.trim() || "";
-      safeSetStorage(STORAGE_KEYS.ymmPool, txt);
-      syncPoolBadges();
-      setYmmPoolStatus(`YMM örnek soru havuzu kaydedildi (${txt.length.toLocaleString("tr-TR")} karakter).`);
-    };
-  }
-
-  const clearYmmPoolBtn = document.getElementById("clearYmmPoolBtn");
-  if (clearYmmPoolBtn) {
-    clearYmmPoolBtn.onclick = () => {
-      const ta = document.getElementById("ymmPoolTextInput");
-      if (ta) ta.value = "";
-      safeSetStorage(STORAGE_KEYS.ymmPool, "");
-      syncPoolBadges();
-      setYmmPoolStatus("YMM örnek soru havuzu temizlendi.");
-    };
-  }
-
-  const generateYmmBtn = document.getElementById("generateYmmBtn");
-  if (generateYmmBtn) generateYmmBtn.onclick = generateYmmSingleQuestion;
-
-  const showYmmSolutionBtn = document.getElementById("showYmmSolutionBtn");
-  if (showYmmSolutionBtn) showYmmSolutionBtn.onclick = showYmmSolution;
-
-  const generateYmmPdfBtn = document.getElementById("generateYmmPdfBtn");
-  if (generateYmmPdfBtn) generateYmmPdfBtn.onclick = generateYmmPdfTestSet;
-
-  // SMMM Havuz dinleyicileri
-  const smmmPdfInput = document.getElementById("smmmPdfFileInput");
-  if (smmmPdfInput) {
-    smmmPdfInput.onchange = async (e) => {
-      await extractMultiplePdfFiles(e.target.files, "smmm");
-      e.target.value = "";
-    };
-  }
-
-  const saveSmmmPoolBtn = document.getElementById("saveSmmmPoolBtn");
-  if (saveSmmmPoolBtn) {
-    saveSmmmPoolBtn.onclick = () => {
-      const txt = document.getElementById("smmmPoolTextInput")?.value.trim() || "";
-      safeSetStorage(STORAGE_KEYS.smmmPool, txt);
-      syncPoolBadges();
-      setSmmmPoolStatus(`SMMM örnek soru havuzu kaydedildi (${txt.length.toLocaleString("tr-TR")} karakter).`);
-    };
-  }
-
-  const clearSmmmPoolBtn = document.getElementById("clearSmmmPoolBtn");
-  if (clearSmmmPoolBtn) {
-    clearSmmmPoolBtn.onclick = () => {
-      const ta = document.getElementById("smmmPoolTextInput");
-      if (ta) ta.value = "";
-      safeSetStorage(STORAGE_KEYS.smmmPool, "");
-      syncPoolBadges();
-      setSmmmPoolStatus("SMMM örnek soru havuzu temizlendi.");
-    };
-  }
-
-  const generateSmmmBtn = document.getElementById("generateSmmmBtn");
-  if (generateSmmmBtn) generateSmmmBtn.onclick = generateSmmmTestQuestion;
-
-  const generateSmmmPdfBtn = document.getElementById("generateSmmmPdfBtn");
-  if (generateSmmmPdfBtn) generateSmmmPdfBtn.onclick = generateSmmmPdfTestSet;
-
-  const checkSmmmAnswerBtn = document.getElementById("checkSmmmAnswerBtn");
-  if (checkSmmmAnswerBtn) checkSmmmAnswerBtn.onclick = checkSmmmAnswer;
-
-  const saveLawBtn = document.getElementById("saveLawBtn");
-  if (saveLawBtn) {
-    saveLawBtn.onclick = () => {
-      const law = document.getElementById("lawTextInput")?.value.trim() || "";
-      safeSetStorage(STORAGE_KEYS.lawText, law);
-      syncCategoryUi();
-      populateGibTopicSelect(
-        document.getElementById("topicInput")?.value.trim() || "",
-        document.getElementById("lawSearchInput")?.value || ""
-      );
-      setLawStatus(`Mevzuat havuzu kaydedildi (${law.length.toLocaleString("tr-TR")} karakter).`);
-    };
-  }
-
-  const clearLawBtn = document.getElementById("clearLawBtn");
-  if (clearLawBtn) {
-    clearLawBtn.onclick = () => {
-      const ta = document.getElementById("lawTextInput");
-      if (ta) ta.value = "";
-      safeSetStorage(STORAGE_KEYS.lawText, "");
-      syncCategoryUi();
-      populateGibTopicSelect(document.getElementById("topicInput")?.value.trim() || "", "");
-      setLawStatus("Mevzuat havuzu temizlendi.");
-    };
-  }
-
-  const fetchUrlBtn = document.getElementById("fetchUrlBtn");
-  if (fetchUrlBtn) {
-    fetchUrlBtn.onclick = () => fetchTextFromUrl(document.getElementById("lawUrlInput")?.value || "");
-  }
-
-  const pdfFileInput = document.getElementById("pdfFileInput");
-  if (pdfFileInput) {
-    pdfFileInput.onchange = async (e) => {
-      await extractMultiplePdfFiles(e.target.files, "law");
-      e.target.value = "";
-    };
-  }
-
-  const generateBtn = document.getElementById("generateBtn");
-  if (generateBtn) generateBtn.onclick = () => generateLessonAndQuestion(false);
-
-  const newQuestionBtn = document.getElementById("newQuestionBtn");
-  if (newQuestionBtn) newQuestionBtn.onclick = () => generateLessonAndQuestion(true);
-
-  const wrongQuizBtn = document.getElementById("wrongQuizBtn");
-  if (wrongQuizBtn) wrongQuizBtn.onclick = startWrongQuiz;
-
-  const checkAnswerBtn = document.getElementById("checkAnswerBtn");
-  if (checkAnswerBtn) checkAnswerBtn.onclick = checkAnswer;
-
-  const sendChatBtn = document.getElementById("sendChatBtn");
-  if (sendChatBtn) sendChatBtn.onclick = () => handleChatSend();
-
-  const chatInput = document.getElementById("chatInput");
-  if (chatInput) {
-    chatInput.onkeydown = (e) => { if (e.key === "Enter") handleChatSend(); };
-  }
-
-  const clearChatBtn = document.getElementById("clearChatBtn");
-  if (clearChatBtn) {
-    clearChatBtn.onclick = () => {
-      const wrap = document.getElementById("chatMessages");
-      if (wrap) {
-        wrap.innerHTML = `<div style="border:1px solid #e2e8f0;background:#f8fafc;border-radius:14px;padding:12px;font-size:13px;color:#334155;">Sohbet temizlendi.</div>`;
-      }
-    };
-  }
-
-  const mistakeFilter = document.getElementById("mistakeFilter");
-  if (mistakeFilter) mistakeFilter.onchange = renderMistakes;
-
-  const clearMistakesBtn = document.getElementById("clearMistakesBtn");
-  if (clearMistakesBtn) {
-    clearMistakesBtn.onclick = () => {
-      mistakes = [];
-      saveAllState();
-      renderMistakes();
-    };
-  }
-
-  const exportBackupBtn = document.getElementById("exportBackupBtn");
-  if (exportBackupBtn) {
-    exportBackupBtn.onclick = () => {
-      const payload = {
-        exportedAt: new Date().toISOString(),
-        stats,
-        mistakes,
-        lawText: safeGetStorage(STORAGE_KEYS.lawText, ""),
-        lawUrl: safeGetStorage(STORAGE_KEYS.lawUrl, ""),
-        smmmPool: safeGetStorage(STORAGE_KEYS.smmmPool, ""),
-        ymmPool: safeGetStorage(STORAGE_KEYS.ymmPool, "")
-      };
-      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "vergi-asistani-yedek.json";
-      a.click();
-      URL.revokeObjectURL(url);
-    };
-  }
-
-  const importBackupInput = document.getElementById("importBackupInput");
-  if (importBackupInput) {
-    importBackupInput.onchange = (e) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        try {
-          const data = JSON.parse(String(reader.result || "{}"));
-          if (data.stats) stats = data.stats;
-          if (Array.isArray(data.mistakes)) mistakes = data.mistakes;
-          if (typeof data.lawText === "string") {
-            safeSetStorage(STORAGE_KEYS.lawText, data.lawText);
-            const lawTa = document.getElementById("lawTextInput");
-            if (lawTa) lawTa.value = data.lawText;
-          }
-          if (typeof data.lawUrl === "string") {
-            safeSetStorage(STORAGE_KEYS.lawUrl, data.lawUrl);
-            const urlEl = document.getElementById("lawUrlInput");
-            if (urlEl) urlEl.value = data.lawUrl;
-          }
-          if (typeof data.smmmPool === "string") {
-            safeSetStorage(STORAGE_KEYS.smmmPool, data.smmmPool);
-            const smmmTa = document.getElementById("smmmPoolTextInput");
-            if (smmmTa) smmmTa.value = data.smmmPool;
-          }
-          if (typeof data.ymmPool === "string") {
-            safeSetStorage(STORAGE_KEYS.ymmPool, data.ymmPool);
-            const ymmTa = document.getElementById("ymmPoolTextInput");
-            if (ymmTa) ymmTa.value = data.ymmPool;
-          }
-          syncPoolBadges();
-          saveAllState();
-          updateBadges();
-          renderMistakes();
-          syncCategoryUi();
-          populateGibTopicSelect(document.getElementById("topicInput")?.value.trim() || "", "");
-          alert("Yedek başarıyla geri yüklendi.");
-        } catch {
-          alert("Geçersiz JSON yedek dosyası.");
-        }
-      };
-      reader.readAsText(file);
-    };
-  }
-}
-
-async function initApp() {
-  try {
-    bindDirectListeners();
-
-    const apiInput = document.getElementById("apiKeyInput");
-    if (apiInput) apiInput.value = safeGetStorage(STORAGE_KEYS.apiKey, "");
-
-    const savedModel = safeGetStorage(STORAGE_KEYS.model, "");
-    const modelSel = document.getElementById("modelSelect");
-    if (savedModel && modelSel && [...modelSel.options].some((o) => o.value === savedModel)) {
-      modelSel.value = savedModel;
-    }
-
-    const lawTa = document.getElementById("lawTextInput");
-    if (lawTa) lawTa.value = safeGetStorage(STORAGE_KEYS.lawText, "");
-
-    const smmmTa = document.getElementById("smmmPoolTextInput");
-    if (smmmTa) smmmTa.value = safeGetStorage(STORAGE_KEYS.smmmPool, "");
-
-    const ymmTa = document.getElementById("ymmPoolTextInput");
-    if (ymmTa) ymmTa.value = safeGetStorage(STORAGE_KEYS.ymmPool, "");
-
-    const lawUrlInput = document.getElementById("lawUrlInput");
-    if (lawUrlInput) lawUrlInput.value = safeGetStorage(STORAGE_KEYS.lawUrl, "");
-
-    await loadStoredState();
-
-    syncCategoryUi();
-    populateGibTopicSelect("", "");
-
-    updateNetworkStatus();
-    updateBadges();
-    renderMistakes();
-    renderQuestion(currentQuestion);
-    renderSmmmQuestion(currentSmmmQuestion);
-    renderYmmQuestion(currentYmmQuestion);
-  } catch (err) {
-    console.error("initApp hatası:", err);
-  }
-
+// 3. OLAY DİNLEYİCİLERİ VE BAŞLATMA
+document.addEventListener("DOMContentLoaded", () => {
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js").then((reg) => {
-      if (reg.waiting) showUpdateBanner(reg.waiting);
-      reg.addEventListener("updatefound", () => {
-        const nw = reg.installing;
-        if (!nw) return;
-        nw.addEventListener("statechange", () => {
-          if (nw.state === "installed" && navigator.serviceWorker.controller) {
-            showUpdateBanner(nw);
-          }
-        });
-      });
-    }).catch(() => {});
+    navigator.serviceWorker.register("./sw.js").catch(() => {});
+  }
 
-    let refreshing = false;
-    navigator.serviceWorker.addEventListener("controllerchange", () => {
-      if (!refreshing) {
-        refreshing = true;
-        window.location.reload();
-      }
+  document.querySelectorAll(".tab-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+      document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
+      btn.classList.add("active");
+      document.getElementById(btn.dataset.tab)?.classList.add("active");
     });
-  }
-}
+  });
 
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initApp);
-} else {
-  initApp();
-}
+  const modal = document.getElementById("settingsModal");
+  document.getElementById("openSettingsBtn")?.addEventListener("click", () => {
+    document.getElementById("apiKeyInput").value = safeGetStorage(STORAGE_KEYS.apiKey, "");
+    document.getElementById("modelSelect").value = safeGetStorage(STORAGE_KEYS.model, "gemini-2.5-pro");
+    modal.classList.remove("hidden");
+  });
+  document.getElementById("closeSettingsBtn")?.addEventListener("click", () => modal.classList.add("hidden"));
+  document.getElementById("saveSettingsBtn")?.addEventListener("click", () => {
+    safeSetStorage(STORAGE_KEYS.apiKey, document.getElementById("apiKeyInput").value.trim());
+    safeSetStorage(STORAGE_KEYS.model, document.getElementById("modelSelect").value);
+    modal.classList.add("hidden");
+  });
 
-function showUpdateBanner(worker) {
-  const banner = document.getElementById("updateBanner");
-  if (!banner) return;
-  banner.classList.remove("hidden");
-  const reloadBtn = document.getElementById("reloadUpdateBtn");
-  if (reloadBtn) {
-    reloadBtn.onclick = () => {
-      worker.postMessage({ type: "SKIP_WAITING" });
-    };
-  }
-}
+  document.getElementById("generateMcqBtn")?.addEventListener("click", async () => {
+    const topic = (document.getElementById("mcqTopicInput")?.value || "").trim() || "Genel Vergi Mevzuatı";
+    const difficulty = document.getElementById("mcqDifficultySelect")?.value || "Orta";
+    const count = Math.min(Math.max(parseInt(document.getElementById("mcqCountInput")?.value || "5", 10) || 5, 1), 25);
+    const generalSlice = safeGetStorage(STORAGE_KEYS.generalPool, "").slice(0, 60000);
+    const status = document.getElementById("mcqStatusText");
+
+    try {
+      status.className = "status-text";
+      status.textContent = "Test soruları üretiliyor...";
+      currentMcqList = await generateMcqBatch(topic, difficulty, count, generalSlice);
+      renderMcqToScreen(currentMcqList, topic);
+      status.textContent = `${currentMcqList.length} soru hazırlandı.`;
+    } catch (err) {
+      status.className = "status-text error";
+      status.textContent = "Hata: " + err.message;
+    }
+  });
+
+  document.getElementById("generateMcqPdfBtn")?.addEventListener("click", async () => {
+    const topic = (document.getElementById("mcqTopicInput")?.value || "").trim() || "Genel Vergi Mevzuatı";
+    const difficulty = document.getElementById("mcqDifficultySelect")?.value || "Orta";
+    const count = Math.min(Math.max(parseInt(document.getElementById("mcqCountInput")?.value || "5", 10) || 5, 1), 25);
+    const generalSlice = safeGetStorage(STORAGE_KEYS.generalPool, "").slice(0, 60000);
+    const status = document.getElementById("mcqStatusText");
+
+    try {
+      status.className = "status-text";
+      status.textContent = "Test PDF'i hazırlanıyor...";
+      const list = await generateMcqBatch(topic, difficulty, count, generalSlice);
+      exportMcqToPdf(list, topic, difficulty);
+      status.textContent = "Test ve cevap anahtarı PDF olarak indirildi.";
+    } catch (err) {
+      status.className = "status-text error";
+      status.textContent = "Hata: " + err.message;
+    }
+  });
+
+  document.getElementById("gradeMcqBtn")?.addEventListener("click", gradeMcqQuiz);
+
+  document.getElementById("generateYmmSingleBtn")?.addEventListener("click", generateYmmSingleOnScreen);
+  document.getElementById("generateYmmPdfBtn")?.addEventListener("click", generateYmmPdfTestSet);
+  document.getElementById("toggleYmmSolutionBtn")?.addEventListener("click", () => {
+    document.getElementById("ymmSolutionWrapper")?.classList.toggle("hidden");
+  });
+
+  document.getElementById("ymmPdfUpload")?.addEventListener("change", async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    const status = document.getElementById("uploadStatusText");
+    status.className = "status-text";
+    status.textContent = "YMM sınav PDF'leri okunuyor...";
+
+    try {
+      let combined = safeGetStorage(STORAGE_KEYS.ymmPool, "");
+      for (const f of files) {
+        const text = await extractTextFromPdfFile(f);
+        combined += "\n" + text;
+      }
+      safeSetStorage(STORAGE_KEYS.ymmPool, combined.trim());
+      updatePoolStatusUI();
+      status.textContent = `${files.length} adet YMM sınav PDF'i havuza eklendi.`;
+    } catch (err) {
+      status.className = "status-text error";
+      status.textContent = "PDF Okuma Hatası: " + err.message;
+    }
+  });
+
+  document.getElementById("generalPdfUpload")?.addEventListener("change", async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    const status = document.getElementById("uploadStatusText");
+    status.className = "status-text";
+    status.textContent = "Genel ders PDF'leri okunuyor...";
+
+    try {
+      let combined = safeGetStorage(STORAGE_KEYS.generalPool, "");
+      for (const f of files) {
+        const text = await extractTextFromPdfFile(f);
+        combined += "\n" + text;
+      }
+      safeSetStorage(STORAGE_KEYS.generalPool, combined.trim());
+      updatePoolStatusUI();
+      status.textContent = `${files.length} adet genel PDF havuza eklendi.`;
+    } catch (err) {
+      status.className = "status-text error";
+      status.textContent = "PDF Okuma Hatası: " + err.message;
+    }
+  });
+
+  document.getElementById("savePoolsBtn")?.addEventListener("click", () => {
+    safeSetStorage(STORAGE_KEYS.ymmPool, document.getElementById("ymmPoolTextarea").value);
+    safeSetStorage(STORAGE_KEYS.generalPool, document.getElementById("generalPoolTextarea").value);
+    updatePoolStatusUI();
+    document.getElementById("uploadStatusText").textContent = "Havuz metinleri kaydedildi.";
+  });
+
+  document.getElementById("clearYmmPoolBtn")?.addEventListener("click", () => {
+    safeSetStorage(STORAGE_KEYS.ymmPool, "");
+    updatePoolStatusUI();
+  });
+
+  document.getElementById("clearGeneralPoolBtn")?.addEventListener("click", () => {
+    safeSetStorage(STORAGE_KEYS.generalPool, "");
+    updatePoolStatusUI();
+  });
+
+  updatePoolStatusUI();
+});
