@@ -80,6 +80,7 @@
         <div>
           <strong id="bultenTarih">Yükleniyor...</strong>
           <span id="denetciPuan" class="badge b-ok" style="margin-left:8px;"></span>
+          <span id="arsivSayac" class="badge b-bilgi"></span>
           <div id="kaynakDurum" class="small-note"></div>
         </div>
         <button class="btn" onclick="loadBulletin()">Yenile</button>
@@ -92,8 +93,8 @@
   <!-- SEKME 2: VERGİ DANIŞMANLIĞI -->
   <section id="tab-danisman" class="panel">
     <div class="card">
-      <h3 style="margin-top:0;">YMM Vergi Danışmanlığı Asistanı</h3>
-      <p class="small-note">KVK, GVK, KDV, VUK, ÖTV ve tam tasdik konularında soru sorabilirsin. Günün bülteni otomatik bağlam olarak eklenir.</p>
+      <h3 style="margin-top:0;">YMM Vergi Danışmanlığı Asistanı (GİB Arşiv Destekli)</h3>
+      <p class="small-note">Sorun otomatik olarak GİB arşivi (<code>data/gib_mevzuat.json</code>) ve güncel bültenle eşleştirilerek yanıtlanır.</p>
       <textarea id="taxQuestion" rows="4" placeholder="Örn: İhracat kaynaklı KDV iadesinde YMM raporunun ibraz süresi ve istisna kapsamındaki belgeler nelerdir?"></textarea>
       <button class="btn" id="askTaxBtn" onclick="askTaxAdvisor()">Danışmana Sor</button>
       <div id="taxAnswer" class="answer-box" style="display:none;"></div>
@@ -157,31 +158,19 @@
 </main>
 
 <script>
-  const MODELS = ["gemini-3.8-flash", "gemini-3.8-flash-lite", "gemini-3.8-pro"];
+  const MODELS = ["gemini-3.8-flash", "gemini-3.8-flash-lite"];
   const SECTORS = ["Tümü", "İhracat", "İnşaat", "Üretim", "Hizmet", "E-Ticaret", "Genel"];
   let activeSector = "Tümü";
   let currentBulletin = null;
+  let gibArchive = [];
   let currentQuestions = [];
   let currentSubject = "";
 
   const FALLBACK_BULLETIN = {
-    tarih: "Örnek Veri (outputs/latest.json bekleniyor)",
-    denetci_puani: 5,
-    kaynak_durumu: { resmi_gazete: "ok", mevzuat_gov: "ok", gib: "ok", turmob: "ok" },
-    gelismeler: [
-      {
-        id: "demo-01",
-        oncelik: "KRITIK",
-        durum: "YURURLUKTE",
-        baslik: "Örnek: VUK Yeniden Değerleme Oranı İlanı",
-        mevzuat_ref: "VUK GT Sıra No: 5XX",
-        yururluk_tarihi: "2026-11-27",
-        sektorler: ["Genel", "Üretim"],
-        etkilenen_alan: "Tam Tasdik, Amortisman, Maktu Hadler",
-        ymm_aksiyonu: "2027 vergi planlaması yapan tam tasdik mükellefleri için güncel had tablosunu hazırla.",
-        kaynak_url: "https://www.resmigazete.gov.tr/"
-      }
-    ]
+    tarih: "Henüz tarama çalıştırılmadı",
+    denetci_puani: "-",
+    kaynak_durumu: {},
+    gelismeler: []
   };
 
   window.addEventListener("DOMContentLoaded", () => {
@@ -189,6 +178,7 @@
     if (savedKey) document.getElementById("apiKeyInput").value = savedKey;
     renderSectorChips();
     loadBulletin();
+    loadGibArchive();
     renderMistakes();
   });
 
@@ -214,7 +204,7 @@
     if (btn) btn.classList.add("active");
   }
 
-  /* --- 1. BÜLTEN --- */
+  /* --- 1. BÜLTEN & GİB ARŞİVİ --- */
   function renderSectorChips() {
     const box = document.getElementById("sectorChips");
     box.innerHTML = SECTORS.map(s =>
@@ -228,6 +218,20 @@
     renderBulletin();
   }
 
+  async function loadGibArchive() {
+    try {
+      const res = await fetch("./data/gib_mevzuat.json?t=" + Date.now());
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        gibArchive = data;
+        document.getElementById("arsivSayac").textContent = `GİB Arşiv: ${gibArchive.length} kayıt`;
+      }
+    } catch {
+      // Henüz arşiv oluşmadıysa sessiz geç
+    }
+  }
+
   async function loadBulletin() {
     try {
       const res = await fetch("./outputs/latest.json?t=" + Date.now());
@@ -236,6 +240,7 @@
     } catch {
       currentBulletin = FALLBACK_BULLETIN;
     }
+    loadGibArchive();
     renderBulletin();
   }
 
@@ -252,7 +257,7 @@
 
     const list = document.getElementById("bultenListesi");
     if (!items.length) {
-      list.innerHTML = `<div class="card">Bu filtrede gösterilecek mevzuat gelişmesi yok.</div>`;
+      list.innerHTML = `<div class="card">Bu tarihte veya filtrede gösterilecek mevzuat gelişmesi yok.</div>`;
       return;
     }
 
@@ -274,7 +279,22 @@
     }).join("");
   }
 
-  /* --- GEMINI API YARDIMCISI (YEDEK MODELLİ) --- */
+  function findRelevantArchive(question) {
+    if (!gibArchive.length) return [];
+    const words = question.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+    return gibArchive
+      .map(item => {
+        const hay = (item.baslik || "").toLowerCase();
+        const score = words.reduce((acc, w) => acc + (hay.includes(w) ? 1 : 0), 0);
+        return { item, score };
+      })
+      .filter(x => x.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 8)
+      .map(x => x.item);
+  }
+
+  /* --- GEMINI API YARDIMCISI --- */
   async function callGemini(systemInstruction, userPrompt, jsonMode = false) {
     const key = getApiKey();
     if (!key) return null;
@@ -317,16 +337,22 @@
     const box = document.getElementById("taxAnswer");
     btn.disabled = true;
     box.style.display = "block";
-    box.textContent = "Mevzuat değerlendiriliyor...";
+    box.textContent = "GİB arşivi ve mevzuat taranıyor...";
 
+    const matched = findRelevantArchive(q);
     const sys = `Sen kıdemli bir Türk Yeminli Mali Müşaviri (YMM) danışmanısın.
-Soruları KVK, GVK, KDV, VUK, ÖTV ve güncel tebliğler ışığında; 1) Kısa Cevap, 2) Kanuni Dayanak, 3) Uygulama/Muhasebe Etkisi başlıklarıyla net yanıtla.
-Emin olmadığın kanun/tebliğ numarasını asla uydurma; teyit edilmesi gereken yeri açıkça belirt.`;
+Soruları KVK, GVK, KDV, VUK, ÖTV ve arşivdeki GİB kayıtları ışığında; 1) Kısa Cevap, 2) İlgili GİB Arşiv Kayıtları & Kanuni Dayanak, 3) Uygulama/Muhasebe Etkisi başlıklarıyla net yanıtla.
+Arşivde doğrudan ilgili kayıt yoksa bunu açıkça belirt ve emin olmadığın numara/oran uydurma.`;
 
-    const context = currentBulletin ? `\nGünün Bülten Özeti:\n${JSON.stringify(currentBulletin.gelismeler)}` : "";
+    const archiveContext = matched.length
+      ? `\nEşleşen GİB Arşiv Kayıtları:\n${JSON.stringify(matched, ensure_ascii=False)}`
+      : "\nEşleşen GİB Arşiv Kaydı: Yok (genel mevzuat çerçevesinde değerlendir).";
+    const bulletinContext = currentBulletin?.gelismeler?.length
+      ? `\nGünün Bülteni:\n${JSON.stringify(currentBulletin.gelismeler)}`
+      : "";
 
     try {
-      const answer = await callGemini(sys, q + context, false);
+      const answer = await callGemini(sys, q + archiveContext + bulletinContext, false);
       if (answer) box.textContent = answer;
     } catch (err) {
       box.textContent = "Hata: " + err.message;
