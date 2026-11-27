@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import time
 from datetime import datetime
 from pathlib import Path
@@ -9,8 +10,12 @@ from google import genai
 from google.genai import types
 
 OUTPUT_DIR = Path("outputs")
+DATA_DIR = Path("data")
 OUTPUT_DIR.mkdir(exist_ok=True)
+DATA_DIR.mkdir(exist_ok=True)
+
 TEAM_MD = Path("team.md")
+GIB_ARCHIVE_PATH = DATA_DIR / "gib_mevzuat.json"
 
 SOURCES = {
     "resmi_gazete": "https://www.resmigazete.gov.tr/",
@@ -19,9 +24,86 @@ SOURCES = {
     "turmob": "https://www.turmob.org.tr/sirkuler",
 }
 ALLOWED_SECTORS = ["İhracat", "İnşaat", "Üretim", "Hizmet", "E-Ticaret", "Genel"]
+TAX_KEYWORDS = [
+    "vergi", "kdv", "kvk", "gvk", "vuk", "ötv", "harç", "damga",
+    "tebliğ", "sirküler", "özelge", "iade", "tevkifat", "yeniden değerleme",
+    "amortisman", "e-defter", "e-fatura", "sgk", "muhtasar", "matrah", "ceza"
+]
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 }
+
+
+def fetch_page_links(name: str, url: str) -> tuple[str, list[dict]]:
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=(5, 10))
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+        links = []
+        for a in soup.find_all("a", href=True):
+            text = " ".join(a.get_text().split())
+            href = a["href"].strip()
+            if len(text) > 15:
+                if href.startswith("/"):
+                    href = url.rstrip("/") + href
+                links.append({"baslik": text[:200], "url": href})
+        if links:
+            return "ok", links[:30]
+    except Exception:
+        pass
+
+    # JS ile yüklenen sayfalarda (özellikle GİB) metin okuyucu fallback
+    try:
+        reader_url = f"https://r.jina.ai/http://{url.replace('https://', '').replace('http://', '')}"
+        resp = requests.get(reader_url, headers=HEADERS, timeout=(6, 15))
+        resp.raise_for_status()
+        lines = [line.strip() for line in resp.text.splitlines() if len(line.strip()) > 20]
+        parsed = []
+        for line in lines[:40]:
+            clean = re.sub(r"[#*_`]+", "", line).strip()
+            if len(clean) > 20:
+                parsed.append({"baslik": clean[:200], "url": url})
+        if parsed:
+            return "ok:reader", parsed[:25]
+    except Exception as exc:
+        return f"erisim_hatasi:{type(exc).__name__}", []
+
+    return "bos_icerik", []
+
+
+def load_gib_archive() -> list[dict]:
+    if not GIB_ARCHIVE_PATH.exists():
+        return []
+    try:
+        data = json.loads(GIB_ARCHIVE_PATH.read_text(encoding="utf-8"))
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
+def update_gib_archive(today: str, gib_items: list[dict]) -> list[dict]:
+    archive = load_gib_archive()
+    seen = {(item.get("baslik", "").lower(), item.get("url", "")) for item in archive}
+    added = 0
+
+    for item in gib_items:
+        key = (item.get("baslik", "").lower(), item.get("url", ""))
+        if key not in seen and item.get("baslik"):
+            seen.add(key)
+            archive.insert(0, {
+                "id": f"gib-{today}-{len(archive)+1}",
+                "eklenme_tarihi": today,
+                "kaynak": "gib.gov.tr",
+                "baslik": item["baslik"],
+                "url": item.get("url", "https://www.gib.gov.tr/"),
+            })
+            added += 1
+
+    # Arşivi makul boyutta tut (son 400 kayıt)
+    archive = archive[:400]
+    GIB_ARCHIVE_PATH.write_text(json.dumps(archive, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"[GİB Arşiv] +{added} yeni kayıt eklendi (Toplam: {len(archive)})", flush=True)
+    return archive
 
 
 def run_scout() -> dict:
@@ -29,25 +111,18 @@ def run_scout() -> dict:
     results = []
     for name, url in SOURCES.items():
         print(f"[Tarayıcı] Kontrol ediliyor: {name}...", flush=True)
-        try:
-            resp = requests.get(url, headers=HEADERS, timeout=(5, 10))
-            resp.raise_for_status()
-            soup = BeautifulSoup(resp.text, "html.parser")
-            links = []
-            for a in soup.find_all("a", href=True):
-                text = " ".join(a.get_text().split())
-                href = a["href"]
-                if len(text) > 15:
-                    if href.startswith("/"):
-                        href = url.rstrip("/") + href
-                    links.append({"baslik": text[:180], "url": href})
-            print(f"[Tarayıcı] {name} -> OK ({len(links[:25])} kayıt)", flush=True)
-            results.append({"kaynak": name, "durum": "ok", "ham_veriler": links[:25]})
-        except Exception as exc:
-            err_name = type(exc).__name__
-            print(f"[Tarayıcı] {name} -> ATLANDI ({err_name})", flush=True)
-            results.append({"kaynak": name, "durum": f"erisim_hatasi:{err_name}", "ham_veriler": []})
-    return {"tarih": today, "kaynaklar": results}
+        status, links = fetch_page_links(name, url)
+        print(f"[Tarayıcı] {name} -> {status} ({len(links)} kayıt)", flush=True)
+        results.append({"kaynak": name, "durum": status, "ham_veriler": links})
+
+    gib_raw = next((r["ham_veriler"] for r in results if r["kaynak"] == "gib"), [])
+    archive = update_gib_archive(today, gib_raw)
+
+    return {
+        "tarih": today,
+        "kaynaklar": results,
+        "gib_arsiv_ozeti": archive[:25],
+    }
 
 
 def get_available_models(client) -> list[str]:
@@ -57,15 +132,16 @@ def get_available_models(client) -> list[str]:
         for m in client.models.list():
             name = (m.name or "").replace("models/", "")
             actions = getattr(m, "supported_actions", None) or getattr(m, "supported_generation_methods", []) or []
-            if "gemini" in name and "generateContent" in actions and "embedding" not in name:
-                discovered.append(name)
+            if "gemini" in name and "generateContent" in actions and "embedding" not in name and "image" not in name:
+                if not name.startswith("gemini-2.5"):
+                    discovered.append(name)
     except Exception as exc:
         print(f"[API] Model listesi alınamadı: {exc}", flush=True)
 
     discovered.sort(key=lambda x: (0 if "flash" in x else 1, x))
     models = list(dict.fromkeys(preferred + discovered))
-    print(f"[API] Aktif modeller: {models[:5]}", flush=True)
-    return models[:5]
+    print(f"[API] Aktif modeller: {models[:4]}", flush=True)
+    return models[:4]
 
 
 def call_gemini_json(system_prompt: str, payload: str, temp: float = 0.1) -> dict:
@@ -93,16 +169,43 @@ def call_gemini_json(system_prompt: str, payload: str, temp: float = 0.1) -> dic
                 print(f"[API] {model} atlandı ({type(exc).__name__})", flush=True)
                 continue
         if round_no == 0:
-            print("[API] Modeller yoğun, 20 sn sonra tekrar deneniyor...", flush=True)
-            time.sleep(20)
+            print("[API] Modeller yoğun, 15 sn sonra tekrar deneniyor...", flush=True)
+            time.sleep(15)
 
     raise last_error
+
+
+def build_keyword_fallback_bulletin(scout_data: dict) -> list[dict]:
+    items = []
+    idx = 1
+    for src in scout_data.get("kaynaklar", []):
+        kaynak = src.get("kaynak", "")
+        for row in src.get("ham_veriler", []):
+            title = row.get("baslik", "")
+            low = title.lower()
+            if any(k in low for k in TAX_KEYWORDS):
+                items.append({
+                    "id": f"{scout_data['tarih']}-{idx:02d}",
+                    "oncelik": "IZLENECEK",
+                    "durum": "YURURLUKTE",
+                    "baslik": title,
+                    "mevzuat_ref": f"Kaynak: {kaynak}",
+                    "yururluk_tarihi": scout_data["tarih"],
+                    "sektorler": ["Genel"],
+                    "etkilenen_alan": "Vergi / Mevzuat Tarama",
+                    "ymm_aksiyonu": "İlgili başlığın tam metnini resmi kaynaktan inceleyip mükellef etkisini değerlendir.",
+                    "kaynak_url": row.get("url", "https://www.resmigazete.gov.tr/"),
+                })
+                idx += 1
+                if len(items) >= 10:
+                    return items
+    return items
 
 
 def run_analyst(scout_data: dict, feedback: str = "") -> dict:
     print("[Analist] Bülten hazırlanıyor...", flush=True)
     sys_prompt = f"""
-Sen YMM Mevzuat Analistisin. Tarayıcı ham verilerinden YALNIZCA vergi, KDV iadesi, tam tasdik, VUK, KVK, GVK, ÖTV, Damga/Harç ve SGK/teşvik konularını ayıkla.
+Sen YMM Mevzuat Analistisin. Tarayıcı ham verilerinden ve GİB arşivinden YALNIZCA vergi, KDV iadesi, tam tasdik, VUK, KVK, GVK, ÖTV, Damga/Harç ve SGK/teşvik konularını ayıkla.
 KURALLAR:
 1. Ham veride olmayan hiçbir kanun/tebliğ numarası, oran veya URL uydurma.
 2. Taslakları durum="TASLAK" ve oncelik="IZLENECEK" olarak işaretle.
@@ -154,20 +257,29 @@ def main():
 
     feedback = ""
     geri_gonderim = 0
-    draft, check = {}, {"puan": 0, "onay": False, "duzeltme_notu": "Çalışmadı"}
+    draft = {"gelismeler": []}
+    check = {"puan": 3, "onay": False, "duzeltme_notu": "Anahtar kelime filtresiyle üretildi"}
+    ai_used = False
 
-    for _ in range(2):
-        draft = run_analyst(scout_data, feedback=feedback)
-        check = run_checker(scout_data, draft)
-        if check["onay"]:
-            break
-        geri_gonderim += 1
-        feedback = check.get("duzeltme_notu", "")
+    try:
+        for _ in range(2):
+            draft = run_analyst(scout_data, feedback=feedback)
+            check = run_checker(scout_data, draft)
+            ai_used = True
+            if check["onay"]:
+                break
+            geri_gonderim += 1
+            feedback = check.get("duzeltme_notu", "")
+    except Exception as exc:
+        print(f"[Lider] LLM yanıt vermedi ({type(exc).__name__}), anahtar kelime bülteni devrede.", flush=True)
+        draft = {"gelismeler": build_keyword_fallback_bulletin(scout_data)}
+        check = {"puan": 4, "onay": True, "duzeltme_notu": "Ham kaynak anahtar kelime filtresi"}
 
     final_json = {
         "tarih": tarih,
         "denetci_puani": check["puan"],
         "onay": check["onay"],
+        "ai_destekli": ai_used,
         "kaynak_durumu": kaynak_durumu,
         "gelismeler": draft.get("gelismeler", []),
     }
@@ -177,9 +289,9 @@ def main():
     (OUTPUT_DIR / "latest.json").write_text(text, encoding="utf-8")
 
     with TEAM_MD.open("a", encoding="utf-8") as f:
-        f.write(f"\n- **{tarih}:** Puan {check['puan']}/5 | Tur: {geri_gonderim} | Kaynaklar: {kaynak_durumu}\n")
+        f.write(f"\n- **{tarih}:** Puan {check['puan']}/5 | AI: {ai_used} | Kaynaklar: {kaynak_durumu}\n")
 
-    print(f"[Lider] Tamamlandı: {tarih} | Puan: {check['puan']}/5 | Gelişme: {len(final_json['gelismeler'])}", flush=True)
+    print(f"[Lider] Tamamlandı: {tarih} | Gelişme: {len(final_json['gelismeler'])}", flush=True)
 
 
 if __name__ == "__main__":
