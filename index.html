@@ -507,7 +507,7 @@
   <section id="tab-danisman" class="panel">
     <div class="card">
       <h2 class="section-title">25+ Yıl Deneyimli YMM Görüş &amp; Danışmanlık Masası</h2>
-      <p class="small-note" style="margin-top:4px;">Sorunuz önce <strong>Kıdemli Mevzuat &amp; GİB Arşiv Uzmanı</strong> tarafından arşiv (<code>data/gib_mevzuat.json</code>) ve güncel bülten nezdinde incelenir; ardından <strong>25+ Yıllık Tecrübeye Sahip YMM Başdenetçisi</strong> vergi incelemesi, tam tasdik ve uygulama pratiği perspektifiyle görüş ve yorum sunar.</p>
+      <p class="small-note" style="margin-top:4px;">GİB arşivi (<code>data/gib_mevzuat.json</code>) ve güncel bülten eşleştirmesini temel alarak <strong>25+ yıllık YMM başdenetçisi</strong> bakış açısıyla inceleme, tam tasdik ve uygulama yorumu içeren görüş üretir.</p>
       <textarea id="taxQuestion" rows="4" placeholder="Örn: KVK 5/1-b yurt dışı iştirak kazançları istisnası şartları nelerdir; inceleme ve tam tasdik uygulamasında nelere dikkat edilmelidir?"></textarea>
       <button class="btn" id="askTaxBtn" onclick="askTaxAdvisor()">YMM Görüşü Oluştur</button>
       <div id="agentStatus" class="agent-trace" style="display:none;"></div>
@@ -575,13 +575,14 @@
 
 <script>
   const SECTORS = ["Tümü", "İhracat", "İnşaat", "Üretim", "Hizmet", "E-Ticaret", "Genel"];
-  const REQUEST_TIMEOUT_MS = 22000;
+  const REQUEST_TIMEOUT_MS = 18000;
+  const DEFAULT_MODELS = ["gemini-3.8-flash", "gemini-3.1-flash", "gemini-3-flash"];
   let activeSector = "Tümü";
   let currentBulletin = null;
   let gibArchive = [];
   let currentQuestions = [];
   let currentSubject = "";
-  let cachedModels = null;
+  let workingEndpoint = null;
 
   const FALLBACK_BULLETIN = {
     tarih: "Henüz tarama çalıştırılmadı",
@@ -614,7 +615,7 @@
   function saveApiKey() {
     const key = document.getElementById("apiKeyInput").value.trim();
     localStorage.setItem("gemini_api_key", key);
-    cachedModels = null;
+    workingEndpoint = null;
     alert("API anahtarı yalnızca bu tarayıcıya (localStorage) kaydedildi.");
   }
 
@@ -659,7 +660,7 @@
 
   async function loadGibArchive() {
     try {
-      const res = await fetchWithTimeout("./data/gib_mevzuat.json?t=" + Date.now(), {}, 8000);
+      const res = await fetchWithTimeout("./data/gib_mevzuat.json?t=" + Date.now(), {}, 7000);
       if (!res.ok) return;
       const data = await res.json();
       if (Array.isArray(data)) {
@@ -671,7 +672,7 @@
 
   async function loadBulletin() {
     try {
-      const res = await fetchWithTimeout("./outputs/latest.json?t=" + Date.now(), {}, 8000);
+      const res = await fetchWithTimeout("./outputs/latest.json?t=" + Date.now(), {}, 7000);
       if (!res.ok) throw new Error("Henüz JSON yok");
       currentBulletin = await res.json();
     } catch {
@@ -738,72 +739,61 @@
       .map(x => x.item);
   }
 
-  async function discoverModels(key) {
-    if (cachedModels && cachedModels.length) return cachedModels;
-    const list = ["gemini-3.8-flash"];
-    try {
-      const res = await fetchWithTimeout(
-        `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`,
-        {},
-        8000
-      );
-      const data = await res.json();
-      if (Array.isArray(data.models)) {
-        const extras = data.models
-          .map(m => (m.name || "").replace("models/", ""))
-          .filter(n =>
-            n.includes("gemini") &&
-            !n.includes("2.5") &&
-            !n.includes("image") &&
-            !n.includes("embedding") &&
-            !n.includes("tts") &&
-            !n.includes("audio")
-          );
-        extras.sort((a, b) => (a.includes("flash") ? -1 : 1) - (b.includes("flash") ? -1 : 1));
-        for (const m of extras) {
-          if (!list.includes(m)) list.push(m);
-        }
-      }
-    } catch {}
-    cachedModels = list.slice(0, 3);
-    return cachedModels;
-  }
-
-  async function callGemini(systemInstruction, userPrompt, jsonMode = false, temp = null) {
+  async function callGemini(systemInstruction, userPrompt, jsonMode = false, temp = null, onProgress = null) {
     const key = getApiKey();
     if (!key) return null;
 
-    const models = await discoverModels(key);
     const body = {
       system_instruction: { parts: [{ text: systemInstruction }] },
       contents: [{ role: "user", parts: [{ text: userPrompt }] }],
       generationConfig: {
-        temperature: temp !== null ? temp : (jsonMode ? 0.2 : 0.3),
+        temperature: temp !== null ? temp : (jsonMode ? 0.2 : 0.25),
         ...(jsonMode ? { responseMimeType: "application/json" } : {})
       }
     };
 
-    let lastErr = "API şu an yanıt vermiyor (503 yoğunluk veya zaman aşımı)";
-    for (const model of models) {
+    const candidates = [];
+    if (workingEndpoint) {
+      candidates.push(workingEndpoint);
+    }
+    for (const model of DEFAULT_MODELS) {
       for (const ver of ["v1beta", "v1"]) {
-        const url = `https://generativelanguage.googleapis.com/${ver}/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
-        try {
-          const res = await fetchWithTimeout(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body)
-          }, REQUEST_TIMEOUT_MS);
-          const data = await res.json();
-          if (res.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
-            return data.candidates[0].content.parts[0].text;
-          }
-          if (res.status === 404) continue;
-          lastErr = data.error?.message || `HTTP ${res.status}`;
-          break;
-        } catch (e) {
-          lastErr = e.name === "AbortError" ? "İstek zaman aşımına uğradı (22 sn)" : e.message;
-          break;
+        const item = { model, ver };
+        if (!candidates.some(c => c.model === item.model && c.ver === item.ver)) {
+          candidates.push(item);
         }
+      }
+    }
+
+    let lastErr = "API şu an yanıt vermiyor (503 yoğunluk veya zaman aşımı)";
+    for (const cand of candidates) {
+      if (onProgress) onProgress(`${cand.model} (${cand.ver}) üzerinden yanıt alınıyor...`);
+      const url = `https://generativelanguage.googleapis.com/${cand.ver}/models/${cand.model}:generateContent?key=${encodeURIComponent(key)}`;
+      try {
+        const res = await fetchWithTimeout(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        }, REQUEST_TIMEOUT_MS);
+
+        let data = {};
+        try {
+          data = await res.json();
+        } catch {
+          data = {};
+        }
+
+        if (res.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
+          workingEndpoint = cand;
+          return data.candidates[0].content.parts[0].text;
+        }
+        if (res.status === 404) continue;
+        lastErr = data.error?.message || `HTTP ${res.status}`;
+        if (res.status === 503 || res.status === 429) continue;
+        break;
+      } catch (e) {
+        lastErr = e.name === "AbortError" ? "18 saniyelik zaman aşımı (API yanıt vermedi)" : e.message;
+        continue;
       }
     }
     throw new Error(lastErr);
@@ -813,7 +803,7 @@
     const refsBox = document.getElementById("taxArchiveRefs");
     if (!matched.length) {
       refsBox.style.display = "block";
-      refsBox.innerHTML = `<strong>GİB Arşiv Durumu:</strong> Mevcut <code>data/gib_mevzuat.json</code> kayıtları arasında soruyla doğrudan eşleşen kayıt bulunmadı; görüş 25+ yıllık YMM mevzuat pratiği çerçevesinde ve arşivde teyit notuyla düzenlenmiştir.`;
+      refsBox.innerHTML = `<strong>GİB Arşiv Durumu:</strong> Mevcut <code>data/gib_mevzuat.json</code> kayıtları arasında soruyla doğrudan eşleşen kayıt bulunmadı; görüş 25+ yıllık YMM mevzuat ve inceleme pratiği çerçevesinde ve arşivde teyit notuyla düzenlenmiştir.`;
       return;
     }
     refsBox.style.display = "block";
@@ -825,7 +815,7 @@
     `;
   }
 
-  /* --- 2. 25+ YIL YMM DENEYİMLİ İKİ AJANLI GÖRÜŞ AKIŞI --- */
+  /* --- 2. 25+ YIL YMM DENEYİMLİ GÖRÜŞ AKIŞI (GİB ARŞİV DESTEKLİ) --- */
   async function askTaxAdvisor() {
     const q = document.getElementById("taxQuestion").value.trim();
     if (!q) return;
@@ -842,38 +832,16 @@
     answerBox.style.display = "block";
     refsBox.style.display = "none";
     statusBox.style.display = "block";
-    statusBox.textContent = "Ajan 1/2 (Kıdemli Mevzuat & GİB Arşiv Uzmanı): GİB arşivi ve mevzuat dayanakları inceleniyor...";
+    statusBox.textContent = "GİB arşivi eşleştiriliyor ve 25+ yıl YMM başdenetçi görüşü hazırlanıyor...";
     answerBox.textContent = "Mevzuat ve arşiv analizi yapılıyor...";
 
     const matched = findRelevantArchive(q);
     const bulletinItems = currentBulletin?.gelismeler || [];
 
-    const researcherSystem = `Sen 25 yılı aşkın süredir Türk vergi mevzuatı, GİB tebliğ/sirküler/özelge uygulamaları ve tam tasdik dosyaları üzerinde çalışan Kıdemli Mevzuat ve GİB Arşiv Uzmanısın.
-Görevin: Sorudaki vergisel/muhasebesel meseleyi ayrıştırmak, verilen GİB arşiv kayıtları ve güncel bülten içinden ilgili olanları tespit etmek, ilgili kanun/tebliğ dayanaklarını netleştirmek ve arşivde bulunmayan/güncel tam metin teyidi gerektiren hususları eksiksiz raporlamaktır.
-KVK 5/1-a, 5/1-b ve 5/1-e bentlerini kesinlikle karıştırma; yalnızca soruda geçen madde/bendi esas al.
-Hiçbir kanun maddesi, tebliğ numarası, oran, tutar veya tarih uydurma. Markdown yıldızları (**) kullanma.`;
+    const ymmPartnerSystem = `Sen Türkiye'de 25 yılı aşkın mesleki tecrübeye sahip, vergi incelemeleri, tam tasdik (YMM tasdik raporları), KDV iadesi, uluslararası vergilendirme ve uzlaşma/dava süreçlerinde derin pratik birikimi bulunan bir Yeminli Mali Müşavir (YMM) Başdenetçisisin.
+Görevin; kullanıcının sorusunu önce verilen GİB arşiv kayıtları ve güncel bülten ile ilişkilendirmek, ardından bir mükellefe, yönetim kuruluna veya tam tasdik/inceleme dosyasına sunulabilecek ciddiyette, analitik ve sahadaki gerçek inceleme reflekslerini yansıtan bir YMM GÖRÜŞÜ yazmaktır.
 
-    const researcherInput = `SORU:\n${q}\n\nEŞLEŞEN GİB ARŞİV KAYITLARI (${matched.length} adet):\n${JSON.stringify(matched, ensure_ascii=False)}\n\nTOPLAM GİB ARŞİV KAYDI: ${gibArchive.length}\nGÜNCEL BÜLTEN KAYITLARI:\n${JSON.stringify(bulletinItems, ensure_ascii=False)}`;
-
-    let researchBrief = "";
-    try {
-      researchBrief = await callGemini(researcherSystem, researcherInput, false, 0.15);
-      if (!researchBrief) return;
-      researchBrief = formatCleanText(researchBrief);
-    } catch (err) {
-      statusBox.textContent = "Ajan 1/2 aşamasında hata oluştu.";
-      answerBox.textContent = "Hata: " + err.message;
-      btn.disabled = false;
-      return;
-    }
-
-    statusBox.textContent = "Ajan 2/2 (25+ Yıl Deneyimli YMM Başdenetçisi): İnceleme pratiği ve tam tasdik bakışıyla YMM görüşü kaleme alınıyor...";
-    answerBox.textContent = researchBrief + "\n\n[YMM Başdenetçisi görüş metnini sonlandırıyor...]";
-
-    const partnerSystem = `Sen Türkiye'de en az 25 yıllık mesleki tecrübeye sahip, vergi incelemeleri, tam tasdik (YMM tasdik raporları), KDV iadesi, uluslararası vergilendirme ve uzlaşma/dava süreçlerinde derin pratik birikimi bulunan bir Yeminli Mali Müşavir (YMM) Başdenetçisisin.
-Araştırmacı uzmanın raporunu ve GİB arşiv verilerini temel alarak, bir mükellefe, yönetim kuruluna veya denetim dosyasına sunulabilecek ciddiyette, olgun ve sahadaki gerçek inceleme reflekslerini yansıtan bir YMM GÖRÜŞÜ yaz.
-
-Görüş metnini şu başlıklarla düzenle:
+Görüş metnini tam olarak şu 5 başlıkla düzenle:
 1. YMM GÖRÜŞ ÖZETİ (25 Yıllık Uygulama Bakışıyla Net Hüküm)
 2. KANUNİ DAYANAK & GİB ARŞİV DEĞERLENDİRMESİ
 3. İSTİSNA / UYGULAMA ŞARTLARI, SÜRELER & BELGE DÜZENİ
@@ -882,22 +850,22 @@ Görüş metnini şu başlıklarla düzenle:
 
 Kurallar:
 - Markdown yıldızları (**) ve # başlık işaretleri kullanma; temiz, resmî ve akıcı bir kurumsal üslup kullan.
-- KVK 5/1-a, 5/1-b ve 5/1-e bentlerini asla karıştırma; sorulan bendi tüm şartlarıyla ayrıntılı incele.
+- KVK 5/1-a, 5/1-b ve 5/1-e bentlerini asla karıştırma; yalnızca soruda geçen madde/bendi tüm şartlarıyla ele al.
 - GİB arşivinde doğrudan ilgili kayıt yoksa veya ilgili tebliğ/özelgenin tam metni arşivde yer almıyorsa bunu açıkça belirt ve emin olmadığın numara, oran veya had uydurma.`;
 
-    const partnerInput = `SORU:\n${q}\n\nARAŞTIRMACI UZMAN RAPORU:\n${researchBrief}\n\nEŞLEŞEN GİB ARŞİV KAYITLARI:\n${JSON.stringify(matched, ensure_ascii=False)}`;
+    const prompt = `SORU:\n${q}\n\nEŞLEŞEN GİB ARŞİV KAYITLARI (${matched.length} adet / Toplam Arşiv: ${gibArchive.length}):\n${JSON.stringify(matched, ensure_ascii=False)}\n\nGÜNCEL BÜLTEN KAYITLARI:\n${JSON.stringify(bulletinItems, ensure_ascii=False)}`;
 
     try {
-      const finalOpinion = await callGemini(partnerSystem, partnerInput, false, 0.25);
-      if (finalOpinion) {
-        statusBox.textContent = `Tamamlandı · 25+ Yıl YMM Perspektifiyle 2 Ajan Çalıştı · Eşleşen GİB Arşiv Kaydı: ${matched.length}`;
-        answerBox.textContent = formatCleanText(finalOpinion);
-        renderArchiveReferences(matched);
-      }
-    } catch {
-      statusBox.textContent = "Ajan 2/2 zaman aşımına uğradı; Ajan 1/2 mevzuat ve arşiv raporu sunuldu.";
-      answerBox.textContent = researchBrief;
+      const opinion = await callGemini(ymmPartnerSystem, prompt, false, 0.25, (msg) => {
+        statusBox.textContent = msg;
+      });
+      if (!opinion) return;
+      statusBox.textContent = `Tamamlandı · 25+ Yıl YMM Başdenetçi Görüşü · Eşleşen GİB Arşiv Kaydı: ${matched.length}`;
+      answerBox.textContent = formatCleanText(opinion);
       renderArchiveReferences(matched);
+    } catch (err) {
+      statusBox.textContent = "Görüş oluşturulamadı.";
+      answerBox.textContent = "Hata: " + err.message;
     } finally {
       btn.disabled = false;
     }
