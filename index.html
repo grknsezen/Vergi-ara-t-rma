@@ -157,7 +157,7 @@
 </main>
 
 <script>
-  const MODEL = "gemini-3.8-flash";
+  const MODELS = ["gemini-3.8-flash", "gemini-3.8-flash-lite", "gemini-3.8-pro"];
   const SECTORS = ["Tümü", "İhracat", "İnşaat", "Üretim", "Hizmet", "E-Ticaret", "Genel"];
   let activeSector = "Tümü";
   let currentBulletin = null;
@@ -274,12 +274,11 @@
     }).join("");
   }
 
-  /* --- GEMINI API YARDIMCISI --- */
+  /* --- GEMINI API YARDIMCISI (YEDEK MODELLİ) --- */
   async function callGemini(systemInstruction, userPrompt, jsonMode = false) {
     const key = getApiKey();
     if (!key) return null;
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${encodeURIComponent(key)}`;
     const body = {
       system_instruction: { parts: [{ text: systemInstruction }] },
       contents: [{ role: "user", parts: [{ text: userPrompt }] }],
@@ -289,14 +288,25 @@
       }
     };
 
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error?.message || "API hatası");
-    return data.candidates[0].content.parts[0].text;
+    let lastErr = "API hatası";
+    for (const model of MODELS) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (res.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
+          return data.candidates[0].content.parts[0].text;
+        }
+        lastErr = data.error?.message || `HTTP ${res.status}`;
+      } catch (e) {
+        lastErr = e.message;
+      }
+    }
+    throw new Error(lastErr);
   }
 
   /* --- 2. VERGİ DANIŞMANLIĞI --- */
