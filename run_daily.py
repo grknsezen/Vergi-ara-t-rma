@@ -22,6 +22,11 @@ ALLOWED_SECTORS = ["İhracat", "İnşaat", "Üretim", "Hizmet", "E-Ticaret", "Ge
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 }
+FALLBACK_MODELS = [
+    os.environ.get("GEMINI_MODEL", "gemini-3.8-flash"),
+    "gemini-3.8-flash-lite",
+    "gemini-3.8-pro",
+]
 
 
 def run_scout() -> dict:
@@ -52,30 +57,33 @@ def run_scout() -> dict:
 
 def call_gemini_json(system_prompt: str, payload: str, temp: float = 0.1) -> dict:
     client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-    model = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
-    wait_times = [15, 30, 45]
+    models = list(dict.fromkeys(FALLBACK_MODELS))
+    last_error = None
 
-    for attempt in range(len(wait_times) + 1):
-        try:
-            resp = client.models.generate_content(
-                model=model,
-                contents=payload,
-                config=types.GenerateContentConfig(
-                    system_instruction=system_prompt,
-                    response_mime_type="application/json",
-                    temperature=temp,
-                ),
-            )
-            return json.loads(resp.text)
-        except Exception as exc:
-            msg = str(exc)
-            is_retryable = any(code in msg for code in ("503", "429", "UNAVAILABLE", "RESOURCE_EXHAUSTED"))
-            if is_retryable and attempt < len(wait_times):
-                wait = wait_times[attempt]
-                print(f"[API] Yoğunluk ({type(exc).__name__}), {wait} sn sonra tekrar deneniyor ({attempt + 1}/{len(wait_times)})...", flush=True)
-                time.sleep(wait)
+    for round_no in range(2):
+        for model in models:
+            try:
+                print(f"[API] Deneniyor: {model}...", flush=True)
+                resp = client.models.generate_content(
+                    model=model,
+                    contents=payload,
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_prompt,
+                        response_mime_type="application/json",
+                        temperature=temp,
+                    ),
+                )
+                print(f"[API] Başarılı: {model}", flush=True)
+                return json.loads(resp.text)
+            except Exception as exc:
+                last_error = exc
+                print(f"[API] {model} başarısız ({type(exc).__name__}), yedek modele geçiliyor...", flush=True)
                 continue
-            raise
+        if round_no == 0:
+            print("[API] Tüm modeller yoğun, 20 sn sonra tekrar deneniyor...", flush=True)
+            time.sleep(20)
+
+    raise last_error
 
 
 def run_analyst(scout_data: dict, feedback: str = "") -> dict:
