@@ -1,5 +1,6 @@
 import json
 import os
+import time
 from datetime import datetime
 from pathlib import Path
 import requests
@@ -29,7 +30,6 @@ def run_scout() -> dict:
     for name, url in SOURCES.items():
         print(f"[Tarayıcı] Kontrol ediliyor: {name}...", flush=True)
         try:
-            # 5 sn bağlantı, 10 sn okuma sınırı
             resp = requests.get(url, headers=HEADERS, timeout=(5, 10))
             resp.raise_for_status()
             soup = BeautifulSoup(resp.text, "html.parser")
@@ -53,16 +53,29 @@ def run_scout() -> dict:
 def call_gemini_json(system_prompt: str, payload: str, temp: float = 0.1) -> dict:
     client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
     model = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
-    resp = client.models.generate_content(
-        model=model,
-        contents=payload,
-        config=types.GenerateContentConfig(
-            system_instruction=system_prompt,
-            response_mime_type="application/json",
-            temperature=temp,
-        ),
-    )
-    return json.loads(resp.text)
+    wait_times = [15, 30, 45]
+
+    for attempt in range(len(wait_times) + 1):
+        try:
+            resp = client.models.generate_content(
+                model=model,
+                contents=payload,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_prompt,
+                    response_mime_type="application/json",
+                    temperature=temp,
+                ),
+            )
+            return json.loads(resp.text)
+        except Exception as exc:
+            msg = str(exc)
+            is_retryable = any(code in msg for code in ("503", "429", "UNAVAILABLE", "RESOURCE_EXHAUSTED"))
+            if is_retryable and attempt < len(wait_times):
+                wait = wait_times[attempt]
+                print(f"[API] Yoğunluk ({type(exc).__name__}), {wait} sn sonra tekrar deneniyor ({attempt + 1}/{len(wait_times)})...", flush=True)
+                time.sleep(wait)
+                continue
+            raise
 
 
 def run_analyst(scout_data: dict, feedback: str = "") -> dict:
@@ -122,7 +135,7 @@ def main():
     geri_gonderim = 0
     draft, check = {}, {"puan": 0, "onay": False, "duzeltme_notu": "Çalışmadı"}
 
-    for tur in range(1, 3):  # En fazla 2 tur (hızlı ve güvenli)
+    for _ in range(2):
         draft = run_analyst(scout_data, feedback=feedback)
         check = run_checker(scout_data, draft)
         if check["onay"]:
