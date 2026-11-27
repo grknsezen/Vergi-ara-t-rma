@@ -22,11 +22,6 @@ ALLOWED_SECTORS = ["İhracat", "İnşaat", "Üretim", "Hizmet", "E-Ticaret", "Ge
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 }
-FALLBACK_MODELS = [
-    os.environ.get("GEMINI_MODEL", "gemini-3.8-flash"),
-    "gemini-3.8-flash-lite",
-    "gemini-3.8-pro",
-]
 
 
 def run_scout() -> dict:
@@ -55,9 +50,27 @@ def run_scout() -> dict:
     return {"tarih": today, "kaynaklar": results}
 
 
+def get_available_models(client) -> list[str]:
+    preferred = [os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")]
+    discovered = []
+    try:
+        for m in client.models.list():
+            name = (m.name or "").replace("models/", "")
+            actions = getattr(m, "supported_actions", None) or getattr(m, "supported_generation_methods", []) or []
+            if "gemini" in name and "generateContent" in actions and "embedding" not in name:
+                discovered.append(name)
+    except Exception as exc:
+        print(f"[API] Model listesi alınamadı: {exc}", flush=True)
+
+    discovered.sort(key=lambda x: (0 if "flash" in x else 1, x))
+    models = list(dict.fromkeys(preferred + discovered))
+    print(f"[API] Aktif modeller: {models[:5]}", flush=True)
+    return models[:5]
+
+
 def call_gemini_json(system_prompt: str, payload: str, temp: float = 0.1) -> dict:
     client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-    models = list(dict.fromkeys(FALLBACK_MODELS))
+    models = get_available_models(client)
     last_error = None
 
     for round_no in range(2):
@@ -77,10 +90,10 @@ def call_gemini_json(system_prompt: str, payload: str, temp: float = 0.1) -> dic
                 return json.loads(resp.text)
             except Exception as exc:
                 last_error = exc
-                print(f"[API] {model} başarısız ({type(exc).__name__}), yedek modele geçiliyor...", flush=True)
+                print(f"[API] {model} atlandı ({type(exc).__name__})", flush=True)
                 continue
         if round_no == 0:
-            print("[API] Tüm modeller yoğun, 20 sn sonra tekrar deneniyor...", flush=True)
+            print("[API] Modeller yoğun, 20 sn sonra tekrar deneniyor...", flush=True)
             time.sleep(20)
 
     raise last_error
