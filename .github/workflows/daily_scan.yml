@@ -11,6 +11,7 @@ permissions:
 jobs:
   run-agents:
     runs-on: ubuntu-latest
+    timeout-minutes: 3
     steps:
       - name: Depoyu cek
         uses: actions/checkout@v4
@@ -27,7 +28,7 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: "gemini-3.8-flash"
-        run: python run_daily.py
+        run: python -u run_daily.py
 
       - name: Ciktiları kaydet
         run: |
