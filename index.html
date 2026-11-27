@@ -3,74 +3,459 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>YMM Mevzuat, Vergi Danışmanlığı & SMMM Test Merkezi</title>
+  <title>YMM Mevzuat, Vergi Danışmanlığı & SMMM Merkezi</title>
   <style>
     :root {
-      --bg: #f4f6f9;
-      --card: #ffffff;
-      --text: #1e293b;
-      --muted: #64748b;
-      --primary: #0f172a;
-      --accent: #2563eb;
-      --border: #e2e8f0;
-      --danger: #dc2626;
-      --warn: #d97706;
-      --ok: #16a34a;
+      --bg: #f5f4f0;
+      --surface: #ffffff;
+      --surface-subtle: #faf9f6;
+      --ink: #141923;
+      --ink-secondary: #4a5262;
+      --muted: #6c7484;
+      --navy: #0c1829;
+      --navy-light: #162842;
+      --accent: #1b365d;
+      --accent-hover: #112440;
+      --gold: #8c6d3f;
+      --border: #e3e0d8;
+      --border-strong: #cfc9bc;
+      --danger-bg: #fdf2f2;
+      --danger-fg: #991b1b;
+      --danger-bd: #e5b8b8;
+      --warn-bg: #fefaf0;
+      --warn-fg: #854d0e;
+      --warn-bd: #e9d59b;
+      --ok-bg: #f1f8f4;
+      --ok-fg: #166534;
+      --ok-bd: #b7dfc6;
+      --info-bg: #f2f5f9;
+      --info-fg: #1e3a5f;
+      --info-bd: #cbd6e4;
     }
-    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body { margin: 0; background: var(--bg); color: var(--text); line-height: 1.5; }
-    header { background: var(--primary); color: #fff; padding: 16px 24px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
-    header h1 { margin: 0; font-size: 1.15rem; font-weight: 600; }
-    .api-box { display: flex; gap: 8px; align-items: center; }
-    .api-box input { padding: 6px 10px; border-radius: 6px; border: 1px solid #475569; background: #1e293b; color: #fff; font-size: 0.85rem; width: 220px; }
-    .api-box button { padding: 6px 12px; border-radius: 6px; border: none; background: var(--accent); color: #fff; cursor: pointer; font-size: 0.85rem; }
-    .tabs { display: flex; background: var(--card); border-bottom: 1px solid var(--border); padding: 0 24px; gap: 8px; overflow-x: auto; }
-    .tab-btn { padding: 14px 18px; border: none; background: none; cursor: pointer; font-weight: 600; color: var(--muted); border-bottom: 3px solid transparent; white-space: nowrap; }
-    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
-    main { max-width: 1000px; margin: 24px auto; padding: 0 16px; }
-    .panel { display: none; }
-    .panel.active { display: block; }
-    .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 16px; }
-    .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-    .chip { padding: 5px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--card); cursor: pointer; font-size: 0.82rem; }
-    .chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; margin-right: 6px; }
-    .b-kritik { background: #fee2e2; color: var(--danger); }
-    .b-izlenecek { background: #fef3c7; color: var(--warn); }
-    .b-bilgi { background: #e0f2fe; color: #0369a1; }
-    .b-ok { background: #dcfce7; color: var(--ok); }
-    .meta { font-size: 0.85rem; color: var(--muted); margin: 6px 0; }
-    .btn { padding: 9px 16px; border-radius: 8px; border: none; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; font-size: 0.9rem; }
-    .btn-danger { background: var(--danger); }
-    .btn-ok { background: var(--ok); }
-    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-    textarea, select { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.95rem; margin-bottom: 10px; }
-    .answer-box { white-space: pre-wrap; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-top: 12px; font-size: 0.94rem; }
-    .q-option { display: block; padding: 8px 12px; margin: 6px 0; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; }
-    .q-option:hover { background: #f8fafc; }
-    .q-option.correct { background: #dcfce7; border-color: var(--ok); }
-    .q-option.wrong { background: #fee2e2; border-color: var(--danger); }
-    .small-note { font-size: 0.82rem; color: var(--muted); }
-    .btn-group { display: flex; flex-wrap: wrap; gap: 8px; }
+
+    * {
+      box-sizing: border-box;
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.58;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Üst Kurumsal Bant */
+    header {
+      background: var(--navy);
+      color: #ffffff;
+      border-bottom: 1px solid var(--navy-light);
+    }
+
+    .header-inner {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 18px 24px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .brand-eyebrow {
+      font-size: 0.7rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #c7b28b;
+      font-weight: 600;
+      margin-bottom: 3px;
+    }
+
+    .brand-title {
+      margin: 0;
+      font-size: 1.25rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: #ffffff;
+    }
+
+    .api-box {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .api-box input {
+      padding: 8px 12px;
+      border-radius: 4px;
+      border: 1px solid #2d4263;
+      background: #122138;
+      color: #f8fafc;
+      font-size: 0.84rem;
+      width: 230px;
+      outline: none;
+    }
+
+    .api-box input:focus {
+      border-color: #c7b28b;
+    }
+
+    .api-box button {
+      padding: 8px 14px;
+      border-radius: 4px;
+      border: 1px solid #c7b28b;
+      background: transparent;
+      color: #f3ead8;
+      cursor: pointer;
+      font-size: 0.82rem;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+
+    .api-box button:hover {
+      background: #c7b28b;
+      color: var(--navy);
+    }
+
+    /* Sekme Çubuğu */
+    .tabs-wrap {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .tabs {
+      max-width: 1120px;
+      margin: 0 auto;
+      display: flex;
+      padding: 0 24px;
+      gap: 24px;
+      overflow-x: auto;
+    }
+
+    .tab-btn {
+      padding: 14px 2px;
+      border: none;
+      background: none;
+      cursor: pointer;
+      font-weight: 500;
+      font-size: 0.9rem;
+      color: var(--muted);
+      border-bottom: 2px solid transparent;
+      white-space: nowrap;
+      transition: color 0.15s ease, border-color 0.15s ease;
+    }
+
+    .tab-btn:hover {
+      color: var(--ink);
+    }
+
+    .tab-btn.active {
+      color: var(--navy);
+      font-weight: 600;
+      border-bottom-color: var(--gold);
+    }
+
+    /* Ana Alan */
+    main {
+      max-width: 1120px;
+      margin: 28px auto 48px;
+      padding: 0 24px;
+    }
+
+    .panel {
+      display: none;
+    }
+
+    .panel.active {
+      display: block;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 22px 24px;
+      margin-bottom: 16px;
+    }
+
+    .section-title {
+      margin: 0 0 4px;
+      font-size: 1.08rem;
+      font-weight: 600;
+      color: var(--navy);
+      letter-spacing: -0.01em;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+    }
+
+    .chip {
+      padding: 6px 13px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: var(--surface-subtle);
+      color: var(--ink-secondary);
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 500;
+      transition: all 0.15s ease;
+    }
+
+    .chip:hover {
+      border-color: var(--border-strong);
+      color: var(--ink);
+    }
+
+    .chip.active {
+      background: var(--navy);
+      color: #ffffff;
+      border-color: var(--navy);
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 3px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-right: 6px;
+      border: 1px solid transparent;
+    }
+
+    .b-kritik {
+      background: var(--danger-bg);
+      color: var(--danger-fg);
+      border-color: var(--danger-bd);
+    }
+
+    .b-izlenecek {
+      background: var(--warn-bg);
+      color: var(--warn-fg);
+      border-color: var(--warn-bd);
+    }
+
+    .b-bilgi {
+      background: var(--info-bg);
+      color: var(--info-fg);
+      border-color: var(--info-bd);
+    }
+
+    .b-ok {
+      background: var(--ok-bg);
+      color: var(--ok-fg);
+      border-color: var(--ok-bd);
+    }
+
+    .item-title {
+      margin: 10px 0 6px;
+      font-size: 1.04rem;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .meta {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin: 6px 0 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .action-box {
+      background: var(--surface-subtle);
+      border-left: 3px solid var(--gold);
+      padding: 10px 14px;
+      margin: 10px 0 12px;
+      font-size: 0.9rem;
+      color: var(--ink-secondary);
+    }
+
+    .source-link {
+      font-size: 0.84rem;
+      font-weight: 600;
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .source-link:hover {
+      text-decoration: underline;
+    }
+
+    .btn {
+      padding: 9px 18px;
+      border-radius: 4px;
+      border: 1px solid var(--navy);
+      background: var(--navy);
+      color: #ffffff;
+      font-weight: 500;
+      cursor: pointer;
+      font-size: 0.86rem;
+      letter-spacing: 0.01em;
+      transition: background 0.15s ease;
+    }
+
+    .btn:hover {
+      background: var(--navy-light);
+    }
+
+    .btn-outline {
+      background: var(--surface);
+      color: var(--ink);
+      border-color: var(--border-strong);
+    }
+
+    .btn-outline:hover {
+      background: var(--surface-subtle);
+    }
+
+    .btn-danger {
+      background: var(--surface);
+      color: var(--danger-fg);
+      border-color: var(--danger-bd);
+    }
+
+    .btn-danger:hover {
+      background: var(--danger-bg);
+    }
+
+    .btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    textarea, select {
+      width: 100%;
+      padding: 11px 13px;
+      border: 1px solid var(--border-strong);
+      border-radius: 4px;
+      font-size: 0.92rem;
+      color: var(--ink);
+      background: var(--surface);
+      margin-bottom: 12px;
+      outline: none;
+    }
+
+    textarea:focus, select:focus {
+      border-color: var(--navy);
+    }
+
+    .answer-box {
+      white-space: pre-wrap;
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-top: 2px solid var(--navy);
+      border-radius: 4px;
+      padding: 16px 18px;
+      margin-top: 16px;
+      font-size: 0.92rem;
+      color: var(--ink);
+      line-height: 1.65;
+    }
+
+    .q-option {
+      display: block;
+      padding: 10px 14px;
+      margin: 7px 0;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--surface);
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .q-option:hover {
+      border-color: var(--border-strong);
+      background: var(--surface-subtle);
+    }
+
+    .q-option.correct {
+      background: var(--ok-bg);
+      border-color: var(--ok-bd);
+      color: var(--ok-fg);
+      font-weight: 500;
+    }
+
+    .q-option.wrong {
+      background: var(--danger-bg);
+      border-color: var(--danger-bd);
+      color: var(--danger-fg);
+    }
+
+    .small-note {
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    .btn-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+    }
+
+    @media (max-width: 640px) {
+      .header-inner, main {
+        padding-left: 16px;
+        padding-right: 16px;
+      }
+      .tabs {
+        padding: 0 16px;
+        gap: 16px;
+      }
+      .api-box input {
+        width: 165px;
+      }
+    }
   </style>
 </head>
 <body>
 
 <header>
-  <h1>YMM Mevzuat & Vergi Merkezi</h1>
-  <div class="api-box">
-    <input type="password" id="apiKeyInput" placeholder="Gemini API Anahtarı (Yerel)" />
-    <button onclick="saveApiKey()">Kaydet</button>
+  <div class="header-inner">
+    <div>
+      <div class="brand-eyebrow">Tax, Audit &amp; Advisory Intelligence</div>
+      <h1 class="brand-title">YMM Mevzuat &amp; Vergi Merkezi</h1>
+    </div>
+    <div class="api-box">
+      <input type="password" id="apiKeyInput" placeholder="Gemini API Anahtarı (Yerel)" />
+      <button onclick="saveApiKey()">Kaydet</button>
+    </div>
   </div>
 </header>
 
-<nav class="tabs">
-  <button id="tabBtn-bulten" class="tab-btn active" onclick="switchTab('bulten', this)">1. Günlük Mevzuat Bülteni</button>
-  <button id="tabBtn-danisman" class="tab-btn" onclick="switchTab('danisman', this)">2. Vergi Danışmanlığı</button>
-  <button id="tabBtn-smmm" class="tab-btn" onclick="switchTab('smmm', this)">3. SMMM Yeterlilik Testi</button>
-  <button id="tabBtn-hatalar" class="tab-btn" onclick="switchTab('hatalar', this)">4. Hata Defteri (<span id="mistakeCount">0</span>)</button>
-</nav>
+<div class="tabs-wrap">
+  <nav class="tabs">
+    <button id="tabBtn-bulten" class="tab-btn active" onclick="switchTab('bulten', this)">Günlük Mevzuat Bülteni</button>
+    <button id="tabBtn-danisman" class="tab-btn" onclick="switchTab('danisman', this)">Vergi Danışmanlığı</button>
+    <button id="tabBtn-smmm" class="tab-btn" onclick="switchTab('smmm', this)">SMMM Yeterlilik Testi</button>
+    <button id="tabBtn-hatalar" class="tab-btn" onclick="switchTab('hatalar', this)">Hata Defteri (<span id="mistakeCount">0</span>)</button>
+  </nav>
+</div>
 
 <main>
   <!-- SEKME 1: GÜNLÜK MEVZUAT BÜLTENİ -->
@@ -78,12 +463,12 @@
     <div class="card">
       <div class="toolbar">
         <div>
-          <strong id="bultenTarih">Yükleniyor...</strong>
-          <span id="denetciPuan" class="badge b-ok" style="margin-left:8px;"></span>
+          <strong id="bultenTarih" class="section-title">Yükleniyor...</strong>
+          <span id="denetciPuan" class="badge b-ok" style="margin-left:10px;"></span>
           <span id="arsivSayac" class="badge b-bilgi"></span>
-          <div id="kaynakDurum" class="small-note"></div>
+          <div id="kaynakDurum" class="small-note" style="margin-top:6px;"></div>
         </div>
-        <button class="btn" onclick="loadBulletin()">Yenile</button>
+        <button class="btn btn-outline" onclick="loadBulletin()">Bülteni Yenile</button>
       </div>
       <div class="chips" id="sectorChips"></div>
     </div>
@@ -93,10 +478,10 @@
   <!-- SEKME 2: VERGİ DANIŞMANLIĞI -->
   <section id="tab-danisman" class="panel">
     <div class="card">
-      <h3 style="margin-top:0;">YMM Vergi Danışmanlığı Asistanı (GİB Arşiv Destekli)</h3>
-      <p class="small-note">Sorun otomatik olarak GİB arşivi (<code>data/gib_mevzuat.json</code>) ve güncel bültenle eşleştirilerek yanıtlanır.</p>
+      <h2 class="section-title">Vergi Danışmanlığı Masası</h2>
+      <p class="small-note" style="margin-top:4px;">KVK, GVK, KDV, VUK, ÖTV ve tam tasdik sorularınız GİB arşivi (<code>data/gib_mevzuat.json</code>) ve güncel bülten bağlamıyla değerlendirilir.</p>
       <textarea id="taxQuestion" rows="4" placeholder="Örn: İhracat kaynaklı KDV iadesinde YMM raporunun ibraz süresi ve istisna kapsamındaki belgeler nelerdir?"></textarea>
-      <button class="btn" id="askTaxBtn" onclick="askTaxAdvisor()">Danışmana Sor</button>
+      <button class="btn" id="askTaxBtn" onclick="askTaxAdvisor()">Görüş Oluştur</button>
       <div id="taxAnswer" class="answer-box" style="display:none;"></div>
     </div>
   </section>
@@ -104,10 +489,11 @@
   <!-- SEKME 3: SMMM YETERLİLİK TESTİ -->
   <section id="tab-smmm" class="panel">
     <div class="card">
-      <h3 style="margin-top:0;">SMMM Yeterlilik Pratik Test Üretici</h3>
-      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:10px;">
+      <h2 class="section-title">SMMM Yeterlilik Değerlendirme Modülü</h2>
+      <p class="small-note" style="margin-top:4px; margin-bottom:14px;">Sınav müfredatına uygun çoktan seçmeli deneme seti oluşturun; hatalarınız otomatik olarak Hata Defteri'ne işlenir.</p>
+      <div class="grid-2">
         <div>
-          <label class="small-note">Ders</label>
+          <label class="small-note" style="display:block; margin-bottom:4px;">Sınav Konusu</label>
           <select id="smmmSubject">
             <option value="Vergi Mevzuatı ve Uygulaması">Vergi Mevzuatı ve Uygulaması</option>
             <option value="Finansal Muhasebe (TMS/TFRS & TDHP)">Finansal Muhasebe</option>
@@ -118,14 +504,14 @@
           </select>
         </div>
         <div>
-          <label class="small-note">Soru Sayısı</label>
+          <label class="small-note" style="display:block; margin-bottom:4px;">Soru Adedi</label>
           <select id="smmmCount">
             <option value="3">3 Soru</option>
             <option value="5" selected>5 Soru</option>
           </select>
         </div>
       </div>
-      <button class="btn" id="genQuizBtn" onclick="generateQuiz()">Test Oluştur</button>
+      <button class="btn" id="genQuizBtn" onclick="generateQuiz()">Test Seti Oluştur</button>
     </div>
     <div id="quizContainer"></div>
   </section>
@@ -135,16 +521,16 @@
     <div class="card">
       <div class="toolbar">
         <div>
-          <h3 style="margin:0;">SMMM Hata Defteri</h3>
-          <span class="small-note">Yanlış cevapladığın sorular otomatik olarak burada toplanır.</span>
+          <h2 class="section-title">Hata Defteri &amp; Tekrar Analizi</h2>
+          <span class="small-note">Yanlış yanıtlanan sorular kayıt altına alınır ve hedefe yönelik tekrar testi üretilebilir.</span>
         </div>
         <div class="btn-group">
-          <button class="btn btn-ok" id="reviewQuizBtn" onclick="generateReviewQuiz()">Zayıf Konulardan Tekrar Testi Üret</button>
-          <button class="btn btn-danger" onclick="clearAllMistakes()">Tümünü Temizle</button>
+          <button class="btn" id="reviewQuizBtn" onclick="generateReviewQuiz()">Zayıf Konulardan Tekrar Testi</button>
+          <button class="btn btn-danger" onclick="clearAllMistakes()">Listeyi Temizle</button>
         </div>
       </div>
       <select id="mistakeFilter" onchange="renderMistakes()">
-        <option value="Tümü">Tüm Dersler</option>
+        <option value="Tümü">Tüm Sınav Konuları</option>
         <option value="Vergi Mevzuatı ve Uygulaması">Vergi Mevzuatı ve Uygulaması</option>
         <option value="Finansal Muhasebe (TMS/TFRS & TDHP)">Finansal Muhasebe</option>
         <option value="Muhasebe Denetimi">Muhasebe Denetimi</option>
@@ -181,6 +567,10 @@
     loadGibArchive();
     renderMistakes();
   });
+
+  function formatCleanText(str = "") {
+    return String(str).replace(/\*\*/g, "").replace(/##\s*/g, "");
+  }
 
   function saveApiKey() {
     const key = document.getElementById("apiKeyInput").value.trim();
@@ -225,7 +615,7 @@
       const data = await res.json();
       if (Array.isArray(data)) {
         gibArchive = data;
-        document.getElementById("arsivSayac").textContent = `GİB Arşiv: ${gibArchive.length} kayıt`;
+        document.getElementById("arsivSayac").textContent = `GİB Arşiv: ${gibArchive.length} Kayıt`;
       }
     } catch {}
   }
@@ -245,9 +635,11 @@
   function renderBulletin() {
     const b = currentBulletin;
     document.getElementById("bultenTarih").textContent = "Bülten Tarihi: " + b.tarih;
-    document.getElementById("denetciPuan").textContent = `Denetçi: ${b.denetci_puani}/5`;
+    document.getElementById("denetciPuan").textContent = `Denetçi Skoru: ${b.denetci_puani}/5`;
     document.getElementById("kaynakDurum").textContent =
-      "Kaynaklar: " + Object.entries(b.kaynak_durumu || {}).map(([k, v]) => `${k}: ${v}`).join(" | ");
+      "Kaynak Durumu: " + (Object.entries(b.kaynak_durumu || {}).length
+        ? Object.entries(b.kaynak_durumu).map(([k, v]) => `${k}: ${v}`).join(" · ")
+        : "Bekleniyor");
 
     const items = (b.gelismeler || []).filter(item =>
       activeSector === "Tümü" || (item.sektorler || []).includes(activeSector)
@@ -255,7 +647,7 @@
 
     const list = document.getElementById("bultenListesi");
     if (!items.length) {
-      list.innerHTML = `<div class="card">Bu tarihte veya filtrede gösterilecek mevzuat gelişmesi yok.</div>`;
+      list.innerHTML = `<div class="card"><span class="small-note">Seçili tarih veya sektör filtresi için kayıt bulunmuyor.</span></div>`;
       return;
     }
 
@@ -265,13 +657,13 @@
       return `
         <div class="card">
           <div>
-            <span class="badge ${cls}">${item.oncelik} • ${item.durum}</span>
+            <span class="badge ${cls}">${item.oncelik} · ${item.durum}</span>
             ${tags}
           </div>
-          <h3 style="margin:8px 0 4px;">${item.baslik}</h3>
-          <div class="meta"><strong>Ref:</strong> ${item.mevzuat_ref} | <strong>Yürürlük:</strong> ${item.yururluk_tarihi} | <strong>Alan:</strong> ${item.etkilenen_alan}</div>
-          <p style="margin:8px 0;"><strong>YMM Aksiyonu:</strong> ${item.ymm_aksiyonu}</p>
-          <a href="${item.kaynak_url}" target="_blank" rel="noopener">Resmi Kaynağa Git →</a>
+          <h3 class="item-title">${formatCleanText(item.baslik)}</h3>
+          <div class="meta"><strong>Dayanak:</strong> ${formatCleanText(item.mevzuat_ref)} · <strong>Yürürlük:</strong> ${item.yururluk_tarihi} · <strong>Etki Alanı:</strong> ${formatCleanText(item.etkilenen_alan)}</div>
+          <div class="action-box"><strong>YMM Değerlendirmesi &amp; Aksiyon:</strong> ${formatCleanText(item.ymm_aksiyonu)}</div>
+          <a class="source-link" href="${item.kaynak_url}" target="_blank" rel="noopener">Resmî Kaynağı İncele →</a>
         </div>
       `;
     }).join("");
@@ -366,11 +758,16 @@
     const box = document.getElementById("taxAnswer");
     btn.disabled = true;
     box.style.display = "block";
-    box.textContent = "GİB arşivi ve mevzuat taranıyor...";
+    box.textContent = "Mevzuat dayanakları ve GİB arşivi inceleniyor...";
 
     const matched = findRelevantArchive(q);
     const sys = `Sen kıdemli bir Türk Yeminli Mali Müşaviri (YMM) danışmanısın.
-Soruları KVK, GVK, KDV, VUK, ÖTV ve arşivdeki GİB kayıtları ışığında; 1) Kısa Cevap, 2) İlgili GİB Arşiv Kayıtları & Kanuni Dayanak, 3) Uygulama/Muhasebe Etkisi başlıklarıyla net yanıtla.
+Soruları KVK, GVK, KDV, VUK, ÖTV ve arşivdeki GİB kayıtları ışığında;
+1. KISA ÖZET
+2. KANUNİ DAYANAK & GİB ARŞİV KAYITLARI
+3. UYGULAMA & MUHASEBE ETKİSİ
+başlıklarıyla net, kurumsal ve Markdown yıldızları (**) kullanmadan yanıtla.
+KVK 5/1-a, 5/1-b ve 5/1-e bentlerini asla karıştırma; yalnızca sorulan madde/bendi esas al.
 Arşivde doğrudan ilgili kayıt yoksa bunu açıkça belirt ve emin olmadığın numara/oran uydurma.`;
 
     const archiveContext = matched.length
@@ -382,7 +779,7 @@ Arşivde doğrudan ilgili kayıt yoksa bunu açıkça belirt ve emin olmadığı
 
     try {
       const answer = await callGemini(sys, q + archiveContext + bulletinContext, false);
-      if (answer) box.textContent = answer;
+      if (answer) box.textContent = formatCleanText(answer);
     } catch (err) {
       box.textContent = "Hata: " + err.message;
     } finally {
@@ -408,13 +805,13 @@ Güncel Türk vergi/muhasebe mevzuatına uygun çoktan seçmeli sorular üret.
     const headerHtml = titleNote ? `<div class="card"><span class="badge b-ok">${titleNote}</span></div>` : "";
     container.innerHTML = headerHtml + currentQuestions.map((q, qi) => `
       <div class="card" id="q-${qi}">
-        <strong>Soru ${qi + 1}:</strong> ${q.soru}
-        <div style="margin-top:10px;">
+        <strong>Soru ${qi + 1}:</strong> ${formatCleanText(q.soru)}
+        <div style="margin-top:12px;">
           ${q.secenekler.map((opt, oi) => `
-            <div class="q-option" onclick="checkAnswer(${qi}, ${oi}, ${q.dogru_index}, this)">${opt}</div>
+            <div class="q-option" onclick="checkAnswer(${qi}, ${oi}, ${q.dogru_index}, this)">${formatCleanText(opt)}</div>
           `).join("")}
         </div>
-        <div id="exp-${qi}" class="answer-box" style="display:none;"><strong>Açıklama:</strong> ${q.aciklama}</div>
+        <div id="exp-${qi}" class="answer-box" style="display:none;"><strong>Mevzuat Gerekçesi:</strong> ${formatCleanText(q.aciklama)}</div>
       </div>
     `).join("");
   }
@@ -425,13 +822,13 @@ Güncel Türk vergi/muhasebe mevzuatına uygun çoktan seçmeli sorular üret.
     const btn = document.getElementById("genQuizBtn");
     const container = document.getElementById("quizContainer");
     btn.disabled = true;
-    container.innerHTML = `<div class="card">SMMM yeterlilik soruları hazırlanıyor...</div>`;
+    container.innerHTML = `<div class="card"><span class="small-note">Sınav soruları hazırlanıyor...</span></div>`;
 
     try {
       const raw = await callGemini(QUIZ_SYSTEM_PROMPT, `Ders: ${subject}. Adet: ${count} soru üret.`, true);
       if (!raw) return;
       currentSubject = subject;
-      renderQuizQuestions(JSON.parse(raw), `${subject} — ${count} Soru`);
+      renderQuizQuestions(JSON.parse(raw), `${subject} · ${count} Soru`);
     } catch (err) {
       container.innerHTML = `<div class="card">Hata: ${err.message}</div>`;
     } finally {
@@ -499,23 +896,23 @@ Güncel Türk vergi/muhasebe mevzuatına uygun çoktan seçmeli sorular üret.
     const box = document.getElementById("mistakesContainer");
 
     if (!filtered.length) {
-      box.innerHTML = `<div class="card">Bu filtrede kayıtlı hata yok.</div>`;
+      box.innerHTML = `<div class="card"><span class="small-note">Bu filtrede kayıtlı hata bulunmuyor.</span></div>`;
       return;
     }
 
     box.innerHTML = filtered.map(item => `
       <div class="card">
-        <div class="toolbar" style="margin-bottom:8px;">
+        <div class="toolbar" style="margin-bottom:10px;">
           <div>
             <span class="badge b-kritik">${item.ders}</span>
             <span class="small-note">${item.tarih}</span>
           </div>
-          <button class="chip" onclick="removeMistake(${item.id})">✓ Öğrendim (Sil)</button>
+          <button class="chip" onclick="removeMistake(${item.id})">İncelendi · Kaldır</button>
         </div>
-        <p style="margin:6px 0;"><strong>Soru:</strong> ${item.soru}</p>
-        <p style="margin:4px 0; color:var(--danger);"><strong>Senin Cevabın:</strong> ${item.senin_cevabin}</p>
-        <p style="margin:4px 0; color:var(--ok);"><strong>Doğru Cevap:</strong> ${item.dogru_cevap}</p>
-        <div class="answer-box" style="margin-top:8px;"><strong>Dayanak:</strong> ${item.aciklama}</div>
+        <p style="margin:6px 0;"><strong>Soru:</strong> ${formatCleanText(item.soru)}</p>
+        <p style="margin:4px 0; color:var(--danger-fg);"><strong>Seçilen Yanıt:</strong> ${formatCleanText(item.senin_cevabin)}</p>
+        <p style="margin:4px 0; color:var(--ok-fg);"><strong>Doğru Yanıt:</strong> ${formatCleanText(item.dogru_cevap)}</p>
+        <div class="answer-box" style="margin-top:10px;"><strong>Dayanak:</strong> ${formatCleanText(item.aciklama)}</div>
       </div>
     `).join("");
   }
@@ -534,7 +931,7 @@ Güncel Türk vergi/muhasebe mevzuatına uygun çoktan seçmeli sorular üret.
     btn.disabled = true;
     switchTab("smmm", document.getElementById("tabBtn-smmm"));
     document.getElementById("quizContainer").innerHTML =
-      `<div class="card">Hata Defteri'ndeki zayıf konularına özel tekrar testi hazırlanıyor...</div>`;
+      `<div class="card"><span class="small-note">Hata Defteri kayıtlarına göre tekrar testi oluşturuluyor...</span></div>`;
 
     const summary = target.map(m => `- Ders: ${m.ders} | Yanlış yapılan konu/soru: ${m.soru} | Dayanak: ${m.aciklama}`).join("\n");
     const prompt = `Aşağıdaki yanlış yapılan SMMM sorularının tam olarak aynı konularını ve mevzuat noktalarını ölçen, ancak farklı kurgulanmış 3 adet yeni çoktan seçmeli tekrar sorusu üret:\n${summary}`;
@@ -543,7 +940,7 @@ Güncel Türk vergi/muhasebe mevzuatına uygun çoktan seçmeli sorular üret.
       const raw = await callGemini(QUIZ_SYSTEM_PROMPT, prompt, true);
       if (!raw) return;
       currentSubject = filter === "Tümü" ? "Tekrar Testi (Karma)" : filter;
-      renderQuizQuestions(JSON.parse(raw), `Zayıf Konular Tekrar Testi (${target.length} hatadan üretildi)`);
+      renderQuizQuestions(JSON.parse(raw), `Zayıf Konular Tekrar Testi · ${target.length} Kayıttan Üretildi`);
     } catch (err) {
       document.getElementById("quizContainer").innerHTML = `<div class="card">Hata: ${err.message}</div>`;
     } finally {
