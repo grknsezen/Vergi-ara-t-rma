@@ -18,15 +18,19 @@ SOURCES = {
     "turmob": "https://www.turmob.org.tr/sirkuler",
 }
 ALLOWED_SECTORS = ["İhracat", "İnşaat", "Üretim", "Hizmet", "E-Ticaret", "Genel"]
-HEADERS = {"User-Agent": "YMM-Mevzuat-Tarayici/1.0"}
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+}
 
 
 def run_scout() -> dict:
     today = datetime.now().strftime("%Y-%m-%d")
     results = []
     for name, url in SOURCES.items():
+        print(f"[Tarayıcı] Kontrol ediliyor: {name}...", flush=True)
         try:
-            resp = requests.get(url, headers=HEADERS, timeout=20)
+            # 5 sn bağlantı, 10 sn okuma sınırı
+            resp = requests.get(url, headers=HEADERS, timeout=(5, 10))
             resp.raise_for_status()
             soup = BeautifulSoup(resp.text, "html.parser")
             links = []
@@ -37,15 +41,18 @@ def run_scout() -> dict:
                     if href.startswith("/"):
                         href = url.rstrip("/") + href
                     links.append({"baslik": text[:180], "url": href})
-            results.append({"kaynak": name, "durum": "ok", "ham_veriler": links[:30]})
+            print(f"[Tarayıcı] {name} -> OK ({len(links[:25])} kayıt)", flush=True)
+            results.append({"kaynak": name, "durum": "ok", "ham_veriler": links[:25]})
         except Exception as exc:
-            results.append({"kaynak": name, "durum": f"hata:{type(exc).__name__}", "ham_veriler": []})
+            err_name = type(exc).__name__
+            print(f"[Tarayıcı] {name} -> ATLANDI ({err_name})", flush=True)
+            results.append({"kaynak": name, "durum": f"erisim_hatasi:{err_name}", "ham_veriler": []})
     return {"tarih": today, "kaynaklar": results}
 
 
 def call_gemini_json(system_prompt: str, payload: str, temp: float = 0.1) -> dict:
     client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-    model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+    model = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
     resp = client.models.generate_content(
         model=model,
         contents=payload,
@@ -59,6 +66,7 @@ def call_gemini_json(system_prompt: str, payload: str, temp: float = 0.1) -> dic
 
 
 def run_analyst(scout_data: dict, feedback: str = "") -> dict:
+    print("[Analist] Bülten hazırlanıyor...", flush=True)
     sys_prompt = f"""
 Sen YMM Mevzuat Analistisin. Tarayıcı ham verilerinden YALNIZCA vergi, KDV iadesi, tam tasdik, VUK, KVK, GVK, ÖTV, Damga/Harç ve SGK/teşvik konularını ayıkla.
 KURALLAR:
@@ -92,6 +100,7 @@ KURALLAR:
 
 
 def run_checker(scout_data: dict, draft: dict) -> dict:
+    print("[Denetçi] Çapraz kontrol yapılıyor...", flush=True)
     sys_prompt = """
 Sen YMM Mevzuat Denetçisisin. Analist taslağını ham veriyle karşılaştır ve 1-5 arası puanla.
 Ham veride olmayan link, oran veya madde uydurulduysa puan <= 3 ver.
@@ -100,6 +109,7 @@ Ham veride olmayan link, oran veya madde uydurulduysa puan <= 3 ver.
     payload = json.dumps({"ham_veri": scout_data, "analist_taslagi": draft}, ensure_ascii=False)
     res = call_gemini_json(sys_prompt, payload, temp=0.0)
     res["onay"] = res.get("puan", 0) >= 4
+    print(f"[Denetçi] Puan: {res.get('puan')}/5 ({res.get('duzeltme_notu')})", flush=True)
     return res
 
 
@@ -112,7 +122,7 @@ def main():
     geri_gonderim = 0
     draft, check = {}, {"puan": 0, "onay": False, "duzeltme_notu": "Çalışmadı"}
 
-    for _ in range(3):  # 1 ilk tur + maks. 2 düzeltme turu
+    for tur in range(1, 3):  # En fazla 2 tur (hızlı ve güvenli)
         draft = run_analyst(scout_data, feedback=feedback)
         check = run_checker(scout_data, draft)
         if check["onay"]:
@@ -135,7 +145,7 @@ def main():
     with TEAM_MD.open("a", encoding="utf-8") as f:
         f.write(f"\n- **{tarih}:** Puan {check['puan']}/5 | Tur: {geri_gonderim} | Kaynaklar: {kaynak_durumu}\n")
 
-    print(f"Tamamlandı: {tarih} | Puan: {check['puan']}/5 | Gelişme: {len(final_json['gelismeler'])}")
+    print(f"[Lider] Tamamlandı: {tarih} | Puan: {check['puan']}/5 | Gelişme: {len(final_json['gelismeler'])}", flush=True)
 
 
 if __name__ == "__main__":
