@@ -2,998 +2,491 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="theme-color" content="#0b132b" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <title>Mali Müşavir AI — Sınav &amp; Vergi Sihirbazı</title>
-  <link rel="manifest" href="manifest.webmanifest" />
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>YMM Mevzuat, Vergi Danışmanlığı & SMMM Test Merkezi</title>
   <style>
     :root {
-      --bg: #eef2f6;
-      --surface: #ffffff;
-      --surface-alt: #f8fafc;
-      --navy-dark: #0b132b;
-      --navy-mid: #1c2541;
-      --indigo: #4338ca;
-      --indigo-hover: #3730a3;
-      --emerald: #0f766e;
-      --emerald-hover: #115e59;
-      --amber: #b45309;
-      --amber-hover: #92400e;
-      --blue: #0369a1;
-      --blue-hover: #075985;
-      --danger: #be123c;
-      --danger-hover: #9f1239;
-      --text: #0f172a;
-      --text-muted: #475569;
-      --border: #d8e1ec;
-      --success-bg: #dcfce7;
-      --success-text: #166534;
-      --error-bg: #ffe4e6;
-      --error-text: #9f1239;
-      --radius: 14px;
-      --shadow-sm: 0 2px 6px rgba(15, 23, 42, 0.05);
-      --shadow-md: 0 10px 25px rgba(15, 23, 42, 0.08);
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.55;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    .topbar {
-      background: linear-gradient(135deg, var(--navy-dark) 0%, var(--navy-mid) 60%, #1e3a5f 100%);
-      color: #fff;
-      padding: 14px 18px;
-      position: sticky;
-      top: 0;
-      z-index: 30;
-      box-shadow: 0 4px 18px rgba(11, 19, 43, 0.25);
-    }
-
-    .topbar-inner {
-      max-width: 1160px;
-      margin: 0 auto;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-    }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .brand-badge {
-      background: linear-gradient(135deg, #10b981, #0ea5e9);
-      color: #fff;
-      font-weight: 800;
-      padding: 9px 12px;
-      border-radius: 11px;
-      font-size: 0.92rem;
-      letter-spacing: 0.4px;
-      box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3);
-    }
-
-    .brand h1 {
-      margin: 0;
-      font-size: 1.08rem;
-      letter-spacing: -0.2px;
-    }
-
-    .subtitle {
-      margin: 2px 0 0;
-      font-size: 0.78rem;
-      color: #cbd5e1;
-    }
-
-    .container {
-      max-width: 1160px;
-      margin: 18px auto 56px;
-      padding: 0 14px;
-    }
-
-    .tabs {
-      display: flex;
-      flex-wrap: nowrap;
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-      gap: 8px;
-      margin-bottom: 18px;
-      padding-bottom: 4px;
-      scrollbar-width: none;
-    }
-
-    .tabs::-webkit-scrollbar {
-      display: none;
-    }
-
-    .tab-btn {
-      flex: 0 0 auto;
-      padding: 10px 15px;
-      border: 1px solid var(--border);
-      background: var(--surface);
-      color: var(--text-muted);
-      border-radius: 999px;
-      font-weight: 600;
-      font-size: 0.87rem;
-      cursor: pointer;
-      transition: all 0.18s ease;
-      box-shadow: var(--shadow-sm);
-    }
-
-    .tab-btn:hover {
-      color: var(--text);
-      border-color: #94a3b8;
-    }
-
-    .tab-btn.active[data-tab="mcqTab"] {
-      background: var(--indigo);
-      color: #fff;
-      border-color: var(--indigo);
-    }
-
-    .tab-btn.active[data-tab="ymmTab"] {
-      background: var(--amber);
-      color: #fff;
-      border-color: var(--amber);
-    }
-
-    .tab-btn.active[data-tab="wizardTab"] {
-      background: var(--emerald);
-      color: #fff;
-      border-color: var(--emerald);
-    }
-
-    .tab-btn.active[data-tab="legTab"] {
-      background: var(--blue);
-      color: #fff;
-      border-color: var(--blue);
-    }
-
-    .tab-btn.active[data-tab="poolTab"] {
-      background: var(--navy-mid);
-      color: #fff;
-      border-color: var(--navy-mid);
-    }
-
-    .tab-panel {
-      display: none;
-      animation: fadeIn 0.2s ease;
-    }
-
-    .tab-panel.active {
-      display: block;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(4px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 20px;
-      margin-bottom: 18px;
-      box-shadow: var(--shadow-sm);
-    }
-
-    .card-accent-indigo { border-top: 4px solid var(--indigo); }
-    .card-accent-amber { border-top: 4px solid var(--amber); }
-    .card-accent-emerald { border-top: 4px solid var(--emerald); }
-    .card-accent-blue { border-top: 4px solid var(--blue); }
-    .card-accent-navy { border-top: 4px solid var(--navy-mid); }
-
-    .card h2 {
-      margin-top: 0;
-      margin-bottom: 8px;
-      font-size: 1.18rem;
-      letter-spacing: -0.2px;
-    }
-
-    .section-pill {
-      display: inline-block;
-      font-size: 0.72rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-      padding: 3px 9px;
-      border-radius: 999px;
-      margin-bottom: 8px;
-    }
-
-    .pill-indigo { background: #e0e7ff; color: #3730a3; }
-    .pill-amber { background: #fef3c7; color: #92400e; }
-    .pill-emerald { background: #ccfbf1; color: #115e59; }
-    .pill-blue { background: #e0f2fe; color: #075985; }
-    .pill-navy { background: #e2e8f0; color: #1e293b; }
-
-    .hint {
-      margin-top: 0;
-      margin-bottom: 16px;
-      color: var(--text-muted);
-      font-size: 0.9rem;
-    }
-
-    .grid-2 {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 16px;
-    }
-
-    .grid-3 {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 14px;
-    }
-
-    @media (max-width: 820px) {
-      .grid-2, .grid-3 {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    .form-group {
-      display: flex;
-      flex-direction: column;
-      margin-bottom: 13px;
-    }
-
-    label {
-      font-weight: 600;
-      font-size: 0.86rem;
-      margin-bottom: 6px;
-      color: var(--text);
-    }
-
-    input[type="text"],
-    input[type="url"],
-    input[type="password"],
-    input[type="number"],
-    input[type="file"],
-    select,
-    textarea {
-      width: 100%;
-      padding: 10px 12px;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      font-size: 0.93rem;
-      font-family: inherit;
-      background: #fff;
-      color: var(--text);
-      transition: border-color 0.15s ease, box-shadow 0.15s ease;
-    }
-
-    input:focus, select:focus, textarea:focus {
-      outline: none;
-      border-color: var(--blue);
-      box-shadow: 0 0 0 3px rgba(3, 105, 161, 0.12);
-    }
-
-    textarea {
-      resize: vertical;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      font-size: 0.83rem;
-    }
-
-    .info-box {
-      padding: 10px 13px;
-      background: var(--surface-alt);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      font-size: 0.87rem;
-      color: var(--text-muted);
-    }
-
-    .sub-panel {
-      background: var(--surface-alt);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 15px;
-    }
-
-    .sub-panel h3 {
-      margin: 0 0 12px;
-      font-size: 1rem;
-      color: var(--navy-mid);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .btn-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 9px;
-      margin-top: 8px;
-    }
-
-    .btn {
-      padding: 10px 16px;
-      border: none;
-      border-radius: 10px;
-      font-weight: 600;
-      font-size: 0.9rem;
-      cursor: pointer;
-      transition: all 0.15s ease;
-    }
-
-    .btn:disabled {
-      opacity: 0.58;
-      cursor: not-allowed;
-    }
-
-    .btn-indigo { background: var(--indigo); color: #fff; }
-    .btn-indigo:hover:not(:disabled) { background: var(--indigo-hover); }
-
-    .btn-amber { background: var(--amber); color: #fff; }
-    .btn-amber:hover:not(:disabled) { background: var(--amber-hover); }
-
-    .btn-emerald { background: var(--emerald); color: #fff; }
-    .btn-emerald:hover:not(:disabled) { background: var(--emerald-hover); }
-
-    .btn-blue { background: var(--blue); color: #fff; }
-    .btn-blue:hover:not(:disabled) { background: var(--blue-hover); }
-
-    .btn-primary { background: var(--navy-mid); color: #fff; }
-    .btn-primary:hover:not(:disabled) { background: var(--navy-dark); }
-
-    .btn-secondary { background: #e2e8f0; color: var(--text); }
-    .btn-secondary:hover:not(:disabled) { background: #cbd5e1; }
-
-    .btn-outline-light {
-      background: rgba(255, 255, 255, 0.14);
-      color: #fff;
-      border: 1px solid rgba(255, 255, 255, 0.25);
-    }
-    .btn-outline-light:hover { background: rgba(255, 255, 255, 0.24); }
-
-    .btn-danger { background: var(--danger); color: #fff; }
-    .btn-danger:hover:not(:disabled) { background: var(--danger-hover); }
-
-    .btn-sm {
-      padding: 6px 11px;
-      font-size: 0.8rem;
-      border-radius: 8px;
-    }
-
-    .status-text {
-      margin: 10px 0 0;
-      font-size: 0.88rem;
-      font-weight: 600;
-      color: var(--blue);
-    }
-
-    .status-text.error {
-      color: var(--danger);
-    }
-
-    .hidden {
-      display: none !important;
-    }
-
-    .quiz-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 10px;
-      margin-bottom: 16px;
-      flex-wrap: wrap;
-    }
-
-    .quiz-header h3 {
-      margin: 0;
-      font-size: 1.05rem;
-    }
-
-    .badge {
-      background: var(--indigo);
-      color: #fff;
-      padding: 4px 12px;
-      border-radius: 999px;
-      font-size: 0.82rem;
-      font-weight: 700;
-    }
-
-    .mcq-item {
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 15px;
-      margin-bottom: 14px;
-      background: var(--surface-alt);
-      white-space: pre-line;
-    }
-
-    .mcq-question {
-      font-weight: 600;
-      margin-bottom: 10px;
-    }
-
-    .mcq-option {
-      display: flex;
-      align-items: flex-start;
-      gap: 8px;
-      padding: 8px 10px;
-      border-radius: 8px;
-      cursor: pointer;
-      margin-bottom: 4px;
-      white-space: normal;
-    }
-
-    .mcq-option:hover {
-      background: #e2e8f0;
-    }
-
-    .mcq-explanation {
-      margin-top: 10px;
-      padding: 11px 13px;
-      border-radius: 8px;
-      font-size: 0.89rem;
-      white-space: normal;
-    }
-
-    .mcq-explanation.correct { background: var(--success-bg); color: var(--success-text); }
-    .mcq-explanation.wrong { background: var(--error-bg); color: var(--error-text); }
-
-    .ymm-paper {
-      white-space: pre-wrap;
-      font-family: "Georgia", "Times New Roman", serif;
-      font-size: 0.96rem;
-      line-height: 1.65;
-      background: #fffdf8;
-      border: 1px solid #e7dcc8;
-      border-radius: 10px;
-      padding: 18px;
-      color: #111827;
-    }
-
-    .ymm-solution {
-      margin-top: 18px;
-      border-top: 2px dashed var(--amber);
-      padding-top: 16px;
-    }
-
-    .ymm-solution h4 {
-      margin: 0 0 10px;
-      color: var(--amber);
-    }
-
-    /* VERGİ SİHİRBAZI (DANIŞMANLIK) */
-    .wizard-chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 7px;
-      margin-bottom: 14px;
-    }
-
-    .wizard-chip {
-      background: #f0fdfa;
-      color: #0f766e;
-      border: 1px solid #99f6e4;
-      border-radius: 999px;
-      padding: 6px 12px;
-      font-size: 0.8rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.15s ease;
-    }
-
-    .wizard-chip:hover {
-      background: #ccfbf1;
-    }
-
-    .chat-box {
-      background: #f8fafc;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 14px;
-      min-height: 240px;
-      max-height: 480px;
-      overflow-y: auto;
-      margin-bottom: 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .chat-empty {
-      color: var(--text-muted);
-      font-size: 0.9rem;
-      text-align: center;
-      margin: auto;
-      padding: 20px;
-    }
-
-    .chat-msg {
-      padding: 12px 15px;
-      border-radius: 12px;
-      max-width: 92%;
-      font-size: 0.92rem;
-      line-height: 1.58;
-      white-space: pre-wrap;
-    }
-
-    .chat-msg.user {
-      align-self: flex-end;
-      background: var(--navy-mid);
-      color: #fff;
-      border-bottom-right-radius: 4px;
-    }
-
-    .chat-msg.assistant {
-      align-self: flex-start;
-      background: #ffffff;
-      color: var(--text);
-      border: 1px solid #cbd5e1;
-      border-left: 4px solid var(--emerald);
-      border-bottom-left-radius: 4px;
-      box-shadow: var(--shadow-sm);
-    }
-
-    .chat-role {
-      font-size: 0.72rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 4px;
-      opacity: 0.78;
-    }
-
-    .wizard-textarea {
-      font-family: inherit !important;
-      font-size: 0.94rem !important;
-    }
-
-    .checkbox-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 0.86rem;
-      color: var(--text-muted);
-      margin-bottom: 10px;
-    }
-
-    .checkbox-row input {
-      width: auto;
-    }
-
-    /* LİNK LİSTESİ */
-    .link-box {
-      border: 1px dashed #94a3b8;
-      border-radius: 10px;
-      padding: 12px;
-      background: #fff;
-      margin-bottom: 12px;
-    }
-
-    .link-list {
-      list-style: none;
-      margin: 10px 0 0;
-      padding: 0;
-    }
-
-    .link-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      padding: 8px 10px;
-      background: var(--surface-alt);
-      border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      margin-bottom: 6px;
-      font-size: 0.84rem;
-      word-break: break-all;
-    }
-
-    .link-item a {
-      color: var(--blue);
-      text-decoration: none;
-    }
-
-    .modal {
-      position: fixed;
-      inset: 0;
-      background: rgba(11, 19, 43, 0.6);
-      backdrop-filter: blur(3px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 16px;
-      z-index: 60;
-    }
-
-    .modal-content {
-      background: #fff;
-      border-radius: var(--radius);
-      padding: 22px;
-      width: 100%;
-      max-width: 460px;
-      box-shadow: var(--shadow-md);
-    }
-
-    .modal-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 14px;
-    }
-
-    .modal-header h3 {
-      margin: 0;
-    }
-
-    .icon-btn {
-      background: none;
-      border: none;
-      font-size: 1.6rem;
-      cursor: pointer;
-      color: var(--text-muted);
-      line-height: 1;
-    }
+      --bg: #f4f6f9;
+      --card: #ffffff;
+      --text: #1e293b;
+      --muted: #64748b;
+      --primary: #0f172a;
+      --accent: #2563eb;
+      --border: #e2e8f0;
+      --danger: #dc2626;
+      --warn: #d97706;
+      --ok: #16a34a;
+    }
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { margin: 0; background: var(--bg); color: var(--text); line-height: 1.5; }
+    header { background: var(--primary); color: #fff; padding: 16px 24px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
+    header h1 { margin: 0; font-size: 1.15rem; font-weight: 600; }
+    .api-box { display: flex; gap: 8px; align-items: center; }
+    .api-box input { padding: 6px 10px; border-radius: 6px; border: 1px solid #475569; background: #1e293b; color: #fff; font-size: 0.85rem; width: 220px; }
+    .api-box button { padding: 6px 12px; border-radius: 6px; border: none; background: var(--accent); color: #fff; cursor: pointer; font-size: 0.85rem; }
+    .tabs { display: flex; background: var(--card); border-bottom: 1px solid var(--border); padding: 0 24px; gap: 8px; overflow-x: auto; }
+    .tab-btn { padding: 14px 18px; border: none; background: none; cursor: pointer; font-weight: 600; color: var(--muted); border-bottom: 3px solid transparent; white-space: nowrap; }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+    main { max-width: 1000px; margin: 24px auto; padding: 0 16px; }
+    .panel { display: none; }
+    .panel.active { display: block; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 16px; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip { padding: 5px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--card); cursor: pointer; font-size: 0.82rem; }
+    .chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; margin-right: 6px; }
+    .b-kritik { background: #fee2e2; color: var(--danger); }
+    .b-izlenecek { background: #fef3c7; color: var(--warn); }
+    .b-bilgi { background: #e0f2fe; color: #0369a1; }
+    .b-ok { background: #dcfce7; color: var(--ok); }
+    .meta { font-size: 0.85rem; color: var(--muted); margin: 6px 0; }
+    .btn { padding: 9px 16px; border-radius: 8px; border: none; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; font-size: 0.9rem; }
+    .btn-danger { background: var(--danger); }
+    .btn-ok { background: var(--ok); }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    textarea, select { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.95rem; margin-bottom: 10px; }
+    .answer-box { white-space: pre-wrap; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-top: 12px; font-size: 0.94rem; }
+    .q-option { display: block; padding: 8px 12px; margin: 6px 0; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; }
+    .q-option:hover { background: #f8fafc; }
+    .q-option.correct { background: #dcfce7; border-color: var(--ok); }
+    .q-option.wrong { background: #fee2e2; border-color: var(--danger); }
+    .small-note { font-size: 0.82rem; color: var(--muted); }
+    .btn-group { display: flex; flex-wrap: wrap; gap: 8px; }
   </style>
 </head>
 <body>
-  <header class="topbar">
-    <div class="topbar-inner">
-      <div class="brand">
-        <span class="brand-badge">MM AI</span>
-        <div>
-          <h1>Mali Müşavir Çalışma &amp; Danışmanlık Asistanı</h1>
-          <p class="subtitle">SMMM Test • YMM Vaka • Vergi Sihirbazı • Mevzuat</p>
-        </div>
-      </div>
-      <div class="topbar-actions">
-        <button id="openSettingsBtn" class="btn btn-outline-light btn-sm">API &amp; Ayarlar</button>
-      </div>
-    </div>
-  </header>
 
-  <main class="container">
-    <nav class="tabs" role="tablist">
-      <button class="tab-btn active" data-tab="mcqTab">1. SMMM Test</button>
-      <button class="tab-btn" data-tab="ymmTab">2. YMM Vaka</button>
-      <button class="tab-btn" data-tab="wizardTab">3. Vergi Sihirbazı</button>
-      <button class="tab-btn" data-tab="legTab">4. Mevzuat (Kanun &amp; Tebliğ)</button>
-      <button class="tab-btn" data-tab="poolTab">5. PDF &amp; Link Havuzu</button>
-    </nav>
-
-    <!-- SEKME 1: SMMM YETERLİLİK TEST SINAVI -->
-    <section id="mcqTab" class="tab-panel active">
-      <div class="card card-accent-indigo">
-        <span class="section-pill pill-indigo">TÜRMOB SMMM Yeterlilik</span>
-        <h2>Vergi Mevzuatı ve Uygulaması — Çoktan Seçmeli Test</h2>
-        <p class="hint">
-          GVK, KVK, KDV, VUK, 6183, MTV, ÖTV ve Emlak Vergisi kapsamından hesaplamalı ve mevzuat odaklı sorular üretir (ücretsiz kota için 5'er soruluk paketler halinde çalışır).
-        </p>
-        <div class="grid-3">
-          <div class="form-group">
-            <label for="mcqTopicInput">Vergi Mevzuatı Odak / Konu</label>
-            <input type="text" id="mcqTopicInput" value="Vergi Mevzuatı ve Uygulaması (SMMM Yeterlilik)" placeholder="Örn: GVK İstisnalar, KDV İhraç Kayıtlı, KVK Örtülü Sermaye..." />
-          </div>
-          <div class="form-group">
-            <label for="mcqDifficultySelect">Sınav Düzeyi</label>
-            <select id="mcqDifficultySelect">
-              <option value="SMMM Yeterlilik (Standart Sınav Düzeyi)" selected>SMMM Yeterlilik (Standart Sınav Düzeyi)</option>
-              <option value="SMMM Yeterlilik (Hesaplama & Vaka Ağırlıklı)">SMMM Yeterlilik (Hesaplama &amp; Vaka Ağırlıklı)</option>
-              <option value="Temel Mevzuat">Temel Mevzuat</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="mcqCountInput">Soru Sayısı (1 - 20)</label>
-            <input type="number" id="mcqCountInput" min="1" max="20" value="5" />
-          </div>
-        </div>
-        <div class="btn-row">
-          <button id="generateMcqBtn" class="btn btn-indigo">Ekranda SMMM Testi Başlat</button>
-          <button id="generateMcqPdfBtn" class="btn btn-secondary">Test + Cevap Anahtarı PDF İndir</button>
-        </div>
-        <p id="mcqStatusText" class="status-text"></p>
-      </div>
-
-      <div id="mcqQuizArea" class="card hidden">
-        <div class="quiz-header">
-          <h3 id="mcqQuizTitle">SMMM Vergi Mevzuatı Test Soruları</h3>
-          <span id="mcqScoreBadge" class="badge"></span>
-        </div>
-        <div id="mcqQuestionsContainer"></div>
-        <div class="btn-row">
-          <button id="gradeMcqBtn" class="btn btn-indigo">Testi Bitir ve Değerlendir</button>
-        </div>
-      </div>
-    </section>
-
-    <!-- SEKME 2: YMM YAZILI VAKA -->
-    <section id="ymmTab" class="tab-panel">
-      <div class="card card-accent-amber">
-        <span class="section-pill pill-amber">TÜRMOB YMM Yazılı</span>
-        <h2>YMM Yazılı Vaka Üretici (Hızlı &amp; İki Aşamalı)</h2>
-        <p class="hint">
-          Önce <strong>Çatı Örnek + Veriler + (a)-(e) Bentleri (100 Puan)</strong> üretilir; komisyon cevabı soru ekrana geldikten sonra ayrı butonla üretilir.
-        </p>
-
-        <div class="grid-2">
-          <div class="form-group">
-            <label for="ymmSubjectSelect">YMM Sınav Dersi</label>
-            <select id="ymmSubjectSelect">
-              <option value="Vergi Tekniği" selected>Vergi Tekniği</option>
-              <option value="Gelir Üzerinden Alınan Vergiler">Gelir Üzerinden Alınan Vergiler (GVK - KVK)</option>
-              <option value="Harcama ve Servet Üzerinden Alınan Vergiler">Harcama ve Servet Üzerinden Alınan Vergiler (KDV - ÖTV - VUK)</option>
-              <option value="Revizyon">Revizyon</option>
-              <option value="Denetim, Raporlama ve Meslek Hukuku">Denetim, Raporlama ve Meslek Hukuku</option>
-              <option value="İleri Düzeyde Finansal Muhasebe">İleri Düzeyde Finansal Muhasebe</option>
-              <option value="Yönetim Muhasebesi">Yönetim Muhasebesi</option>
-              <option value="Dış Ticaret ve Kambiyo Mevzuatı">Dış Ticaret ve Kambiyo Mevzuatı</option>
-              <option value="Sermaye Piyasası Mevzuatı">Sermaye Piyasası Mevzuatı</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label for="ymmFocusInput">Özel Odak / Konu (İsteğe Bağlı)</label>
-            <input type="text" id="ymmFocusInput" placeholder="Örn: VUK 379, 6183 m.23, Yeniden Değerleme, Dar Mükellef..." />
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label>Aktif Bilgi Kaynakları</label>
-          <div id="ymmPoolBadge" class="info-box">Durum kontrol ediliyor...</div>
-        </div>
-
-        <div class="btn-row">
-          <button id="generateYmmSingleBtn" class="btn btn-amber">1. Adım: Çatı Vaka Sorusu Üret</button>
-          <button id="generateYmmSolutionBtn" class="btn btn-primary" disabled>2. Adım: Komisyon Cevabını Üret</button>
-          <button id="generateYmmPdfBtn" class="btn btn-secondary">Vaka + Cevabı PDF İndir</button>
-        </div>
-        <p id="ymmPdfStatus" class="status-text"></p>
-      </div>
-
-      <div id="ymmPreviewArea" class="card hidden">
-        <div class="quiz-header">
-          <h3 id="ymmPreviewTitle">Üretilen YMM Yazılı Vakası</h3>
-          <button id="toggleYmmSolutionBtn" class="btn btn-secondary btn-sm">Cevabı Göster / Gizle</button>
-        </div>
-        <div id="ymmQuestionContent" class="ymm-paper"></div>
-        <div id="ymmSolutionWrapper" class="ymm-solution hidden">
-          <h4>SINAV KOMİSYONU CEVABI</h4>
-          <div id="ymmSolutionContent" class="ymm-paper"></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- SEKME 3: VERGİ SİHİRBAZI (DANIŞMANLIK) -->
-    <section id="wizardTab" class="tab-panel">
-      <div class="card card-accent-emerald">
-        <span class="section-pill pill-emerald">Yapay Zeka Vergi Danışmanı</span>
-        <h2>Vergi Sihirbazı — Mevzuat &amp; Uygulama Danışmanlığı</h2>
-        <p class="hint">
-          Vergisel olayları, mukteza/mütalaa sorularını, KDV/KVK/GVK/VUK/ÇVÖA hesaplamalarını ve risk analizlerini sorun. Kayıtlı Kanun ve Tebliğ notlarınız otomatik referans alınır.
-        </p>
-
-        <div class="grid-2">
-          <div class="form-group">
-            <label for="wizardCategorySelect">Danışmanlık Uzmanlık Alanı</label>
-            <select id="wizardCategorySelect">
-              <option value="Genel Vergi Danışmanlığı (GVK, KVK, KDV, VUK)" selected>Genel Vergi Danışmanlığı (GVK, KVK, KDV, VUK)</option>
-              <option value="Kurumlar Vergisi, İstisnalar & KKEG">Kurumlar Vergisi, İstisnalar &amp; KKEG</option>
-              <option value="KDV Tevkifatı, İade & İhraç Kayıtlı İşlemler">KDV Tevkifatı, İade &amp; İhraç Kayıtlı İşlemler</option>
-              <option value="Vergi İnceleme, Uzlaşma, İzaha Davet & Dava (VUK / İYUK)">Vergi İnceleme, Uzlaşma, İzaha Davet &amp; Dava (VUK / İYUK)</option>
-              <option value="Uluslararası Vergilendirme, ÇVÖA & Transfer Fiyatlandırması">Uluslararası Vergilendirme, ÇVÖA &amp; Transfer Fiyatlandırması</option>
-              <option value="Mütalaa / Özelge Başvuru Taslağı Hazırlama">Mütalaa / Özelge Başvuru Taslağı Hazırlama</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Bağlam Seçeneği</label>
-            <div class="info-box">
-              <label class="checkbox-row" style="margin:0;">
-                <input type="checkbox" id="wizardContextToggle" checked />
-                <span>Kayıtlı Kanunlar, Tebliğler ve Linkleri danışmanlığa dahil et</span>
-              </label>
-            </div>
-          </div>
-        </div>
-
-        <div class="wizard-chips">
-          <button type="button" class="wizard-chip" data-prompt="Aşağıdaki olay için kanun ve tebliğ dayanaklı bir mütalaa özeti hazırla: ">Mütalaa Taslağı</button>
-          <button type="button" class="wizard-chip" data-prompt="Bu işlemde KDV tevkifatı, sorumlu sıfatıyla 2 No.lu KDV ve iade hakkı yönünden değerlendirme yap: ">KDV &amp; Tevkifat Kontrolü</button>
-          <button type="button" class="wizard-chip" data-prompt="Kurumlar Vergisi açısından istisna, örtülü sermaye, finansman gider kısıtlaması ve KKEG risklerini analiz et: ">KVK Risk Analizi</button>
-          <button type="button" class="wizard-chip" data-prompt="VUK kapsamında izaha davet, pişmanlık, uzlaşma ve cezada indirim seçeneklerini kıyaslayarak hesapla: ">VUK Ceza &amp; Uzlaşma</button>
-        </div>
-
-        <div id="wizardChatHistory" class="chat-box">
-          <div class="chat-empty">
-            Vergi Sihirbazı hazır. Aşağıya somut olayınızı veya mevzuat sorunuzu yazıp <strong>Danış</strong> butonuna basabilirsiniz.
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label for="wizardInput">Sorunuz veya Somut Olay Özeti</label>
-          <textarea id="wizardInput" class="wizard-textarea" rows="4" placeholder="Örn: Tam mükellef A.Ş. yurt dışındaki bir firmadan yazılım lisans hizmeti aldı. ÇVÖA kapsamında stopaj ve 2 No.lu KDV yükümlülüğü nasıl hesaplanır?"></textarea>
-        </div>
-
-        <div class="btn-row">
-          <button id="wizardSendBtn" class="btn btn-emerald">Danış ve Analiz Et</button>
-          <button id="wizardPdfBtn" class="btn btn-secondary">Görüşmeyi PDF İndir</button>
-          <button id="wizardClearBtn" class="btn btn-danger">Sohbeti Temizle</button>
-        </div>
-        <p id="wizardStatusText" class="status-text"></p>
-      </div>
-    </section>
-
-    <!-- SEKME 4: MEVZUAT (KANUNLAR & TEBLİĞLER — ÇOKLU PDF + URL) -->
-    <section id="legTab" class="tab-panel">
-      <div class="card card-accent-blue">
-        <span class="section-pill pill-blue">Mevzuat Kütüphanesi</span>
-        <h2>Kanunlar ve Tebliğler (Çoklu PDF &amp; URL Destekli)</h2>
-        <p class="hint">
-          Kanun ve Tebliğ kaynaklarınızı ayrı ayrı çoklu PDF olarak yükleyebilir, URL ekleyip içerik çekebilir veya doğrudan metin olarak düzenleyebilirsiniz.
-        </p>
-
-        <div class="grid-2">
-          <!-- 1. BÖLÜM: KANUNLAR -->
-          <div class="sub-panel">
-            <h3>1. Bölüm: Kanunlar <span class="section-pill pill-blue" style="margin:0;">VUK • GVK • KVK • KDV</span></h3>
-
-            <div class="form-group">
-              <label for="lawsPdfUpload">Kanun PDF'leri Yükle (Çoklu Seçim)</label>
-              <input type="file" id="lawsPdfUpload" accept="application/pdf" multiple />
-            </div>
-
-            <div class="link-box">
-              <label for="lawLinkUrlInput">Kanun URL / Link Ekle</label>
-              <div class="form-group" style="margin-bottom:8px;">
-                <input type="text" id="lawLinkTitleInput" placeholder="Başlık (Örn: 213 Sayılı VUK / mevzuat.gov.tr)" />
-              </div>
-              <div class="form-group" style="margin-bottom:8px;">
-                <input type="url" id="lawLinkUrlInput" placeholder="https://..." />
-              </div>
-              <div class="btn-row">
-                <button id="addLawLinkBtn" class="btn btn-blue btn-sm">Kanun Linki Ekle</button>
-                <button id="fetchLawLinksBtn" class="btn btn-secondary btn-sm">Link Metinlerini Kanunlara Çek</button>
-              </div>
-              <ul id="lawLinkList" class="link-list"></ul>
-            </div>
-
-            <div class="form-group" style="margin-bottom:0;">
-              <label for="lawsTextarea">Kayıtlı Kanun Metinleri &amp; Notları</label>
-              <textarea id="lawsTextarea" rows="10" placeholder="Yüklenen Kanun PDF/URL metinleri ve özel kanun notlarınız burada birikir..."></textarea>
-            </div>
-          </div>
-
-          <!-- 2. BÖLÜM: TEBLİĞLER -->
-          <div class="sub-panel">
-            <h3>2. Bölüm: Tebliğler <span class="section-pill pill-emerald" style="margin:0;">Genel Tebliğ • Sirküler</span></h3>
-
-            <div class="form-group">
-              <label for="commPdfUpload">Tebliğ PDF'leri Yükle (Çoklu Seçim)</label>
-              <input type="file" id="commPdfUpload" accept="application/pdf" multiple />
-            </div>
-
-            <div class="link-box">
-              <label for="commLinkUrlInput">Tebliğ URL / Link Ekle</label>
-              <div class="form-group" style="margin-bottom:8px;">
-                <input type="text" id="commLinkTitleInput" placeholder="Başlık (Örn: KDV Genel Uygulama Tebliği)" />
-              </div>
-              <div class="form-group" style="margin-bottom:8px;">
-                <input type="url" id="commLinkUrlInput" placeholder="https://..." />
-              </div>
-              <div class="btn-row">
-                <button id="addCommLinkBtn" class="btn btn-emerald btn-sm">Tebliğ Linki Ekle</button>
-                <button id="fetchCommLinksBtn" class="btn btn-secondary btn-sm">Link Metinlerini Tebliğlere Çek</button>
-              </div>
-              <ul id="commLinkList" class="link-list"></ul>
-            </div>
-
-            <div class="form-group" style="margin-bottom:0;">
-              <label for="communiquesTextarea">Kayıtlı Tebliğ Metinleri &amp; Notları</label>
-              <textarea id="communiquesTextarea" rows="10" placeholder="Yüklenen Tebliğ PDF/URL metinleri ve sirküler notlarınız burada birikir..."></textarea>
-            </div>
-          </div>
-        </div>
-
-        <div class="btn-row" style="margin-top:16px;">
-          <button id="saveLegislationBtn" class="btn btn-blue">Kanun &amp; Tebliğleri Kaydet</button>
-          <button id="clearLegislationBtn" class="btn btn-danger">Mevzuat Metinlerini Temizle</button>
-        </div>
-        <p id="legStatusText" class="status-text"></p>
-      </div>
-    </section>
-
-    <!-- SEKME 5: PDF & LİNK HAVUZU -->
-    <section id="poolTab" class="tab-panel">
-      <div class="card card-accent-navy">
-        <span class="section-pill pill-navy">Sınav &amp; Ders Havuzu</span>
-        <h2>Geçmiş Sınav PDF'leri &amp; Genel Kaynak Havuzu</h2>
-        <p class="hint">
-          Geçmiş YMM ve SMMM sınav PDF'lerini veya genel çalışma linklerini buraya ekleyerek soru üretiminin üslubunu zenginleştirin.
-        </p>
-
-        <div class="grid-2">
-          <div class="form-group">
-            <label for="ymmPdfUpload">YMM Örnek Sınav PDF'leri Yükle (Çoklu)</label>
-            <input type="file" id="ymmPdfUpload" accept="application/pdf" multiple />
-          </div>
-          <div class="form-group">
-            <label for="generalPdfUpload">SMMM / Genel Ders Notu PDF'leri Yükle (Çoklu)</label>
-            <input type="file" id="generalPdfUpload" accept="application/pdf" multiple />
-          </div>
-        </div>
-
-        <div class="link-box">
-          <label for="resourceLinkInput">Genel Kaynak Bağlantısı (URL) Ekle</label>
-          <div class="grid-2">
-            <input type="text" id="resourceLinkTitleInput" placeholder="Bağlantı başlığı (Örn: TÜRMOB Sınav Arşivi)" />
-            <input type="url" id="resourceLinkInput" placeholder="https://..." />
-          </div>
-          <div class="btn-row">
-            <button id="addLinkBtn" class="btn btn-primary btn-sm">Linki Listeye Ekle</button>
-            <button id="fetchLinksToPoolBtn" class="btn btn-secondary btn-sm">Link İçeriklerini Havuza Çek</button>
-          </div>
-          <ul id="resourceLinkList" class="link-list"></ul>
-        </div>
-
-        <p id="uploadStatusText" class="status-text"></p>
-
-        <div class="grid-2">
-          <div class="form-group">
-            <label for="ymmPoolTextarea">Kayıtlı YMM Sınav Havuzu Metni</label>
-            <textarea id="ymmPoolTextarea" rows="7" placeholder="Yüklenen YMM sınav PDF metinleri..."></textarea>
-          </div>
-          <div class="form-group">
-            <label for="generalPoolTextarea">Kayıtlı SMMM / Genel Çalışma Havuzu Metni</label>
-            <textarea id="generalPoolTextarea" rows="7" placeholder="Yüklenen SMMM sınav PDF veya ders notları..."></textarea>
-          </div>
-        </div>
-
-        <div class="btn-row">
-          <button id="savePoolsBtn" class="btn btn-primary">Havuz Metinlerini Kaydet</button>
-          <button id="clearYmmPoolBtn" class="btn btn-danger">YMM Havuzunu Temizle</button>
-          <button id="clearGeneralPoolBtn" class="btn btn-danger">Genel Havuzu Temizle</button>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <!-- API AYARLARI MODALI -->
-  <div id="settingsModal" class="modal hidden">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>Gemini API Ayarları</h3>
-        <button id="closeSettingsBtn" class="icon-btn">&times;</button>
-      </div>
-      <div class="form-group">
-        <label for="apiKeyInput">Google Gemini API Anahtarı</label>
-        <input type="password" id="apiKeyInput" placeholder="AIzaSy..." />
-      </div>
-      <div class="form-group">
-        <label for="modelSelect">Model Seçimi</label>
-        <select id="modelSelect">
-          <option value="gemini-3.8-flash" selected>gemini-3.8-flash (Hızlı &amp; Ücretsiz Kota Dostu)</option>
-          <option value="gemini-4-argon">gemini-4-argon (İleri Düzey Analiz)</option>
-        </select>
-      </div>
-      <div class="btn-row">
-        <button id="saveSettingsBtn" class="btn btn-primary">Kaydet</button>
-      </div>
-    </div>
+<header>
+  <h1>YMM Mevzuat & Vergi Merkezi</h1>
+  <div class="api-box">
+    <input type="password" id="apiKeyInput" placeholder="Gemini API Anahtarı (Yerel)" />
+    <button onclick="saveApiKey()">Kaydet</button>
   </div>
+</header>
 
-  <script src="app.js"></script>
+<nav class="tabs">
+  <button id="tabBtn-bulten" class="tab-btn active" onclick="switchTab('bulten', this)">1. Günlük Mevzuat Bülteni</button>
+  <button id="tabBtn-danisman" class="tab-btn" onclick="switchTab('danisman', this)">2. Vergi Danışmanlığı</button>
+  <button id="tabBtn-smmm" class="tab-btn" onclick="switchTab('smmm', this)">3. SMMM Yeterlilik Testi</button>
+  <button id="tabBtn-hatalar" class="tab-btn" onclick="switchTab('hatalar', this)">4. Hata Defteri (<span id="mistakeCount">0</span>)</button>
+</nav>
+
+<main>
+  <!-- SEKME 1: GÜNLÜK MEVZUAT BÜLTENİ -->
+  <section id="tab-bulten" class="panel active">
+    <div class="card">
+      <div class="toolbar">
+        <div>
+          <strong id="bultenTarih">Yükleniyor...</strong>
+          <span id="denetciPuan" class="badge b-ok" style="margin-left:8px;"></span>
+          <div id="kaynakDurum" class="small-note"></div>
+        </div>
+        <button class="btn" onclick="loadBulletin()">Yenile</button>
+      </div>
+      <div class="chips" id="sectorChips"></div>
+    </div>
+    <div id="bultenListesi"></div>
+  </section>
+
+  <!-- SEKME 2: VERGİ DANIŞMANLIĞI -->
+  <section id="tab-danisman" class="panel">
+    <div class="card">
+      <h3 style="margin-top:0;">YMM Vergi Danışmanlığı Asistanı</h3>
+      <p class="small-note">KVK, GVK, KDV, VUK, ÖTV ve tam tasdik konularında soru sorabilirsin. Günün bülteni otomatik bağlam olarak eklenir.</p>
+      <textarea id="taxQuestion" rows="4" placeholder="Örn: İhracat kaynaklı KDV iadesinde YMM raporunun ibraz süresi ve istisna kapsamındaki belgeler nelerdir?"></textarea>
+      <button class="btn" id="askTaxBtn" onclick="askTaxAdvisor()">Danışmana Sor</button>
+      <div id="taxAnswer" class="answer-box" style="display:none;"></div>
+    </div>
+  </section>
+
+  <!-- SEKME 3: SMMM YETERLİLİK TESTİ -->
+  <section id="tab-smmm" class="panel">
+    <div class="card">
+      <h3 style="margin-top:0;">SMMM Yeterlilik Pratik Test Üretici</h3>
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:10px;">
+        <div>
+          <label class="small-note">Ders</label>
+          <select id="smmmSubject">
+            <option value="Vergi Mevzuatı ve Uygulaması">Vergi Mevzuatı ve Uygulaması</option>
+            <option value="Finansal Muhasebe (TMS/TFRS & TDHP)">Finansal Muhasebe</option>
+            <option value="Muhasebe Denetimi">Muhasebe Denetimi</option>
+            <option value="Maliyet Muhasebesi">Maliyet Muhasebesi</option>
+            <option value="Ticaret, İş ve Sosyal Güvenlik Hukuku">Hukuk (Ticaret / İş / SGK)</option>
+            <option value="SMMM Meslek Hukuku">Meslek Hukuku</option>
+          </select>
+        </div>
+        <div>
+          <label class="small-note">Soru Sayısı</label>
+          <select id="smmmCount">
+            <option value="3">3 Soru</option>
+            <option value="5" selected>5 Soru</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn" id="genQuizBtn" onclick="generateQuiz()">Test Oluştur</button>
+    </div>
+    <div id="quizContainer"></div>
+  </section>
+
+  <!-- SEKME 4: HATA DEFTERİ -->
+  <section id="tab-hatalar" class="panel">
+    <div class="card">
+      <div class="toolbar">
+        <div>
+          <h3 style="margin:0;">SMMM Hata Defteri</h3>
+          <span class="small-note">Yanlış cevapladığın sorular otomatik olarak burada toplanır.</span>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-ok" id="reviewQuizBtn" onclick="generateReviewQuiz()">Zayıf Konulardan Tekrar Testi Üret</button>
+          <button class="btn btn-danger" onclick="clearAllMistakes()">Tümünü Temizle</button>
+        </div>
+      </div>
+      <select id="mistakeFilter" onchange="renderMistakes()">
+        <option value="Tümü">Tüm Dersler</option>
+        <option value="Vergi Mevzuatı ve Uygulaması">Vergi Mevzuatı ve Uygulaması</option>
+        <option value="Finansal Muhasebe (TMS/TFRS & TDHP)">Finansal Muhasebe</option>
+        <option value="Muhasebe Denetimi">Muhasebe Denetimi</option>
+        <option value="Maliyet Muhasebesi">Maliyet Muhasebesi</option>
+        <option value="Ticaret, İş ve Sosyal Güvenlik Hukuku">Hukuk (Ticaret / İş / SGK)</option>
+        <option value="SMMM Meslek Hukuku">Meslek Hukuku</option>
+      </select>
+    </div>
+    <div id="mistakesContainer"></div>
+  </section>
+</main>
+
+<script>
+  const MODEL = "gemini-2.5-flash";
+  const SECTORS = ["Tümü", "İhracat", "İnşaat", "Üretim", "Hizmet", "E-Ticaret", "Genel"];
+  let activeSector = "Tümü";
+  let currentBulletin = null;
+  let currentQuestions = [];
+  let currentSubject = "";
+
+  const FALLBACK_BULLETIN = {
+    tarih: "Örnek Veri (outputs/latest.json bekleniyor)",
+    denetci_puani: 5,
+    kaynak_durumu: { resmi_gazete: "ok", mevzuat_gov: "ok", gib: "ok", turmob: "ok" },
+    gelismeler: [
+      {
+        id: "demo-01",
+        oncelik: "KRITIK",
+        durum: "YURURLUKTE",
+        baslik: "Örnek: VUK Yeniden Değerleme Oranı İlanı",
+        mevzuat_ref: "VUK GT Sıra No: 5XX",
+        yururluk_tarihi: "2026-11-27",
+        sektorler: ["Genel", "Üretim"],
+        etkilenen_alan: "Tam Tasdik, Amortisman, Maktu Hadler",
+        ymm_aksiyonu: "2027 vergi planlaması yapan tam tasdik mükellefleri için güncel had tablosunu hazırla.",
+        kaynak_url: "https://www.resmigazete.gov.tr/"
+      }
+    ]
+  };
+
+  window.addEventListener("DOMContentLoaded", () => {
+    const savedKey = localStorage.getItem("gemini_api_key");
+    if (savedKey) document.getElementById("apiKeyInput").value = savedKey;
+    renderSectorChips();
+    loadBulletin();
+    renderMistakes();
+  });
+
+  function saveApiKey() {
+    const key = document.getElementById("apiKeyInput").value.trim();
+    localStorage.setItem("gemini_api_key", key);
+    alert("API anahtarı yalnızca bu tarayıcıya (localStorage) kaydedildi.");
+  }
+
+  function getApiKey() {
+    const key = localStorage.getItem("gemini_api_key") || document.getElementById("apiKeyInput").value.trim();
+    if (!key) {
+      alert("Lütfen önce sağ üstten Gemini API anahtarını girip Kaydet'e bas.");
+      return null;
+    }
+    return key;
+  }
+
+  function switchTab(id, btn) {
+    document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    document.getElementById("tab-" + id).classList.add("active");
+    if (btn) btn.classList.add("active");
+  }
+
+  /* --- 1. BÜLTEN --- */
+  function renderSectorChips() {
+    const box = document.getElementById("sectorChips");
+    box.innerHTML = SECTORS.map(s =>
+      `<button class="chip ${s === activeSector ? 'active' : ''}" onclick="setSector('${s}')">${s}</button>`
+    ).join("");
+  }
+
+  function setSector(s) {
+    activeSector = s;
+    renderSectorChips();
+    renderBulletin();
+  }
+
+  async function loadBulletin() {
+    try {
+      const res = await fetch("./outputs/latest.json?t=" + Date.now());
+      if (!res.ok) throw new Error("Henüz JSON yok");
+      currentBulletin = await res.json();
+    } catch {
+      currentBulletin = FALLBACK_BULLETIN;
+    }
+    renderBulletin();
+  }
+
+  function renderBulletin() {
+    const b = currentBulletin;
+    document.getElementById("bultenTarih").textContent = "Bülten Tarihi: " + b.tarih;
+    document.getElementById("denetciPuan").textContent = `Denetçi: ${b.denetci_puani}/5`;
+    document.getElementById("kaynakDurum").textContent =
+      "Kaynaklar: " + Object.entries(b.kaynak_durumu || {}).map(([k, v]) => `${k}: ${v}`).join(" | ");
+
+    const items = (b.gelismeler || []).filter(item =>
+      activeSector === "Tümü" || (item.sektorler || []).includes(activeSector)
+    );
+
+    const list = document.getElementById("bultenListesi");
+    if (!items.length) {
+      list.innerHTML = `<div class="card">Bu filtrede gösterilecek mevzuat gelişmesi yok.</div>`;
+      return;
+    }
+
+    list.innerHTML = items.map(item => {
+      const cls = item.oncelik === "KRITIK" ? "b-kritik" : item.oncelik === "IZLENECEK" ? "b-izlenecek" : "b-bilgi";
+      const tags = (item.sektorler || []).map(s => `<span class="badge b-bilgi">${s}</span>`).join("");
+      return `
+        <div class="card">
+          <div>
+            <span class="badge ${cls}">${item.oncelik} • ${item.durum}</span>
+            ${tags}
+          </div>
+          <h3 style="margin:8px 0 4px;">${item.baslik}</h3>
+          <div class="meta"><strong>Ref:</strong> ${item.mevzuat_ref} | <strong>Yürürlük:</strong> ${item.yururluk_tarihi} | <strong>Alan:</strong> ${item.etkilenen_alan}</div>
+          <p style="margin:8px 0;"><strong>YMM Aksiyonu:</strong> ${item.ymm_aksiyonu}</p>
+          <a href="${item.kaynak_url}" target="_blank" rel="noopener">Resmi Kaynağa Git →</a>
+        </div>
+      `;
+    }).join("");
+  }
+
+  /* --- GEMINI API YARDIMCISI --- */
+  async function callGemini(systemInstruction, userPrompt, jsonMode = false) {
+    const key = getApiKey();
+    if (!key) return null;
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${encodeURIComponent(key)}`;
+    const body = {
+      system_instruction: { parts: [{ text: systemInstruction }] },
+      contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+      generationConfig: {
+        temperature: jsonMode ? 0.2 : 0.3,
+        ...(jsonMode ? { responseMimeType: "application/json" } : {})
+      }
+    };
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error?.message || "API hatası");
+    return data.candidates[0].content.parts[0].text;
+  }
+
+  /* --- 2. VERGİ DANIŞMANLIĞI --- */
+  async function askTaxAdvisor() {
+    const q = document.getElementById("taxQuestion").value.trim();
+    if (!q) return;
+    const btn = document.getElementById("askTaxBtn");
+    const box = document.getElementById("taxAnswer");
+    btn.disabled = true;
+    box.style.display = "block";
+    box.textContent = "Mevzuat değerlendiriliyor...";
+
+    const sys = `Sen kıdemli bir Türk Yeminli Mali Müşaviri (YMM) danışmanısın.
+Soruları KVK, GVK, KDV, VUK ve güncel tebliğler ışığında; 1) Kısa Cevap, 2) Kanuni Dayanak, 3) Uygulama/Muhasebe Etkisi başlıklarıyla net yanıtla.
+Emin olmadığın kanun/tebliğ numarasını asla uydurma; teyit edilmesi gereken yeri açıkça belirt.`;
+
+    const context = currentBulletin ? `\nGünün Bülten Özeti:\n${JSON.stringify(currentBulletin.gelismeler)}` : "";
+
+    try {
+      const answer = await callGemini(sys, q + context, false);
+      if (answer) box.textContent = answer;
+    } catch (err) {
+      box.textContent = "Hata: " + err.message;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  /* --- 3. SMMM TEST ÜRETİCİ --- */
+  const QUIZ_SYSTEM_PROMPT = `Sen TÜRMOB SMMM Yeterlilik sınavına hazırlık eğitmenisin.
+Güncel Türk vergi/muhasebe mevzuatına uygun çoktan seçmeli sorular üret.
+Çıktıyı SADECE şu JSON dizisi olarak ver:
+[
+  {
+    "soru": "...",
+    "secenekler": ["A) ...", "B) ...", "C) ...", "D) ..."],
+    "dogru_index": 0,
+    "aciklama": "Kanun maddesi veya standart dayanağıyla kısa açıklama."
+  }
+]`;
+
+  function renderQuizQuestions(questions, titleNote = "") {
+    currentQuestions = questions;
+    const container = document.getElementById("quizContainer");
+    const headerHtml = titleNote ? `<div class="card"><span class="badge b-ok">${titleNote}</span></div>` : "";
+    container.innerHTML = headerHtml + currentQuestions.map((q, qi) => `
+      <div class="card" id="q-${qi}">
+        <strong>Soru ${qi + 1}:</strong> ${q.soru}
+        <div style="margin-top:10px;">
+          ${q.secenekler.map((opt, oi) => `
+            <div class="q-option" onclick="checkAnswer(${qi}, ${oi}, ${q.dogru_index}, this)">${opt}</div>
+          `).join("")}
+        </div>
+        <div id="exp-${qi}" class="answer-box" style="display:none;"><strong>Açıklama:</strong> ${q.aciklama}</div>
+      </div>
+    `).join("");
+  }
+
+  async function generateQuiz() {
+    const subject = document.getElementById("smmmSubject").value;
+    const count = document.getElementById("smmmCount").value;
+    const btn = document.getElementById("genQuizBtn");
+    const container = document.getElementById("quizContainer");
+    btn.disabled = true;
+    container.innerHTML = `<div class="card">SMMM yeterlilik soruları hazırlanıyor...</div>`;
+
+    try {
+      const raw = await callGemini(QUIZ_SYSTEM_PROMPT, `Ders: ${subject}. Adet: ${count} soru üret.`, true);
+      if (!raw) return;
+      currentSubject = subject;
+      renderQuizQuestions(JSON.parse(raw), `${subject} — ${count} Soru`);
+    } catch (err) {
+      container.innerHTML = `<div class="card">Hata: ${err.message}</div>`;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function checkAnswer(qi, selected, correct, el) {
+    const parent = document.getElementById("q-" + qi);
+    if (parent.dataset.answered) return;
+    parent.dataset.answered = "1";
+
+    const options = parent.querySelectorAll(".q-option");
+    options[correct].classList.add("correct");
+    if (selected !== correct) {
+      el.classList.add("wrong");
+      addMistake(currentQuestions[qi], currentSubject, selected);
+    }
+    document.getElementById("exp-" + qi).style.display = "block";
+  }
+
+  /* --- 4. HATA DEFTERİ & TEKRAR TESTİ --- */
+  function getMistakes() {
+    try {
+      return JSON.parse(localStorage.getItem("smmm_hata_defteri") || "[]");
+    } catch {
+      return [];
+    }
+  }
+
+  function saveMistakes(list) {
+    localStorage.setItem("smmm_hata_defteri", JSON.stringify(list));
+    renderMistakes();
+  }
+
+  function addMistake(q, subject, selectedIndex) {
+    const list = getMistakes();
+    if (list.some(item => item.soru === q.soru)) return;
+    list.unshift({
+      id: Date.now(),
+      tarih: new Date().toLocaleDateString("tr-TR"),
+      ders: subject || "Genel Tekrar",
+      soru: q.soru,
+      senin_cevabin: q.secenekler[selectedIndex],
+      dogru_cevap: q.secenekler[q.dogru_index],
+      aciklama: q.aciklama
+    });
+    saveMistakes(list);
+  }
+
+  function removeMistake(id) {
+    saveMistakes(getMistakes().filter(item => item.id !== id));
+  }
+
+  function clearAllMistakes() {
+    if (!confirm("Hata Defteri'ndeki tüm kayıtlar silinsin mi?")) return;
+    saveMistakes([]);
+  }
+
+  function renderMistakes() {
+    const list = getMistakes();
+    document.getElementById("mistakeCount").textContent = list.length;
+
+    const filter = document.getElementById("mistakeFilter")?.value || "Tümü";
+    const filtered = filter === "Tümü" ? list : list.filter(i => i.ders === filter);
+    const box = document.getElementById("mistakesContainer");
+
+    if (!filtered.length) {
+      box.innerHTML = `<div class="card">Bu filtrede kayıtlı hata yok.</div>`;
+      return;
+    }
+
+    box.innerHTML = filtered.map(item => `
+      <div class="card">
+        <div class="toolbar" style="margin-bottom:8px;">
+          <div>
+            <span class="badge b-kritik">${item.ders}</span>
+            <span class="small-note">${item.tarih}</span>
+          </div>
+          <button class="chip" onclick="removeMistake(${item.id})">✓ Öğrendim (Sil)</button>
+        </div>
+        <p style="margin:6px 0;"><strong>Soru:</strong> ${item.soru}</p>
+        <p style="margin:4px 0; color:var(--danger);"><strong>Senin Cevabın:</strong> ${item.senin_cevabin}</p>
+        <p style="margin:4px 0; color:var(--ok);"><strong>Doğru Cevap:</strong> ${item.dogru_cevap}</p>
+        <div class="answer-box" style="margin-top:8px;"><strong>Dayanak:</strong> ${item.aciklama}</div>
+      </div>
+    `).join("");
+  }
+
+  async function generateReviewQuiz() {
+    const filter = document.getElementById("mistakeFilter").value;
+    const all = getMistakes();
+    const target = (filter === "Tümü" ? all : all.filter(i => i.ders === filter)).slice(0, 5);
+
+    if (!target.length) {
+      alert("Tekrar testi üretmek için Hata Defteri'nde en az 1 kayıt olmalı.");
+      return;
+    }
+
+    const btn = document.getElementById("reviewQuizBtn");
+    btn.disabled = true;
+    switchTab("smmm", document.getElementById("tabBtn-smmm"));
+    document.getElementById("quizContainer").innerHTML =
+      `<div class="card">Hata Defteri'ndeki zayıf konularına özel tekrar testi hazırlanıyor...</div>`;
+
+    const summary = target.map(m => `- Ders: ${m.ders} | Yanlış yapılan konu/soru: ${m.soru} | Dayanak: ${m.aciklama}`).join("\n");
+    const prompt = `Aşağıdaki yanlış yapılan SMMM sorularının tam olarak aynı konularını ve mevzuat noktalarını ölçen, ancak farklı kurgulanmış 3 adet yeni çoktan seçmeli tekrar sorusu üret:\n${summary}`;
+
+    try {
+      const raw = await callGemini(QUIZ_SYSTEM_PROMPT, prompt, true);
+      if (!raw) return;
+      currentSubject = filter === "Tümü" ? "Tekrar Testi (Karma)" : filter;
+      renderQuizQuestions(JSON.parse(raw), `Zayıf Konular Tekrar Testi (${target.length} hatadan üretildi)`);
+    } catch (err) {
+      document.getElementById("quizContainer").innerHTML = `<div class="card">Hata: ${err.message}</div>`;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+</script>
 </body>
 </html>
