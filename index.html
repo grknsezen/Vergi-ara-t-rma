@@ -371,6 +371,38 @@
       line-height: 1.65;
     }
 
+    .agent-trace {
+      margin-top: 14px;
+      padding: 12px 14px;
+      background: var(--info-bg);
+      border: 1px solid var(--info-bd);
+      border-radius: 4px;
+      font-size: 0.82rem;
+      color: var(--info-fg);
+    }
+
+    .archive-refs {
+      margin-top: 12px;
+      padding: 12px 14px;
+      background: var(--surface-subtle);
+      border-left: 3px solid var(--gold);
+      border-top: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 0.82rem;
+      color: var(--ink-secondary);
+    }
+
+    .archive-refs ul {
+      margin: 6px 0 0;
+      padding-left: 18px;
+    }
+
+    .archive-refs li {
+      margin-bottom: 4px;
+    }
+
     .q-option {
       display: block;
       padding: 10px 14px;
@@ -478,11 +510,13 @@
   <!-- SEKME 2: VERGİ DANIŞMANLIĞI -->
   <section id="tab-danisman" class="panel">
     <div class="card">
-      <h2 class="section-title">Vergi Danışmanlığı Masası</h2>
-      <p class="small-note" style="margin-top:4px;">KVK, GVK, KDV, VUK, ÖTV ve tam tasdik sorularınız GİB arşivi (<code>data/gib_mevzuat.json</code>) ve güncel bülten bağlamıyla değerlendirilir.</p>
+      <h2 class="section-title">YMM Görüş &amp; Danışmanlık Masası</h2>
+      <p class="small-note" style="margin-top:4px;">Sorunuz önce <strong>Arşiv &amp; Mevzuat Araştırmacısı</strong> tarafından GİB arşivinde (<code>data/gib_mevzuat.json</code>) ve güncel bültende taranır; ardından <strong>Kıdemli YMM Görüş Denetçisi</strong> yorum ve risk değerlendirmesi içeren kapsamlı bir görüş metni oluşturur.</p>
       <textarea id="taxQuestion" rows="4" placeholder="Örn: İhracat kaynaklı KDV iadesinde YMM raporunun ibraz süresi ve istisna kapsamındaki belgeler nelerdir?"></textarea>
-      <button class="btn" id="askTaxBtn" onclick="askTaxAdvisor()">Görüş Oluştur</button>
+      <button class="btn" id="askTaxBtn" onclick="askTaxAdvisor()">YMM Görüşü Oluştur</button>
+      <div id="agentStatus" class="agent-trace" style="display:none;"></div>
       <div id="taxAnswer" class="answer-box" style="display:none;"></div>
+      <div id="taxArchiveRefs" class="archive-refs" style="display:none;"></div>
     </div>
   </section>
 
@@ -570,6 +604,14 @@
 
   function formatCleanText(str = "") {
     return String(str).replace(/\*\*/g, "").replace(/##\s*/g, "");
+  }
+
+  function escapeHtml(str = "") {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
   }
 
   function saveApiKey() {
@@ -671,10 +713,15 @@
 
   function findRelevantArchive(question) {
     if (!gibArchive.length) return [];
-    const words = question.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+    const words = question
+      .toLowerCase()
+      .replace(/[.,/\\()-]+/g, " ")
+      .split(/\s+/)
+      .filter(w => w.length > 2);
+
     return gibArchive
       .map(item => {
-        const hay = (item.baslik || "").toLowerCase();
+        const hay = `${item.baslik || ""} ${item.eklenme_tarihi || ""}`.toLowerCase();
         const score = words.reduce((acc, w) => acc + (hay.includes(w) ? 1 : 0), 0);
         return { item, score };
       })
@@ -711,7 +758,7 @@
     return cachedModels;
   }
 
-  async function callGemini(systemInstruction, userPrompt, jsonMode = false) {
+  async function callGemini(systemInstruction, userPrompt, jsonMode = false, temp = null) {
     const key = getApiKey();
     if (!key) return null;
 
@@ -720,7 +767,7 @@
       system_instruction: { parts: [{ text: systemInstruction }] },
       contents: [{ role: "user", parts: [{ text: userPrompt }] }],
       generationConfig: {
-        temperature: jsonMode ? 0.2 : 0.3,
+        temperature: temp !== null ? temp : (jsonMode ? 0.2 : 0.3),
         ...(jsonMode ? { responseMimeType: "application/json" } : {})
       }
     };
@@ -751,42 +798,88 @@
     throw new Error(lastErr);
   }
 
+  function renderArchiveReferences(matched) {
+    const refsBox = document.getElementById("taxArchiveRefs");
+    if (!matched.length) {
+      refsBox.style.display = "block";
+      refsBox.innerHTML = `<strong>GİB Arşiv Durumu:</strong> Mevcut <code>data/gib_mevzuat.json</code> kayıtları arasında soruyla doğrudan eşleşen kayıt bulunmadı; görüş genel mevzuat çerçevesinde ve arşivde teyit notuyla oluşturulmuştur.`;
+      return;
+    }
+    refsBox.style.display = "block";
+    refsBox.innerHTML = `
+      <strong>Görüşte Değerlendirilen GİB Arşiv Kayıtları (${matched.length} kayıt):</strong>
+      <ul>
+        ${matched.map(m => `<li>[${escapeHtml(m.eklenme_tarihi || "")}] ${escapeHtml(m.baslik || "")}${m.url ? ` — <a class="source-link" href="${escapeHtml(m.url)}" target="_blank" rel="noopener">Kaynak</a>` : ""}</li>`).join("")}
+      </ul>
+    `;
+  }
+
+  /* --- 2. ÇOK AJANLI VERGİ DANIŞMANLIĞI (ARAŞTIRMACI AJAN + YMM GÖRÜŞ AJANI) --- */
   async function askTaxAdvisor() {
     const q = document.getElementById("taxQuestion").value.trim();
     if (!q) return;
+
+    const key = getApiKey();
+    if (!key) return;
+
     const btn = document.getElementById("askTaxBtn");
-    const box = document.getElementById("taxAnswer");
+    const statusBox = document.getElementById("agentStatus");
+    const answerBox = document.getElementById("taxAnswer");
+    const refsBox = document.getElementById("taxArchiveRefs");
+
     btn.disabled = true;
-    box.style.display = "block";
-    box.textContent = "Mevzuat dayanakları ve GİB arşivi inceleniyor...";
+    answerBox.style.display = "block";
+    refsBox.style.display = "none";
+    statusBox.style.display = "block";
+    statusBox.textContent = "Ajan 1/2 (Mevzuat & GİB Arşiv Araştırmacısı): Arşiv kayıtları ve mevzuat dayanakları taranıyor...";
+    answerBox.textContent = "Ajan ekibi çalışıyor...";
 
     const matched = findRelevantArchive(q);
-    const sys = `Sen kıdemli bir Türk Yeminli Mali Müşaviri (YMM) danışmanısın.
-Soruları KVK, GVK, KDV, VUK, ÖTV ve arşivdeki GİB kayıtları ışığında;
-1. KISA ÖZET
-2. KANUNİ DAYANAK & GİB ARŞİV KAYITLARI
-3. UYGULAMA & MUHASEBE ETKİSİ
-başlıklarıyla net, kurumsal ve Markdown yıldızları (**) kullanmadan yanıtla.
-KVK 5/1-a, 5/1-b ve 5/1-e bentlerini asla karıştırma; yalnızca sorulan madde/bendi esas al.
-Arşivde doğrudan ilgili kayıt yoksa bunu açıkça belirt ve emin olmadığın numara/oran uydurma.`;
+    const bulletinItems = currentBulletin?.gelismeler || [];
 
-    const archiveContext = matched.length
-      ? `\nEşleşen GİB Arşiv Kayıtları:\n${JSON.stringify(matched, ensure_ascii=False)}`
-      : "\nEşleşen GİB Arşiv Kaydı: Yok (genel mevzuat çerçevesinde değerlendir).";
-    const bulletinContext = currentBulletin?.gelismeler?.length
-      ? `\nGünün Bülteni:\n${JSON.stringify(currentBulletin.gelismeler)}`
-      : "";
+    const researcherSystem = `Sen bir YMM Mevzuat ve GİB Arşiv Araştırmacısısın.
+Görevin: Kullanıcının vergi/muhasebe sorusunu analiz etmek, verilen GİB arşiv kayıtları ve güncel bülten içinden ilgili olanları ayıklamak, ilgili kanun/tebliğ/sirküler başlıklarını listelemek ve arşivde bulunmayan/teyit gerektiren noktaları net şekilde raporlamaktır.
+KVK 5/1-a, 5/1-b ve 5/1-e bentlerini karıştırma; yalnızca soruda geçen madde/bendi esas al.
+Hiçbir kanun maddesi, tebliğ numarası, oran veya tarih uydurma. Markdown yıldızları (**) kullanma.`;
+
+    const researcherInput = `SORU:\n${q}\n\nGİB ARŞİVİNDEN EŞLEŞEN KAYITLAR (${matched.length} adet):\n${JSON.stringify(matched, ensure_ascii=False)}\n\nTOPLAM GİB ARŞİV BÜYÜKLÜĞÜ: ${gibArchive.length} kayıt\nGÜNCEL BÜLTEN KAYITLARI:\n${JSON.stringify(bulletinItems, ensure_ascii=False)}`;
 
     try {
-      const answer = await callGemini(sys, q + archiveContext + bulletinContext, false);
-      if (answer) box.textContent = formatCleanText(answer);
+      const researchBrief = await callGemini(researcherSystem, researcherInput, false, 0.15);
+      if (!researchBrief) return;
+
+      statusBox.textContent = "Ajan 2/2 (Kıdemli YMM Görüş & Risk Denetçisi): Arşiv bulguları yorumlanıyor ve YMM görüşü yazılıyor...";
+
+      const partnerSystem = `Sen kıdemli bir Türk Yeminli Mali Müşaviri (YMM) ve Vergi Danışmanlığı ortağısın.
+Araştırmacı ajanın bulguları ve GİB arşiv verilerine dayanarak, bir mükellefe veya denetim dosyasına sunulabilecek ciddiyette, analitik ve yorum içeren bir YMM görüşü yaz.
+Yanıtı şu bölümlerle yapılandır:
+1. YMM GÖRÜŞ ÖZETİ
+2. GİB ARŞİV BULGULARI & KANUNİ DAYANAK
+3. UYGULAMA, ŞARTLAR, SÜRELER & YMM YORUMU
+4. MUHASEBE, BEYAN & İNCELEME RİSKLERİ (Çekinceler ve Arşiv Eksikliği Notu)
+
+Kurallar:
+- Markdown yıldızları (**) ve # başlık işaretleri kullanma; temiz kurumsal metin kullan.
+- KVK 5/1-a, 5/1-b ve 5/1-e bentlerini asla karıştırma; sorulan bendi ayrıntılı ele al.
+- GİB arşivinde doğrudan ilgili bir kayıt yoksa veya tam metin arşivde yer almıyorsa bunu açıkça belirt ve emin olmadığın numara/oran uydurma.`;
+
+      const partnerInput = `MÜKELLEF / DANIŞMANLIK SORUSU:\n${q}\n\nARAŞTIRMACI AJAN RAPORU:\n${formatCleanText(researchBrief)}\n\nEŞLEŞEN GİB ARŞİV KAYITLARI:\n${JSON.stringify(matched, ensure_ascii=False)}`;
+
+      const finalOpinion = await callGemini(partnerSystem, partnerInput, false, 0.25);
+      if (!finalOpinion) return;
+
+      statusBox.textContent = `Tamamlandı · 2 Ajan Çalıştı (Mevzuat Araştırmacısı + Kıdemli YMM Görüş Denetçisi) · Eşleşen GİB Arşiv Kaydı: ${matched.length}`;
+      answerBox.textContent = formatCleanText(finalOpinion);
+      renderArchiveReferences(matched);
     } catch (err) {
-      box.textContent = "Hata: " + err.message;
+      statusBox.textContent = "Ajan akışı sırasında hata oluştu.";
+      answerBox.textContent = "Hata: " + err.message;
     } finally {
       btn.disabled = false;
     }
   }
 
+  /* --- 3. SMMM TEST ÜRETİCİ --- */
   const QUIZ_SYSTEM_PROMPT = `Sen TÜRMOB SMMM Yeterlilik sınavına hazırlık eğitmenisin.
 Güncel Türk vergi/muhasebe mevzuatına uygun çoktan seçmeli sorular üret.
 Çıktıyı SADECE şu JSON dizisi olarak ver:
@@ -850,6 +943,7 @@ Güncel Türk vergi/muhasebe mevzuatına uygun çoktan seçmeli sorular üret.
     document.getElementById("exp-" + qi).style.display = "block";
   }
 
+  /* --- 4. HATA DEFTERİ & TEKRAR TESTİ --- */
   function getMistakes() {
     try {
       return JSON.parse(localStorage.getItem("smmm_hata_defteri") || "[]");
