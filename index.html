@@ -157,7 +157,7 @@
 </main>
 
 <script>
-  const MODEL = "gemini-2.5-flash";
+  const MODEL = "gemini-3.8-flash";
   const SECTORS = ["Tümü", "İhracat", "İnşaat", "Üretim", "Hizmet", "E-Ticaret", "Genel"];
   let activeSector = "Tümü";
   let currentBulletin = null;
@@ -310,7 +310,7 @@
     box.textContent = "Mevzuat değerlendiriliyor...";
 
     const sys = `Sen kıdemli bir Türk Yeminli Mali Müşaviri (YMM) danışmanısın.
-Soruları KVK, GVK, KDV, VUK ve güncel tebliğler ışığında; 1) Kısa Cevap, 2) Kanuni Dayanak, 3) Uygulama/Muhasebe Etkisi başlıklarıyla net yanıtla.
+Soruları KVK, GVK, KDV, VUK, ÖTV ve güncel tebliğler ışığında; 1) Kısa Cevap, 2) Kanuni Dayanak, 3) Uygulama/Muhasebe Etkisi başlıklarıyla net yanıtla.
 Emin olmadığın kanun/tebliğ numarasını asla uydurma; teyit edilmesi gereken yeri açıkça belirt.`;
 
     const context = currentBulletin ? `\nGünün Bülten Özeti:\n${JSON.stringify(currentBulletin.gelismeler)}` : "";
