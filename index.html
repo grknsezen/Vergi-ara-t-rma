@@ -1,170 +1,11 @@
-<!DOCTYPE html>
-<html lang="tr">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>YMM Mevzuat, Vergi Danışmanlığı & SMMM Test Merkezi</title>
-  <style>
-    :root {
-      --bg: #f4f6f9;
-      --card: #ffffff;
-      --text: #1e293b;
-      --muted: #64748b;
-      --primary: #0f172a;
-      --accent: #2563eb;
-      --border: #e2e8f0;
-      --danger: #dc2626;
-      --warn: #d97706;
-      --ok: #16a34a;
-    }
-    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body { margin: 0; background: var(--bg); color: var(--text); line-height: 1.5; }
-    header { background: var(--primary); color: #fff; padding: 16px 24px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
-    header h1 { margin: 0; font-size: 1.15rem; font-weight: 600; }
-    .api-box { display: flex; gap: 8px; align-items: center; }
-    .api-box input { padding: 6px 10px; border-radius: 6px; border: 1px solid #475569; background: #1e293b; color: #fff; font-size: 0.85rem; width: 220px; }
-    .api-box button { padding: 6px 12px; border-radius: 6px; border: none; background: var(--accent); color: #fff; cursor: pointer; font-size: 0.85rem; }
-    .tabs { display: flex; background: var(--card); border-bottom: 1px solid var(--border); padding: 0 24px; gap: 8px; overflow-x: auto; }
-    .tab-btn { padding: 14px 18px; border: none; background: none; cursor: pointer; font-weight: 600; color: var(--muted); border-bottom: 3px solid transparent; white-space: nowrap; }
-    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
-    main { max-width: 1000px; margin: 24px auto; padding: 0 16px; }
-    .panel { display: none; }
-    .panel.active { display: block; }
-    .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 16px; }
-    .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-    .chip { padding: 5px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--card); cursor: pointer; font-size: 0.82rem; }
-    .chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; margin-right: 6px; }
-    .b-kritik { background: #fee2e2; color: var(--danger); }
-    .b-izlenecek { background: #fef3c7; color: var(--warn); }
-    .b-bilgi { background: #e0f2fe; color: #0369a1; }
-    .b-ok { background: #dcfce7; color: var(--ok); }
-    .meta { font-size: 0.85rem; color: var(--muted); margin: 6px 0; }
-    .btn { padding: 9px 16px; border-radius: 8px; border: none; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; font-size: 0.9rem; }
-    .btn-danger { background: var(--danger); }
-    .btn-ok { background: var(--ok); }
-    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-    textarea, select { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.95rem; margin-bottom: 10px; }
-    .answer-box { white-space: pre-wrap; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-top: 12px; font-size: 0.94rem; }
-    .q-option { display: block; padding: 8px 12px; margin: 6px 0; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; }
-    .q-option:hover { background: #f8fafc; }
-    .q-option.correct { background: #dcfce7; border-color: var(--ok); }
-    .q-option.wrong { background: #fee2e2; border-color: var(--danger); }
-    .small-note { font-size: 0.82rem; color: var(--muted); }
-    .btn-group { display: flex; flex-wrap: wrap; gap: 8px; }
-  </style>
-</head>
-<body>
-
-<header>
-  <h1>YMM Mevzuat & Vergi Merkezi</h1>
-  <div class="api-box">
-    <input type="password" id="apiKeyInput" placeholder="Gemini API Anahtarı (Yerel)" />
-    <button onclick="saveApiKey()">Kaydet</button>
-  </div>
-</header>
-
-<nav class="tabs">
-  <button id="tabBtn-bulten" class="tab-btn active" onclick="switchTab('bulten', this)">1. Günlük Mevzuat Bülteni</button>
-  <button id="tabBtn-danisman" class="tab-btn" onclick="switchTab('danisman', this)">2. Vergi Danışmanlığı</button>
-  <button id="tabBtn-smmm" class="tab-btn" onclick="switchTab('smmm', this)">3. SMMM Yeterlilik Testi</button>
-  <button id="tabBtn-hatalar" class="tab-btn" onclick="switchTab('hatalar', this)">4. Hata Defteri (<span id="mistakeCount">0</span>)</button>
-</nav>
-
-<main>
-  <!-- SEKME 1: GÜNLÜK MEVZUAT BÜLTENİ -->
-  <section id="tab-bulten" class="panel active">
-    <div class="card">
-      <div class="toolbar">
-        <div>
-          <strong id="bultenTarih">Yükleniyor...</strong>
-          <span id="denetciPuan" class="badge b-ok" style="margin-left:8px;"></span>
-          <span id="arsivSayac" class="badge b-bilgi"></span>
-          <div id="kaynakDurum" class="small-note"></div>
-        </div>
-        <button class="btn" onclick="loadBulletin()">Yenile</button>
-      </div>
-      <div class="chips" id="sectorChips"></div>
-    </div>
-    <div id="bultenListesi"></div>
-  </section>
-
-  <!-- SEKME 2: VERGİ DANIŞMANLIĞI -->
-  <section id="tab-danisman" class="panel">
-    <div class="card">
-      <h3 style="margin-top:0;">YMM Vergi Danışmanlığı Asistanı (GİB Arşiv Destekli)</h3>
-      <p class="small-note">Sorun otomatik olarak GİB arşivi (<code>data/gib_mevzuat.json</code>) ve güncel bültenle eşleştirilerek yanıtlanır.</p>
-      <textarea id="taxQuestion" rows="4" placeholder="Örn: İhracat kaynaklı KDV iadesinde YMM raporunun ibraz süresi ve istisna kapsamındaki belgeler nelerdir?"></textarea>
-      <button class="btn" id="askTaxBtn" onclick="askTaxAdvisor()">Danışmana Sor</button>
-      <div id="taxAnswer" class="answer-box" style="display:none;"></div>
-    </div>
-  </section>
-
-  <!-- SEKME 3: SMMM YETERLİLİK TESTİ -->
-  <section id="tab-smmm" class="panel">
-    <div class="card">
-      <h3 style="margin-top:0;">SMMM Yeterlilik Pratik Test Üretici</h3>
-      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:10px;">
-        <div>
-          <label class="small-note">Ders</label>
-          <select id="smmmSubject">
-            <option value="Vergi Mevzuatı ve Uygulaması">Vergi Mevzuatı ve Uygulaması</option>
-            <option value="Finansal Muhasebe (TMS/TFRS & TDHP)">Finansal Muhasebe</option>
-            <option value="Muhasebe Denetimi">Muhasebe Denetimi</option>
-            <option value="Maliyet Muhasebesi">Maliyet Muhasebesi</option>
-            <option value="Ticaret, İş ve Sosyal Güvenlik Hukuku">Hukuk (Ticaret / İş / SGK)</option>
-            <option value="SMMM Meslek Hukuku">Meslek Hukuku</option>
-          </select>
-        </div>
-        <div>
-          <label class="small-note">Soru Sayısı</label>
-          <select id="smmmCount">
-            <option value="3">3 Soru</option>
-            <option value="5" selected>5 Soru</option>
-          </select>
-        </div>
-      </div>
-      <button class="btn" id="genQuizBtn" onclick="generateQuiz()">Test Oluştur</button>
-    </div>
-    <div id="quizContainer"></div>
-  </section>
-
-  <!-- SEKME 4: HATA DEFTERİ -->
-  <section id="tab-hatalar" class="panel">
-    <div class="card">
-      <div class="toolbar">
-        <div>
-          <h3 style="margin:0;">SMMM Hata Defteri</h3>
-          <span class="small-note">Yanlış cevapladığın sorular otomatik olarak burada toplanır.</span>
-        </div>
-        <div class="btn-group">
-          <button class="btn btn-ok" id="reviewQuizBtn" onclick="generateReviewQuiz()">Zayıf Konulardan Tekrar Testi Üret</button>
-          <button class="btn btn-danger" onclick="clearAllMistakes()">Tümünü Temizle</button>
-        </div>
-      </div>
-      <select id="mistakeFilter" onchange="renderMistakes()">
-        <option value="Tümü">Tüm Dersler</option>
-        <option value="Vergi Mevzuatı ve Uygulaması">Vergi Mevzuatı ve Uygulaması</option>
-        <option value="Finansal Muhasebe (TMS/TFRS & TDHP)">Finansal Muhasebe</option>
-        <option value="Muhasebe Denetimi">Muhasebe Denetimi</option>
-        <option value="Maliyet Muhasebesi">Maliyet Muhasebesi</option>
-        <option value="Ticaret, İş ve Sosyal Güvenlik Hukuku">Hukuk (Ticaret / İş / SGK)</option>
-        <option value="SMMM Meslek Hukuku">Meslek Hukuku</option>
-      </select>
-    </div>
-    <div id="mistakesContainer"></div>
-  </section>
-</main>
-
 <script>
-  const MODELS = ["gemini-3.8-flash", "gemini-3.8-flash-lite"];
   const SECTORS = ["Tümü", "İhracat", "İnşaat", "Üretim", "Hizmet", "E-Ticaret", "Genel"];
   let activeSector = "Tümü";
   let currentBulletin = null;
   let gibArchive = [];
   let currentQuestions = [];
   let currentSubject = "";
+  let cachedModels = null;
 
   const FALLBACK_BULLETIN = {
     tarih: "Henüz tarama çalıştırılmadı",
@@ -185,6 +26,7 @@
   function saveApiKey() {
     const key = document.getElementById("apiKeyInput").value.trim();
     localStorage.setItem("gemini_api_key", key);
+    cachedModels = null;
     alert("API anahtarı yalnızca bu tarayıcıya (localStorage) kaydedildi.");
   }
 
@@ -294,11 +136,41 @@
       .map(x => x.item);
   }
 
-  /* --- GEMINI API YARDIMCISI --- */
+  /* --- GEMINI API YARDIMCISI (AKTİF MODEL KEŞİFLİ) --- */
+  async function discoverModels(key) {
+    if (cachedModels && cachedModels.length) return cachedModels;
+    const list = ["gemini-3.8-flash"];
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`);
+      const data = await res.json();
+      if (Array.isArray(data.models)) {
+        const extras = data.models
+          .map(m => (m.name || "").replace("models/", ""))
+          .filter(n =>
+            n.includes("gemini") &&
+            !n.includes("2.5") &&
+            !n.includes("image") &&
+            !n.includes("embedding") &&
+            !n.includes("tts") &&
+            !n.includes("audio")
+          );
+        extras.sort((a, b) => (a.includes("flash") ? -1 : 1) - (b.includes("flash") ? -1 : 1));
+        for (const m of extras) {
+          if (!list.includes(m)) list.push(m);
+        }
+      }
+    } catch {
+      // Liste alınamazsa varsayılan listeden devam et
+    }
+    cachedModels = list.slice(0, 4);
+    return cachedModels;
+  }
+
   async function callGemini(systemInstruction, userPrompt, jsonMode = false) {
     const key = getApiKey();
     if (!key) return null;
 
+    const models = await discoverModels(key);
     const body = {
       system_instruction: { parts: [{ text: systemInstruction }] },
       contents: [{ role: "user", parts: [{ text: userPrompt }] }],
@@ -308,22 +180,27 @@
       }
     };
 
-    let lastErr = "API hatası";
-    for (const model of MODELS) {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
-      try {
-        const res = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body)
-        });
-        const data = await res.json();
-        if (res.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
-          return data.candidates[0].content.parts[0].text;
+    let lastErr = "API şu an yanıt vermiyor (503 yoğunluk)";
+    for (const model of models) {
+      for (const ver of ["v1beta", "v1"]) {
+        const url = `https://generativelanguage.googleapis.com/${ver}/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
+        try {
+          const res = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body)
+          });
+          const data = await res.json();
+          if (res.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
+            return data.candidates[0].content.parts[0].text;
+          }
+          if (res.status === 404) continue;
+          lastErr = data.error?.message || `HTTP ${res.status}`;
+          break;
+        } catch (e) {
+          lastErr = e.message;
+          break;
         }
-        lastErr = data.error?.message || `HTTP ${res.status}`;
-      } catch (e) {
-        lastErr = e.message;
       }
     }
     throw new Error(lastErr);
@@ -524,5 +401,3 @@ Güncel Türk vergi/muhasebe mevzuatına uygun çoktan seçmeli sorular üret.
     }
   }
 </script>
-</body>
-</html>
