@@ -11,7 +11,7 @@ permissions:
 jobs:
   run-agents:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 6
     steps:
       - name: Depoyu cek
         uses: actions/checkout@v4
